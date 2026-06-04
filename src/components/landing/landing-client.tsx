@@ -77,14 +77,32 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   return (
-    <button
-      onClick={() => setLang(lang === "en" ? "pt" : "en")}
-      className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted/30 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/8 hover:text-primary"
-      aria-label="Switch language"
-    >
-      <Globe size={13} />
-      {lang === "en" ? "PT" : "EN"}
-    </button>
+    <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5">
+      <button
+        onClick={() => setLang("en")}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all",
+          lang === "en"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Globe size={11} />
+        EN
+      </button>
+      <button
+        onClick={() => setLang("pt")}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all",
+          lang === "pt"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Globe size={11} />
+        PT
+      </button>
+    </div>
   );
 }
 
