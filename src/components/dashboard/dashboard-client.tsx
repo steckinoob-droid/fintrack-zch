@@ -57,7 +57,7 @@ export function DashboardClient() {
 
         <BudgetAlerts budgets={data.budgets} />
         <StatsCards data={data} />
-        <MonthInsights monthlyStats={data.monthlyStats} monthExpenses={data.monthExpenses} />
+        <MonthInsights monthlyStats={data.monthlyStats} monthExpenses={data.monthExpenses} monthIncome={data.monthIncome} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
