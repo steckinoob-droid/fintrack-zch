@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   TrendingUp, BarChart3, Target, PieChart, Shield,
   ArrowRight, CheckCircle, RefreshCw, Zap, AlertTriangle,
-  ChevronDown, Lock, Smartphone, Clock, XCircle, Lightbulb,
+  ChevronDown, Lock, Smartphone, Clock, XCircle, Lightbulb, Globe,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { t, type Lang } from "@/lib/i18n/landing";
@@ -77,24 +77,14 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-xl border border-primary/30 bg-primary/5 p-1 shadow-sm">
-      {(["en", "pt"] as const).map((l) => (
-        <button
-          key={l}
-          onClick={() => setLang(l)}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-all",
-            lang === l
-              ? "bg-primary text-primary-foreground shadow-md"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          )}
-          aria-label={l === "en" ? "Switch to English" : "Mudar para Português"}
-        >
-          <span>{l === "en" ? "🇺🇸" : "🇧🇷"}</span>
-          {l.toUpperCase()}
-        </button>
-      ))}
-    </div>
+    <button
+      onClick={() => setLang(lang === "en" ? "pt" : "en")}
+      className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted/30 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/8 hover:text-primary"
+      aria-label="Switch language"
+    >
+      <Globe size={13} />
+      {lang === "en" ? "PT" : "EN"}
+    </button>
   );
 }
 
