@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   TrendingUp, BarChart3, Target, PieChart, Shield,
@@ -8,7 +7,8 @@ import {
   ChevronDown, Lock, Smartphone, Clock, XCircle, Lightbulb, Globe,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
-import { t, type Lang } from "@/lib/i18n/landing";
+import { t } from "@/lib/i18n/landing";
+import { useLang } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils/cn";
 
 /* ─── Static (language-independent) data ───────────────────── */
@@ -75,33 +75,25 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+function LangToggle() {
+  const { lang, setLang } = useLang();
   return (
     <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5">
-      <button
-        onClick={() => setLang("en")}
-        className={cn(
-          "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all",
-          lang === "en"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <Globe size={11} />
-        EN
-      </button>
-      <button
-        onClick={() => setLang("pt")}
-        className={cn(
-          "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all",
-          lang === "pt"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <Globe size={11} />
-        PT
-      </button>
+      {(["en", "pt"] as const).map((l) => (
+        <button
+          key={l}
+          onClick={() => setLang(l)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all uppercase",
+            lang === l
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Globe size={11} />
+          {l}
+        </button>
+      ))}
     </div>
   );
 }
@@ -109,19 +101,7 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
 /* ─── Main component ────────────────────────────────────────── */
 
 export function LandingClient() {
-  const [lang, setLangState] = useState<Lang>("en");
-
-  // Persist language preference
-  useEffect(() => {
-    const saved = localStorage.getItem("fintrack_lang") as Lang | null;
-    if (saved === "en" || saved === "pt") setLangState(saved);
-  }, []);
-
-  function setLang(l: Lang) {
-    setLangState(l);
-    localStorage.setItem("fintrack_lang", l);
-  }
-
+  const { lang, setLang } = useLang();
   const tx = t[lang];
 
   return (
@@ -153,7 +133,7 @@ export function LandingClient() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            <LangToggle lang={lang} setLang={setLang} />
+            <LangToggle />
             <Link
               href="/login"
               className="hidden sm:block rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"

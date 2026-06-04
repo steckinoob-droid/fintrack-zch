@@ -4,21 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, ArrowLeftRight, PieChart, Target, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-
-const items = [
-  { href: "/dashboard", label: "Início", icon: LayoutDashboard },
-  { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
-  { href: "/budgets", label: "Orçamentos", icon: PieChart },
-  { href: "/goals", label: "Metas", icon: Target },
-  { href: "/reports", label: "Relatórios", icon: BarChart3 },
-];
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { lang } = useLang();
+  const tx       = appT[lang].nav;
+
+  const ITEMS = [
+    { href: "/dashboard",    label: tx.dashboard,    icon: LayoutDashboard },
+    { href: "/transactions", label: tx.transactions, icon: ArrowLeftRight  },
+    { href: "/budgets",      label: tx.budgets,      icon: PieChart        },
+    { href: "/goals",        label: tx.goals,        icon: Target          },
+    { href: "/reports",      label: tx.reports,      icon: BarChart3       },
+  ];
 
   return (
     <nav className="lg:hidden flex items-center border-t border-border/50 bg-card/80 backdrop-blur-sm">
-      {items.map(({ href, label, icon: Icon }) => {
+      {ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <Link
@@ -30,7 +34,7 @@ export function MobileNav() {
             )}
           >
             <Icon size={20} strokeWidth={active ? 2.5 : 1.75} />
-            <span>{label}</span>
+            <span className="text-[10px]">{label}</span>
           </Link>
         );
       })}
