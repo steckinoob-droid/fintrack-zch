@@ -7,6 +7,7 @@ import {
   ChevronDown, Lock, Smartphone, Clock, XCircle, Lightbulb, Globe,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
+import { AnimatedDashboard } from "./animated-dashboard";
 import { t } from "@/lib/i18n/landing";
 import { useLang } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils/cn";
@@ -202,84 +203,9 @@ export function LandingClient() {
             </div>
           </div>
 
-          {/* Dashboard mockup */}
+          {/* Animated Dashboard mockup */}
           <div className="relative mx-auto mt-16 max-w-5xl px-2">
-            <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40 shadow-2xl backdrop-blur-sm">
-              {/* Window chrome */}
-              <div className="flex items-center gap-2 border-b border-border/40 bg-muted/20 px-4 py-3">
-                <div className="flex gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-red-500/50" />
-                  <div className="h-3 w-3 rounded-full bg-amber-500/50" />
-                  <div className="h-3 w-3 rounded-full bg-emerald-500/50" />
-                </div>
-                <div className="mx-4 h-5 w-full max-w-xs rounded-md bg-muted/50" />
-              </div>
-
-              <div className="space-y-4 p-4">
-                {/* KPI cards */}
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {MOCK_CARDS_DATA.map((card, i) => (
-                    <div key={i} className="space-y-1 rounded-xl border border-border/40 bg-muted/20 p-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-1.5 w-1.5 rounded-full ${card.dot}`} />
-                        <p className="text-xs text-muted-foreground">{tx.mock.cards[i]}</p>
-                      </div>
-                      <p className={`font-display text-lg font-bold ${card.color}`}>{card.value}</p>
-                      <p className="text-xs text-muted-foreground">{card.sub}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Bar chart */}
-                <div className="rounded-xl border border-border/40 bg-muted/10 p-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <p className="text-xs font-medium text-foreground">{tx.mock.chart}</p>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />{tx.mock.chartIncome}</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" />{tx.mock.chartExp}</span>
-                    </div>
-                  </div>
-                  <div className="flex h-24 items-end justify-between gap-2 px-2">
-                    {MOCK_CHART.map((d) => (
-                      <div key={d.month} className="flex flex-1 flex-col items-center gap-1">
-                        <div className="flex h-20 w-full items-end justify-center gap-0.5">
-                          <div className="w-2/5 rounded-t-sm bg-emerald-400/60" style={{ height: `${d.income}%` }} />
-                          <div className="w-2/5 rounded-t-sm bg-red-400/50"     style={{ height: `${d.exp}%` }} />
-                        </div>
-                        <span className="text-xs text-muted-foreground">{d.month}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Bottom row */}
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="space-y-2.5 rounded-xl border border-border/40 bg-muted/10 p-3">
-                    <p className="text-xs font-medium text-foreground">{tx.mock.recentTitle}</p>
-                    {MOCK_TRANSACTIONS.map((r, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="h-2 w-28 rounded bg-muted/60" />
-                        <span className={`text-xs font-semibold ${r.color}`}>{r.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="space-y-2.5 rounded-xl border border-border/40 bg-muted/10 p-3">
-                    <p className="text-xs font-medium text-foreground">{tx.mock.budgetTitle}</p>
-                    {MOCK_BUDGET_DATA.map((b, i) => (
-                      <div key={i} className="space-y-1">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{tx.mock.budgetCats[i]}</span>
-                          <span>{b.pct}%</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-muted/50">
-                          <div className={`h-full rounded-full ${b.color}`} style={{ width: `${b.pct}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AnimatedDashboard />
             <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-32 rounded-2xl bg-gradient-to-t from-background to-transparent" />
           </div>
         </section>
