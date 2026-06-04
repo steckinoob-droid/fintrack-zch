@@ -151,20 +151,16 @@ export default function LandingPage() {
           <Logo size="md" />
 
           {/* Links centralizados */}
-          <nav className="hidden md:flex items-center gap-1 rounded-xl border border-border/50 bg-muted/30 px-2 py-1.5">
-            {[
-              { href: "#como-funciona", label: "Como funciona" },
-              { href: "#features",      label: "Funcionalidades" },
-              { href: "#faq",           label: "FAQ" },
-            ].map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-background hover:text-foreground hover:shadow-sm"
-              >
-                {item.label}
-              </a>
-            ))}
+          <nav className="hidden md:flex items-center gap-1 rounded-xl border border-border/40 bg-muted/20 px-1.5 py-1.5">
+            <a href="#como-funciona" className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-background/80 hover:text-foreground hover:shadow-sm">
+              <Zap size={13} className="text-amber-400" /> Como funciona
+            </a>
+            <a href="#features" className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-background/80 hover:text-foreground hover:shadow-sm">
+              <BarChart3 size={13} className="text-indigo-400" /> Funcionalidades
+            </a>
+            <a href="#faq" className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-background/80 hover:text-foreground hover:shadow-sm">
+              <CheckCircle size={13} className="text-emerald-400" /> FAQ
+            </a>
           </nav>
 
           {/* CTAs */}
