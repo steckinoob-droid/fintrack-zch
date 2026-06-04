@@ -1,0 +1,119 @@
+"use client";
+
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/hooks/use-toast";
+import type { SavingsGoal } from "@/lib/types";
+
+const COLORS = ["#10B981","#6366F1","#F59E0B","#EF4444","#8B5CF6","#EC4899","#14B8A6","#3B82F6"];
+
+const schema = z.object({
+  name: z.string().min(1, "Nome obrigatório"),
+  target_amount: z.string().min(1).refine((v) => parseFloat(v.replace(",", ".")) > 0, "Valor inválido"),
+  current_amount: z.string().optional(),
+  deadline: z.string().optional(),
+  color: z.string().min(1),
+});
+type FormData = z.infer<typeof schema>;
+
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  goal: SavingsGoal | null;
+  onSuccess: () => void;
+}
+
+export function GoalDialog({ open, onOpenChange, goal, onSuccess }: Props) {
+  const isEdit = !!goal;
+  const { register, handleSubmit, setValue, watch, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { color: COLORS[0] },
+  });
+  const selectedColor = watch("color");
+
+  useEffect(() => {
+    if (open) {
+      reset(goal ? {
+        name: goal.name, target_amount: String(goal.target_amount),
+        current_amount: String(goal.current_amount), deadline: goal.deadline ?? "",
+        color: goal.color,
+      } : { color: COLORS[0], current_amount: "0" });
+    }
+  }, [open, goal, reset]);
+
+  async function onSubmit(data: FormData) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const payload = {
+      user_id: user.id, name: data.name,
+      target_amount: parseFloat(data.target_amount.replace(",", ".")),
+      current_amount: parseFloat((data.current_amount || "0").replace(",", ".")),
+      deadline: data.deadline || null,
+      color: data.color, icon: "target",
+    };
+    const { error } = isEdit
+      ? await supabase.from("savings_goals").update(payload).eq("id", goal!.id)
+      : await supabase.from("savings_goals").insert(payload);
+    if (error) { toast.error("Erro ao salvar meta"); return; }
+    toast.success(isEdit ? "Meta atualizada" : "Meta criada!");
+    onSuccess();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Editar Meta" : "Nova Meta de Poupança"}</DialogTitle>
+        </DialogHeader>
+        <form id="goal-form" onSubmit={handleSubmit(onSubmit)} className="p-6 pt-4 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="goal-name">Nome da meta *</Label>
+            <Input id="goal-name" placeholder="Ex: Viagem para Europa" {...register("name")} aria-invalid={!!errors.name} />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="target">Valor alvo (R$) *</Label>
+              <Input id="target" placeholder="0,00" inputMode="decimal" {...register("target_amount")} />
+              {errors.target_amount && <p className="text-xs text-destructive">{errors.target_amount.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="current">Valor atual (R$)</Label>
+              <Input id="current" placeholder="0,00" inputMode="decimal" {...register("current_amount")} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="deadline">Prazo</Label>
+            <Input id="deadline" type="date" {...register("deadline")} />
+          </div>
+          <div className="space-y-2">
+            <Label>Cor</Label>
+            <div className="flex flex-wrap gap-2">
+              {COLORS.map((c) => (
+                <button key={c} type="button" onClick={() => setValue("color", c)}
+                  className="h-7 w-7 rounded-full transition-transform hover:scale-110"
+                  style={{ backgroundColor: c, outline: selectedColor === c ? `3px solid ${c}` : "none", outlineOffset: "2px" }}
+                  aria-label={c} />
+              ))}
+            </div>
+          </div>
+        </form>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button type="submit" form="goal-form" disabled={isSubmitting}>
+            {isSubmitting ? <><Loader2 size={14} className="animate-spin" /> Salvando...</> : isEdit ? "Salvar" : "Criar meta"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

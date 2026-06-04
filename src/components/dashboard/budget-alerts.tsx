@@ -1,0 +1,70 @@
+"use client";
+
+import { AlertTriangle, XCircle, X } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import type { Budget } from "@/lib/types";
+import { formatCurrency } from "@/lib/utils/currency";
+import { cn } from "@/lib/utils/cn";
+
+interface Props { budgets: Budget[] }
+
+export function BudgetAlerts({ budgets }: Props) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const alerts = budgets
+    .filter((b) => {
+      const spent = b.spent ?? 0;
+      const pct = (spent / b.amount) * 100;
+      return pct >= 80 && !dismissed.has(b.id);
+    })
+    .map((b) => {
+      const spent = b.spent ?? 0;
+      const pct = Math.round((spent / b.amount) * 100);
+      const over = pct >= 100;
+      return { ...b, spent, pct, over };
+    });
+
+  if (!alerts.length) return null;
+
+  return (
+    <div className="space-y-2">
+      {alerts.map((alert) => (
+        <div
+          key={alert.id}
+          className={cn(
+            "flex items-start gap-3 rounded-xl border p-3.5 text-sm",
+            alert.over
+              ? "border-red-500/30 bg-red-500/8"
+              : "border-amber-500/30 bg-amber-500/8"
+          )}
+        >
+          {alert.over
+            ? <XCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
+            : <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+          }
+          <div className="flex-1 min-w-0">
+            <p className={cn("font-medium", alert.over ? "text-red-300" : "text-amber-300")}>
+              {alert.over ? "Limite excedido" : "Quase no limite"} — {alert.category?.name}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {alert.over
+                ? `Você gastou ${formatCurrency(alert.spent - alert.amount)} a mais que o orçado de ${formatCurrency(alert.amount)}`
+                : `${formatCurrency(alert.spent)} de ${formatCurrency(alert.amount)} utilizados (${alert.pct}%)`
+              }
+              {" · "}
+              <Link href="/budgets" className="text-primary hover:underline">Ver orçamentos</Link>
+            </p>
+          </div>
+          <button
+            onClick={() => setDismissed((p) => new Set([...p, alert.id]))}
+            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Dispensar alerta"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
