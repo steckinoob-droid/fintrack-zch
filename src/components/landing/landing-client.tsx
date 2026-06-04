@@ -77,20 +77,20 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5">
+    <div className="flex items-center gap-0.5 rounded-xl border border-primary/30 bg-primary/5 p-1 shadow-sm">
       {(["en", "pt"] as const).map((l) => (
         <button
           key={l}
           onClick={() => setLang(l)}
           className={cn(
-            "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wide transition-all",
+            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-all",
             lang === l
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-md"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
           )}
           aria-label={l === "en" ? "Switch to English" : "Mudar para Português"}
         >
-          <span className="text-sm">{l === "en" ? "🇺🇸" : "🇧🇷"}</span>
+          <span>{l === "en" ? "🇺🇸" : "🇧🇷"}</span>
           {l.toUpperCase()}
         </button>
       ))}
