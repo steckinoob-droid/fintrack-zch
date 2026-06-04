@@ -61,25 +61,38 @@ export function AuthPageClient({ mode }: { mode: Mode }) {
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center p-4">
-      {/* Lang toggle top-right */}
-      <div className="fixed top-4 right-4">
-        <button
-          onClick={() => setLang(lang === "en" ? "pt" : "en")}
-          className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-card/80 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/40 hover:text-primary shadow-sm"
-        >
-          <Globe size={12} />
-          {lang === "en" ? "PT" : "EN"}
-        </button>
-      </div>
-
-      <div className="w-full max-w-sm space-y-8 animate-slide-up">
-        <div className="text-center space-y-2">
+      <div className="w-full max-w-sm space-y-6 animate-slide-up">
+        {/* Header: logo + lang toggle */}
+        <div className="flex items-center justify-between">
           <Link href="/">
-            <Logo className="mx-auto hover:opacity-80 transition-opacity" size="lg" />
+            <Logo className="hover:opacity-80 transition-opacity" size="md" />
           </Link>
-          <h1 className="font-display text-xl font-bold text-foreground">{page.title}</h1>
+          {/* Language toggle */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5">
+            {(["en", "pt"] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                className={cn(
+                  "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-all",
+                  lang === l
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Globe size={10} />
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="text-center space-y-1.5">
+          <h1 className="font-display text-2xl font-bold text-foreground">{page.title}</h1>
           <p className="text-muted-foreground text-sm">{page.subtitle}</p>
         </div>
+
         {page.form}
         {page.footer}
       </div>

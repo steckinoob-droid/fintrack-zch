@@ -1,9 +1,18 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import type { Lang } from "./app";
 
 const STORAGE_KEY = "fintrack_lang";
+
+function getInitialLang(): Lang {
+  if (typeof window === "undefined") return "en";
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === "en" || saved === "pt") return saved;
+  // Fallback: detect browser language
+  const browser = navigator.language.toLowerCase();
+  return browser.startsWith("pt") ? "pt" : "en";
+}
 
 interface LangContextValue {
   lang: Lang;
@@ -18,16 +27,13 @@ const LangContext = createContext<LangContextValue>({
 });
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
-    if (saved === "en" || saved === "pt") setLangState(saved);
-  }, []);
+  const [lang, setLangState] = useState<Lang>(getInitialLang);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
-    localStorage.setItem(STORAGE_KEY, l);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, l);
+    }
   }, []);
 
   const toggle = useCallback(() => {
