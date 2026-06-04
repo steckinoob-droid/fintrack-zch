@@ -146,19 +146,39 @@ export default function LandingPage() {
     <div className="min-h-dvh flex flex-col">
 
       {/* ── Navbar ── */}
-      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-border/40 bg-background/75 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 lg:px-6 h-16 flex items-center justify-between gap-4">
           <Logo size="md" />
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#como-funciona" className="hover:text-foreground transition-colors">Como funciona</a>
-            <a href="#features" className="hover:text-foreground transition-colors">Funcionalidades</a>
-            <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
+
+          {/* Links centralizados */}
+          <nav className="hidden md:flex items-center gap-1 rounded-xl border border-border/50 bg-muted/30 px-2 py-1.5">
+            {[
+              { href: "#como-funciona", label: "Como funciona" },
+              { href: "#features",      label: "Funcionalidades" },
+              { href: "#faq",           label: "FAQ" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-background hover:text-foreground hover:shadow-sm"
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
+
+          {/* CTAs */}
           <div className="flex items-center gap-2">
-            <Link href="/login" className="hidden sm:block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5">
+            <Link
+              href="/login"
+              className="hidden sm:block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted/50"
+            >
               Entrar
             </Link>
-            <Link href="/register" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 transition-all active:scale-[0.98]">
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 transition-all active:scale-[0.98]"
+            >
               Começar grátis <ArrowRight size={14} />
             </Link>
           </div>
