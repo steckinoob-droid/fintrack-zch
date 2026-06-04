@@ -9,8 +9,11 @@ const Progress = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & {
     indicatorClassName?: string;
   }
->(({ className, value, indicatorClassName, ...props }, ref) => {
+>(({ className, value, indicatorClassName, style, ...props }, ref) => {
   const clamped = Math.min(100, Math.max(0, value ?? 0));
+
+  // Extract --progress-color CSS var if passed via style
+  const progressColor = (style as Record<string, string>)?.["--progress-color"];
 
   return (
     <ProgressPrimitive.Root
@@ -20,14 +23,19 @@ const Progress = React.forwardRef<
         "relative h-2 w-full overflow-hidden rounded-full bg-muted",
         className
       )}
+      style={style}
       {...props}
     >
       <ProgressPrimitive.Indicator
         className={cn(
           "h-full rounded-full transition-all duration-500 ease-out",
-          indicatorClassName ?? "bg-primary"
+          !progressColor && (indicatorClassName ?? "bg-primary"),
+          progressColor && indicatorClassName
         )}
-        style={{ width: `${clamped}%` }}
+        style={{
+          width: `${clamped}%`,
+          ...(progressColor ? { backgroundColor: progressColor } : {}),
+        }}
       />
     </ProgressPrimitive.Root>
   );

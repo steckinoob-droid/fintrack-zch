@@ -135,7 +135,12 @@ export function GoalsClient() {
                     </span>
                     <span className="text-muted-foreground tabular-nums">{formatCurrency(goal.target_amount)}</span>
                   </div>
-                  <Progress value={pct} className="h-2.5" indicatorClassName={cn("transition-all duration-700", completed && "bg-emerald-500")} />
+                  <Progress
+                    value={pct}
+                    className="h-2.5"
+                    indicatorClassName="transition-all duration-700"
+                    style={{ "--progress-color": completed ? "#10b981" : goal.color } as React.CSSProperties}
+                  />
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{completed ? tx.goalReached : `${pct}${tx.pctComplete}`}</span>
                     {!completed && <span className="tabular-nums">{tx.remaining} {formatCurrency(goal.target_amount - goal.current_amount)}</span>}
