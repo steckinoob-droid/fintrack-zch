@@ -11,18 +11,21 @@ import { BudgetDialog } from "./budget-dialog";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils/currency";
 import { getCurrentMonth, formatMonthYear } from "@/lib/utils/date";
-import type { Budget, Category, Transaction } from "@/lib/types";
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
+import type { Budget, Category } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
-import { parseISO } from "date-fns";
 
 export function BudgetsClient() {
-  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const { lang } = useLang();
+  const tx = appT[lang].budgets;
+  const common = appT[lang].common;
+
+  const [budgets, setBudgets]       = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
   const [editBudget, setEditBudget] = useState<Budget | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-
   const currentMonth = getCurrentMonth();
 
   const load = useCallback(async () => {
@@ -33,15 +36,14 @@ export function BudgetsClient() {
       supabase.from("transactions").select("*").eq("type", "expense")
         .gte("date", currentMonth).lte("date", currentMonth.replace("-01", "-31")),
     ]);
-    const bs: Budget[] = bRes.data ?? [];
-    const txs: Transaction[] = tRes.data ?? [];
-    const withSpent = bs.map((b) => ({
+    const bs = bRes.data ?? [];
+    const txs = tRes.data ?? [];
+    const withSpent = bs.map((b: Budget) => ({
       ...b,
-      spent: txs.filter((t) => t.category_id === b.category_id).reduce((s, t) => s + t.amount, 0),
+      spent: txs.filter((t: any) => t.category_id === b.category_id).reduce((s: number, t: any) => s + t.amount, 0),
     }));
     setBudgets(withSpent);
     setCategories(cRes.data ?? []);
-    setTransactions(txs);
     setLoading(false);
   }, [currentMonth]);
 
@@ -50,69 +52,60 @@ export function BudgetsClient() {
   async function handleDelete(id: string) {
     const supabase = createClient();
     const { error } = await supabase.from("budgets").delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir"); return; }
-    toast.success("Orçamento excluído");
-    setBudgets((prev) => prev.filter((b) => b.id !== id));
+    if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
+    toast.success(lang === "en" ? "Budget deleted" : "Orçamento excluído");
+    setBudgets(prev => prev.filter(b => b.id !== id));
   }
 
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
-  const totalSpent = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
+  const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Orçamentos"
-        description={`Controle seus gastos — ${formatMonthYear(currentMonth)}`}
+      <PageHeader title={tx.title}
+        description={`${tx.descriptionPrefix} ${formatMonthYear(currentMonth)}`}
         action={
           <Button onClick={() => { setEditBudget(null); setDialogOpen(true); }} size="sm">
-            <Plus size={15} /> Novo orçamento
+            <Plus size={15} /> {tx.new}
           </Button>
         }
       />
 
-      {/* Month summary */}
       <div className="grid grid-cols-3 gap-3">
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Orçado</p>
-          <p className="font-display font-bold text-lg tabular-nums text-foreground">{formatCurrency(totalBudgeted)}</p>
+          <p className="text-xs text-muted-foreground mb-1">{tx.budgeted}</p>
+          <p className="font-display font-bold text-lg tabular-nums">{formatCurrency(totalBudgeted)}</p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Gasto</p>
+          <p className="text-xs text-muted-foreground mb-1">{tx.spent}</p>
           <p className={cn("font-display font-bold text-lg tabular-nums", totalSpent > totalBudgeted ? "text-red-400" : "text-foreground")}>
             {formatCurrency(totalSpent)}
           </p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Disponível</p>
+          <p className="text-xs text-muted-foreground mb-1">{tx.available}</p>
           <p className={cn("font-display font-bold text-lg tabular-nums", totalBudgeted - totalSpent >= 0 ? "text-emerald-400" : "text-red-400")}>
             {formatCurrency(totalBudgeted - totalSpent)}
           </p>
         </div>
       </div>
 
-      {/* Budget cards */}
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card h-24 shimmer" />)}
         </div>
       ) : budgets.length === 0 ? (
         <div className="glass-card">
-          <EmptyState
-            icon={PieChart}
-            title="Nenhum orçamento"
-            description="Defina limites de gasto por categoria para este mês."
-            action={<Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={15} /> Criar</Button>}
-          />
+          <EmptyState icon={PieChart} title={tx.empty} description={tx.emptyDesc}
+            action={<Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={15} /> {common.create}</Button>} />
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {budgets.map((b) => {
+          {budgets.map(b => {
             const spent = b.spent ?? 0;
-            const pct = Math.min(100, Math.round((spent / b.amount) * 100));
-            const over = pct >= 100;
-            const warn = pct >= 80;
-            const remaining = b.amount - spent;
-
+            const pct   = Math.min(100, Math.round((spent / b.amount) * 100));
+            const over  = pct >= 100;
+            const warn  = pct >= 80;
             return (
               <div key={b.id} className="glass-card-hover p-5 group">
                 <div className="flex items-start justify-between mb-3">
@@ -122,9 +115,9 @@ export function BudgetsClient() {
                       <div className="h-3 w-3 rounded-full" style={{ backgroundColor: b.category?.color ?? "#10b981" }} />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground text-sm">{b.category?.name ?? "Sem categoria"}</p>
+                      <p className="font-medium text-foreground text-sm">{b.category?.name ?? common.noCategory}</p>
                       <p className="text-xs text-muted-foreground">
-                        {over ? "⚠️ Limite excedido" : warn ? "⚡ Quase no limite" : `${formatCurrency(remaining)} restantes`}
+                        {over ? tx.overLimit : warn ? tx.almostLimit : `${formatCurrency(b.amount - spent)} ${tx.remaining}`}
                       </p>
                     </div>
                   </div>
@@ -139,15 +132,11 @@ export function BudgetsClient() {
                     </button>
                   </div>
                 </div>
-
-                <Progress
-                  value={pct}
-                  className="h-2 mb-2"
-                  indicatorClassName={over ? "bg-red-500" : warn ? "bg-amber-500" : "bg-primary"}
-                />
+                <Progress value={pct} className="h-2 mb-2"
+                  indicatorClassName={over ? "bg-red-500" : warn ? "bg-amber-500" : "bg-primary"} />
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="tabular-nums">{formatCurrency(spent)} gasto</span>
-                  <span className="font-medium tabular-nums">{pct}% · {formatCurrency(b.amount)}</span>
+                  <span className="tabular-nums">{formatCurrency(spent)} {tx.spent.toLowerCase()}</span>
+                  <span className="font-medium tabular-nums">{pct}{tx.pctUsed}{formatCurrency(b.amount)}</span>
                 </div>
               </div>
             );
@@ -155,14 +144,9 @@ export function BudgetsClient() {
         </div>
       )}
 
-      <BudgetDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        budget={editBudget}
-        categories={categories}
-        currentMonth={currentMonth}
-        onSuccess={() => { setDialogOpen(false); load(); }}
-      />
+      <BudgetDialog open={dialogOpen} onOpenChange={setDialogOpen} budget={editBudget}
+        categories={categories} currentMonth={currentMonth}
+        onSuccess={() => { setDialogOpen(false); load(); }} />
     </div>
   );
 }

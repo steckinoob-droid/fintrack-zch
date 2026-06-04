@@ -1,6 +1,8 @@
 "use client";
 
 import { useDashboard } from "@/lib/hooks/use-dashboard";
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import { StatsCards } from "./stats-cards";
 import { IncomeExpenseChart } from "./income-expense-chart";
 import { RecentTransactions } from "./recent-transactions";
@@ -15,6 +17,8 @@ import { StatCardSkeleton, ChartSkeleton, TransactionRowSkeleton } from "@/compo
 
 export function DashboardClient() {
   const { data, loading } = useDashboard();
+  const { lang } = useLang();
+  const tx = appT[lang].dashboard;
 
   if (loading) {
     return (
@@ -45,25 +49,16 @@ export function DashboardClient() {
   return (
     <>
       <OnboardingModal />
-
       <div className="space-y-6">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Visão Geral</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Acompanhe suas finanças em tempo real
-          </p>
+          <h1 className="font-display text-2xl font-bold tracking-tight">{tx.title}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{tx.subtitle}</p>
         </div>
 
-        {/* Alertas de orçamento — aparecem só quando necessário */}
         <BudgetAlerts budgets={data.budgets} />
-
-        {/* KPI Cards */}
         <StatsCards data={data} />
-
-        {/* Comparativo + Previsão */}
         <MonthInsights monthlyStats={data.monthlyStats} monthExpenses={data.monthExpenses} />
 
-        {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <IncomeExpenseChart monthlyStats={data.monthlyStats} />
@@ -71,7 +66,6 @@ export function DashboardClient() {
           <CategoryBreakdown transactions={data.recentTransactions} />
         </div>
 
-        {/* Bottom row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <RecentTransactions transactions={data.recentTransactions} />
           <div className="space-y-4">
@@ -80,7 +74,6 @@ export function DashboardClient() {
           </div>
         </div>
 
-        {/* Insights */}
         <InsightsPanel data={data} />
       </div>
     </>

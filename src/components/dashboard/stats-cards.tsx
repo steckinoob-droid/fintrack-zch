@@ -2,49 +2,50 @@
 
 import { TrendingUp, TrendingDown, Wallet, Percent } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/currency";
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import type { DashboardData } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 
 interface StatsCardsProps { data: DashboardData }
 
 export function StatsCards({ data }: StatsCardsProps) {
+  const { lang } = useLang();
+  const tx = appT[lang].dashboard;
   const { totalBalance, monthIncome, monthExpenses, savingsRate } = data;
   const netMonth = monthIncome - monthExpenses;
 
   const cards = [
     {
-      label: "Saldo Total",
+      label: tx.totalBalance,
       value: formatCurrency(totalBalance),
-      subtext: "patrimônio líquido",
+      subtext: tx.netWorth,
       icon: Wallet,
-      iconBg: "bg-primary/10",
-      iconColor: "text-primary",
+      iconBg: "bg-primary/10", iconColor: "text-primary",
       valueColor: totalBalance >= 0 ? "text-foreground" : "text-red-400",
     },
     {
-      label: "Receitas do Mês",
+      label: tx.monthIncome,
       value: formatCurrency(monthIncome),
-      subtext: "entradas em junho",
+      subtext: tx.incomeInMonth,
       icon: TrendingUp,
-      iconBg: "bg-emerald-500/10",
-      iconColor: "text-emerald-400",
+      iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400",
       valueColor: "text-emerald-400",
     },
     {
-      label: "Despesas do Mês",
+      label: tx.monthExpenses,
       value: formatCurrency(monthExpenses),
-      subtext: "saídas em junho",
+      subtext: tx.expensesInMonth,
       icon: TrendingDown,
-      iconBg: "bg-red-500/10",
-      iconColor: "text-red-400",
+      iconBg: "bg-red-500/10", iconColor: "text-red-400",
       valueColor: "text-red-400",
     },
     {
-      label: "Taxa de Poupança",
+      label: tx.savingsRate,
       value: `${Math.max(0, savingsRate)}%`,
       subtext: netMonth >= 0
-        ? `${formatCurrency(netMonth)} economizados`
-        : `${formatCurrency(Math.abs(netMonth))} no vermelho`,
+        ? `${formatCurrency(netMonth)} ${tx.savedThisMonth}`
+        : `${formatCurrency(Math.abs(netMonth))} ${tx.inTheRed}`,
       icon: Percent,
       iconBg: savingsRate >= 20 ? "bg-indigo-500/10" : "bg-amber-500/10",
       iconColor: savingsRate >= 20 ? "text-indigo-400" : "text-amber-400",
@@ -57,9 +58,7 @@ export function StatsCards({ data }: StatsCardsProps) {
       {cards.map((card) => (
         <div key={card.label} className="stat-card group">
           <div className="flex items-start justify-between">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {card.label}
-            </p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{card.label}</p>
             <div className={cn("rounded-lg p-2 transition-transform group-hover:scale-110", card.iconBg)}>
               <card.icon size={15} className={card.iconColor} />
             </div>

@@ -11,15 +11,20 @@ import { GoalDialog } from "./goal-dialog";
 import { GoalDepositDialog } from "./goal-deposit-dialog";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils/currency";
-import { formatDate } from "@/lib/utils/date";
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import type { SavingsGoal } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 import { differenceInDays, parseISO } from "date-fns";
 
 export function GoalsClient() {
-  const [goals, setGoals] = useState<SavingsGoal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
+  const { lang } = useLang();
+  const tx = appT[lang].goals;
+  const common = appT[lang].common;
+
+  const [goals, setGoals]           = useState<SavingsGoal[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [editGoal, setEditGoal]     = useState<SavingsGoal | null>(null);
   const [depositGoal, setDepositGoal] = useState<SavingsGoal | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
@@ -36,64 +41,55 @@ export function GoalsClient() {
   async function handleDelete(id: string) {
     const supabase = createClient();
     const { error } = await supabase.from("savings_goals").delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir"); return; }
-    toast.success("Meta excluída");
-    setGoals((prev) => prev.filter((g) => g.id !== id));
+    if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
+    toast.success(lang === "en" ? "Goal deleted" : "Meta excluída");
+    setGoals(prev => prev.filter(g => g.id !== id));
   }
 
-  const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
-  const totalSaved = goals.reduce((s, g) => s + g.current_amount, 0);
-  const completedGoals = goals.filter((g) => g.current_amount >= g.target_amount).length;
+  const totalTarget  = goals.reduce((s, g) => s + g.target_amount, 0);
+  const totalSaved   = goals.reduce((s, g) => s + g.current_amount, 0);
+  const completedGoals = goals.filter(g => g.current_amount >= g.target_amount).length;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Metas de Poupança"
-        description="Acompanhe o progresso dos seus objetivos financeiros"
+      <PageHeader title={tx.title} description={tx.description}
         action={
           <Button onClick={() => { setEditGoal(null); setDialogOpen(true); }} size="sm">
-            <Plus size={15} /> Nova meta
+            <Plus size={15} /> {tx.new}
           </Button>
         }
       />
 
-      {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total poupado</p>
+          <p className="text-xs text-muted-foreground mb-1">{tx.totalSaved}</p>
           <p className="font-display font-bold text-lg tabular-nums text-primary">{formatCurrency(totalSaved)}</p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Meta total</p>
-          <p className="font-display font-bold text-lg tabular-nums text-foreground">{formatCurrency(totalTarget)}</p>
+          <p className="text-xs text-muted-foreground mb-1">{tx.totalTarget}</p>
+          <p className="font-display font-bold text-lg tabular-nums">{formatCurrency(totalTarget)}</p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Metas completas</p>
+          <p className="text-xs text-muted-foreground mb-1">{tx.completed}</p>
           <p className="font-display font-bold text-lg tabular-nums text-emerald-400">{completedGoals}/{goals.length}</p>
         </div>
       </div>
 
-      {/* Goal cards */}
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card h-40 shimmer" />)}
         </div>
       ) : goals.length === 0 ? (
         <div className="glass-card">
-          <EmptyState
-            icon={Target}
-            title="Nenhuma meta criada"
-            description="Defina seus objetivos financeiros e acompanhe seu progresso."
-            action={<Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={15} /> Criar meta</Button>}
-          />
+          <EmptyState icon={Target} title={tx.empty} description={tx.emptyDesc}
+            action={<Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={15} /> {tx.create}</Button>} />
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {goals.map((goal) => {
+          {goals.map(goal => {
             const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
-            const completed = pct >= 100;
-            const daysLeft = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
-
+            const completed  = pct >= 100;
+            const daysLeft   = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
             return (
               <div key={goal.id} className="glass-card-hover p-5 group">
                 <div className="flex items-start justify-between mb-4">
@@ -109,9 +105,9 @@ export function GoalsClient() {
                           <CalendarDays size={11} className="text-muted-foreground" />
                           <p className="text-xs text-muted-foreground">
                             {daysLeft !== null && daysLeft > 0
-                              ? `${daysLeft} dias restantes`
-                              : daysLeft === 0 ? "Prazo hoje!"
-                              : "Prazo vencido"}
+                              ? `${daysLeft} ${tx.daysLeft}`
+                              : daysLeft === 0 ? tx.dueToday
+                              : tx.overdue}
                           </p>
                         </div>
                       )}
@@ -120,7 +116,7 @@ export function GoalsClient() {
                   <div className="hidden group-hover:flex items-center gap-1">
                     <button onClick={() => { setDepositGoal(goal); setDepositOpen(true); }}
                       className="px-2 py-1 rounded-lg text-xs text-primary hover:bg-primary/10 transition-colors font-medium">
-                      + Depositar
+                      {tx.depositBtn}
                     </button>
                     <button onClick={() => { setEditGoal(goal); setDialogOpen(true); }}
                       className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
@@ -132,7 +128,6 @@ export function GoalsClient() {
                     </button>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold tabular-nums" style={{ color: goal.color }}>
@@ -140,19 +135,10 @@ export function GoalsClient() {
                     </span>
                     <span className="text-muted-foreground tabular-nums">{formatCurrency(goal.target_amount)}</span>
                   </div>
-                  <Progress
-                    value={pct}
-                    className="h-2.5"
-                    indicatorClassName={cn("transition-all duration-700", completed && "bg-emerald-500")}
-                    style={{ "--indicator-color": goal.color } as React.CSSProperties}
-                  />
+                  <Progress value={pct} className="h-2.5" indicatorClassName={cn("transition-all duration-700", completed && "bg-emerald-500")} />
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{completed ? "✅ Meta atingida!" : `${pct}% concluído`}</span>
-                    {!completed && (
-                      <span className="tabular-nums">
-                        Faltam {formatCurrency(goal.target_amount - goal.current_amount)}
-                      </span>
-                    )}
+                    <span>{completed ? tx.goalReached : `${pct}${tx.pctComplete}`}</span>
+                    {!completed && <span className="tabular-nums">{tx.remaining} {formatCurrency(goal.target_amount - goal.current_amount)}</span>}
                   </div>
                 </div>
               </div>

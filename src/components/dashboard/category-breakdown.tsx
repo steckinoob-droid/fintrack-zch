@@ -3,15 +3,17 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { Transaction } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils/currency";
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 
 const RADIAN = Math.PI / 180;
-const COLORS = ["#10b981", "#6366f1", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"];
+const COLORS  = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6"];
 
 function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
   if (percent < 0.08) return null;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
   return (
     <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={600}>
       {`${(percent * 100).toFixed(0)}%`}
@@ -36,23 +38,22 @@ function CustomTooltip({ active, payload }: any) {
 interface Props { transactions: Transaction[] }
 
 export function CategoryBreakdown({ transactions }: Props) {
+  const { lang } = useLang();
+  const tx = appT[lang].dashboard;
+
   const expenseMap = new Map<string, { name: string; value: number }>();
-
-  for (const tx of transactions) {
-    if (tx.type !== "expense" || !tx.category) continue;
-    const key = tx.category.name;
+  for (const t of transactions) {
+    if (t.type !== "expense" || !t.category) continue;
+    const key = t.category.name;
     const cur = expenseMap.get(key) ?? { name: key, value: 0 };
-    expenseMap.set(key, { name: key, value: cur.value + tx.amount });
+    expenseMap.set(key, { name: key, value: cur.value + t.amount });
   }
-
-  const data = Array.from(expenseMap.values())
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
+  const data = Array.from(expenseMap.values()).sort((a, b) => b.value - a.value).slice(0, 6);
 
   if (!data.length) {
     return (
       <div className="glass-card p-5 flex flex-col items-center justify-center h-full min-h-[280px] text-center">
-        <p className="text-sm text-muted-foreground">Sem despesas registradas</p>
+        <p className="text-sm text-muted-foreground">{tx.noExpenses}</p>
       </div>
     );
   }
@@ -60,25 +61,14 @@ export function CategoryBreakdown({ transactions }: Props) {
   return (
     <div className="glass-card p-5">
       <div className="mb-4">
-        <h3 className="font-display font-semibold text-foreground text-sm">Despesas por Categoria</h3>
-        <p className="text-xs text-muted-foreground">Transações recentes</p>
+        <h3 className="font-display font-semibold text-foreground text-sm">{tx.expensesByCategory}</h3>
+        <p className="text-xs text-muted-foreground">{tx.recentTxChartLabel}</p>
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={50}
-            outerRadius={85}
-            dataKey="value"
-            nameKey="name"
-            labelLine={false}
-            label={<CustomLabel />}
-          >
-            {data.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
-            ))}
+          <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
+            dataKey="value" nameKey="name" labelLine={false} label={<CustomLabel />}>
+            {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
         </PieChart>
