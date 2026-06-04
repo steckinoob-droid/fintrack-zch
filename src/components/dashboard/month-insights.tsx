@@ -138,8 +138,38 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
           </p>
         ) : (
           <>
-            {/* Main numbers */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* Mobile: total forecast prominent, then spent+projected side by side */}
+            {/* Desktop: 3-col grid */}
+            <div className="sm:hidden space-y-2">
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">
+                  {lang === "en" ? "Total forecast" : "Previsão total"}
+                </p>
+                <p className={cn("font-display font-bold text-xl tabular-nums", forecastColor)}>
+                  {formatCurrency(forecast)}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-black/10 px-2.5 py-2">
+                  <p className="text-xs text-muted-foreground mb-0.5">
+                    {lang === "en" ? "Spent" : "Gasto"}
+                  </p>
+                  <p className="font-display font-semibold text-sm tabular-nums text-foreground">
+                    {formatCurrency(monthExpenses)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-black/10 px-2.5 py-2">
+                  <p className="text-xs text-muted-foreground mb-0.5">
+                    {lang === "en" ? "Projected" : "Projetado"}
+                  </p>
+                  <p className="font-display font-semibold text-sm tabular-nums text-muted-foreground">
+                    {formatCurrency(projectedRemainder)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden sm:grid grid-cols-3 gap-3">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">
                   {lang === "en" ? "Spent so far" : "Gasto até agora"}
@@ -167,20 +197,19 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
             </div>
 
             {/* Pace detail */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>
                 {lang === "en" ? "Daily avg:" : "Média/dia:"}{" "}
                 <span className="font-medium text-foreground tabular-nums">{formatCurrency(currentDailyRate)}</span>
-                {" "}{lang === "en" ? "vs" : "vs"}{" "}
+                {" vs "}
                 <span className="tabular-nums">{formatCurrency(previousDailyRate)}</span>
-                {" "}{lang === "en" ? "last month" : "mês passado"}
+                {" "}<span className="hidden sm:inline">{lang === "en" ? "last month" : "mês passado"}</span>
               </span>
               <span>{daysLeft} {tx.daysLeft}</span>
             </div>
 
-            {/* Dual progress: month elapsed + amount spent */}
+            {/* Dual progress: month elapsed + spending pace */}
             <div className="space-y-2">
-              {/* Month progress */}
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{lang === "en" ? "Month elapsed" : "Mês decorrido"}</span>
@@ -192,24 +221,21 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                 </div>
               </div>
 
-              {/* Budget pace: how much of projected total already spent */}
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{lang === "en" ? "Spending pace" : "Ritmo de gasto"}</span>
-                  <span className={cn("font-medium", forecastColor)}>
-                    {formatCurrency(monthExpenses)} / {formatCurrency(forecast)} ({spentPct}%)
+                  <span className={cn("font-medium tabular-nums", forecastColor)}>
+                    {spentPct}% {lang === "en" ? "of forecast" : "da previsão"}
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-black/20 relative overflow-hidden">
-                  {/* Expected pace marker */}
                   <div className="absolute top-0 bottom-0 w-0.5 bg-white/40 z-10"
                     style={{ left: `${monthPct}%` }} />
-                  {/* Actual spent */}
                   <div className={cn("h-full rounded-full transition-all",
                     isOverPace ? "bg-red-400" : isUnderPace ? "bg-emerald-400" : "bg-primary")}
                     style={{ width: `${Math.min(100, spentPct)}%` }} />
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground hidden sm:block">
                   {lang === "en"
                     ? `White line = expected ${monthPct}% of forecast spent by today`
                     : `Linha branca = esperado gastar ${monthPct}% até hoje`}

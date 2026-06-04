@@ -97,12 +97,14 @@ export function ReportsClient() {
       <PageHeader title={tx.title} description={tx.description} />
 
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">{tx.overview}</TabsTrigger>
-          <TabsTrigger value="expenses">{tx.expensesTab}</TabsTrigger>
-          <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
-          <TabsTrigger value="savings">{tx.savingsTab}</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1 -mx-1 px-1">
+          <TabsList className="min-w-max w-full sm:w-auto">
+            <TabsTrigger value="overview" className="flex-1 sm:flex-none">{tx.overview}</TabsTrigger>
+            <TabsTrigger value="expenses" className="flex-1 sm:flex-none">{tx.expensesTab}</TabsTrigger>
+            <TabsTrigger value="income" className="flex-1 sm:flex-none">{tx.incomeTab}</TabsTrigger>
+            <TabsTrigger value="savings" className="flex-1 sm:flex-none">{tx.savingsTab}</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="glass-card p-5">

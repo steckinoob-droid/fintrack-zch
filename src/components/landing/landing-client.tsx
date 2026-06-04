@@ -178,16 +178,16 @@ export function LandingClient() {
               <span className="font-medium text-foreground">{tx.hero.sub2}</span>
             </p>
 
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <Link
                 href="/register"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 py-4 text-base font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:w-auto"
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
               >
-                {tx.hero.cta1} <ArrowRight size={16} />
+                {tx.hero.cta1} <ArrowRight size={15} />
               </Link>
               <Link
                 href="/login"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card/50 px-8 py-4 text-base font-medium text-foreground transition-colors hover:bg-card sm:w-auto"
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card/50 px-6 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-card sm:px-8 sm:py-3.5 sm:text-base"
               >
                 {tx.hero.cta2}
               </Link>
@@ -250,8 +250,8 @@ export function LandingClient() {
               ))}
             </div>
             <div className="mt-10 text-center">
-              <Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110">
-                {tx.steps.cta} <ArrowRight size={16} />
+              <Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 sm:px-8 sm:py-3.5 sm:text-base">
+                {tx.steps.cta} <ArrowRight size={15} />
               </Link>
             </div>
           </div>
@@ -331,9 +331,9 @@ export function LandingClient() {
               <p className="mx-auto max-w-md text-muted-foreground">{tx.finalCta.sub}</p>
               <Link
                 href="/register"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 py-4 text-base font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:w-auto"
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
               >
-                {tx.finalCta.cta} <ArrowRight size={16} />
+                {tx.finalCta.cta} <ArrowRight size={15} />
               </Link>
               <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
                 {tx.finalCta.trust.map((item) => (

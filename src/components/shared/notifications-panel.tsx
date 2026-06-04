@@ -168,7 +168,7 @@ export function NotificationsPanel() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-80 z-50 animate-slide-up">
+        <div className="absolute right-0 top-11 w-80 max-w-[calc(100vw-1rem)] z-50 animate-slide-up">
           <div className="glass-card border border-border/60 shadow-2xl overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
@@ -189,7 +189,7 @@ export function NotificationsPanel() {
             </div>
 
             {/* List */}
-            <div className="max-h-96 overflow-y-auto divide-y divide-border/30">
+            <div className="max-h-72 sm:max-h-96 overflow-y-auto overscroll-contain divide-y divide-border/30">
               {notifications.map((n) => {
                 const isRead = read.has(n.id);
                 return (

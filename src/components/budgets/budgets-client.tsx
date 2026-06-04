@@ -71,20 +71,20 @@ export function BudgetsClient() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.budgeted}</p>
-          <p className="font-display font-bold text-lg tabular-nums">{formatCurrency(totalBudgeted)}</p>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-xs text-muted-foreground mb-1 truncate">{tx.budgeted}</p>
+          <p className="font-display font-bold text-sm sm:text-lg tabular-nums truncate">{formatCurrency(totalBudgeted)}</p>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.spent}</p>
-          <p className={cn("font-display font-bold text-lg tabular-nums", totalSpent > totalBudgeted ? "text-red-400" : "text-foreground")}>
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-xs text-muted-foreground mb-1 truncate">{tx.spent}</p>
+          <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate", totalSpent > totalBudgeted ? "text-red-400" : "text-foreground")}>
             {formatCurrency(totalSpent)}
           </p>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.available}</p>
-          <p className={cn("font-display font-bold text-lg tabular-nums", totalBudgeted - totalSpent >= 0 ? "text-emerald-400" : "text-red-400")}>
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-xs text-muted-foreground mb-1 truncate">{tx.available}</p>
+          <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate", totalBudgeted - totalSpent >= 0 ? "text-emerald-400" : "text-red-400")}>
             {formatCurrency(totalBudgeted - totalSpent)}
           </p>
         </div>

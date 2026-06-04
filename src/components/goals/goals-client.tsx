@@ -60,18 +60,18 @@ export function GoalsClient() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.totalSaved}</p>
-          <p className="font-display font-bold text-lg tabular-nums text-primary">{formatCurrency(totalSaved)}</p>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-xs text-muted-foreground mb-1 truncate">{tx.totalSaved}</p>
+          <p className="font-display font-bold text-sm sm:text-lg tabular-nums text-primary truncate">{formatCurrency(totalSaved)}</p>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.totalTarget}</p>
-          <p className="font-display font-bold text-lg tabular-nums">{formatCurrency(totalTarget)}</p>
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-xs text-muted-foreground mb-1 truncate">{tx.totalTarget}</p>
+          <p className="font-display font-bold text-sm sm:text-lg tabular-nums truncate">{formatCurrency(totalTarget)}</p>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.completed}</p>
-          <p className="font-display font-bold text-lg tabular-nums text-emerald-400">{completedGoals}/{goals.length}</p>
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-xs text-muted-foreground mb-1 truncate">{tx.completed}</p>
+          <p className="font-display font-bold text-sm sm:text-lg tabular-nums text-emerald-400">{completedGoals}/{goals.length}</p>
         </div>
       </div>
 
