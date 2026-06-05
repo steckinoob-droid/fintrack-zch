@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { BudgetDialog } from "./budget-dialog";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils/currency";
-import { getCurrentMonth, formatMonthYear } from "@/lib/utils/date";
+import { getCurrentMonth, formatMonthYear, getMonthRange } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import type { Budget, Category } from "@/lib/types";
@@ -30,17 +30,28 @@ export function BudgetsClient() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { start, end } = getMonthRange(currentMonth);
+
     const [bRes, cRes, tRes] = await Promise.all([
-      supabase.from("budgets").select("*, category:categories(*)").eq("month", currentMonth),
-      supabase.from("categories").select("*").eq("type", "expense").order("name"),
-      supabase.from("transactions").select("*").eq("type", "expense")
-        .gte("date", currentMonth).lte("date", currentMonth.replace("-01", "-31")),
+      supabase.from("budgets").select("*, category:categories(*)")
+        .eq("user_id", user.id).eq("month", currentMonth),
+      supabase.from("categories").select("*")
+        .eq("user_id", user.id).eq("type", "expense").order("name"),
+      supabase.from("transactions").select("*")
+        .eq("user_id", user.id).eq("type", "expense")
+        .gte("date", start).lte("date", end),
     ]);
+
     const bs = bRes.data ?? [];
     const txs = tRes.data ?? [];
     const withSpent = bs.map((b: Budget) => ({
       ...b,
-      spent: txs.filter((t: any) => t.category_id === b.category_id).reduce((s: number, t: any) => s + t.amount, 0),
+      spent: txs
+        .filter((t: any) => t.category_id === b.category_id)
+        .reduce((s: number, t: any) => s + Number(t.amount), 0),
     }));
     setBudgets(withSpent);
     setCategories(cRes.data ?? []);
