@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Globe } from "lucide-react";
+import { Search, Globe, LogOut } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
@@ -9,6 +9,8 @@ import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { formatMonthYear } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/types";
 
@@ -21,6 +23,13 @@ export function Header({ user, profile }: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const { lang, setLang } = useLang();
   const tx = appT[lang];
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   const displayName = profile?.name ?? user.email?.split("@")[0] ?? "User";
   const firstName   = displayName.split(" ")[0];
@@ -93,6 +102,16 @@ export function Header({ user, profile }: HeaderProps) {
 
           {/* Notifications */}
           <NotificationsPanel />
+
+          {/* Logout — mobile only */}
+          <button
+            onClick={handleLogout}
+            className="lg:hidden h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            aria-label={tx.nav.logout}
+            title={tx.nav.logout}
+          >
+            <LogOut size={17} />
+          </button>
         </div>
       </header>
 
