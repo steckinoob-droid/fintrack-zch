@@ -46,7 +46,7 @@ export function CategoryDialog({ open, onOpenChange, category, onSuccess }:
   useEffect(() => {
     if (open) {
       reset(category
-        ? { name: category.name, type: category.type, color: category.color, icon: category.icon }
+        ? { name: category.name, type: category.type === "saving" ? "expense" : category.type, color: category.color, icon: category.icon }
         : { type: "expense", color: COLORS[0], icon: "circle" });
     }
   }, [open, category, reset]);
