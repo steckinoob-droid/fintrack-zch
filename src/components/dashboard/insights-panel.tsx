@@ -23,8 +23,10 @@ function useInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
   const current  = monthlyStats[monthlyStats.length - 1];
   const previous = monthlyStats[monthlyStats.length - 2];
   const now      = new Date();
-  const dailyAvg = monthExpenses / Math.max(1, now.getDate());
-  const forecast = dailyAvg * getDaysInMonth(now);
+  const dayOfMonth = now.getDate();
+  // Need at least 3 days of data for a meaningful forecast
+  const dailyAvg = dayOfMonth >= 3 ? monthExpenses / dayOfMonth : 0;
+  const forecast = dailyAvg > 0 ? dailyAvg * getDaysInMonth(now) : 0;
 
   const list: Insight[] = [];
 

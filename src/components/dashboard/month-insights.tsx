@@ -14,17 +14,21 @@ interface Props {
   monthIncome: number;
 }
 
-function DeltaBadge({ current, previous, label }: { current: number; previous: number; label: string }) {
+function DeltaBadge({ current, previous, label, invert = false }: {
+  current: number; previous: number; label: string; invert?: boolean;
+}) {
   if (previous === 0) return null;
   const delta   = ((current - previous) / previous) * 100;
   const up      = delta > 0;
   const neutral = Math.abs(delta) < 1;
+  // invert=true (income): going up is GOOD (green). invert=false (expenses): going up is BAD (red)
+  const isBad = invert ? !up : up;
   return (
     <div className={cn(
       "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
       neutral ? "bg-muted text-muted-foreground"
-        : up   ? "bg-red-500/10 text-red-400"
-        :        "bg-emerald-500/10 text-emerald-400"
+        : isBad ? "bg-red-500/10 text-red-400"
+        :         "bg-emerald-500/10 text-emerald-400"
     )}>
       {neutral ? <Minus size={10} /> : up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
       {neutral ? label : `${up ? "+" : ""}${delta.toFixed(1)}%`}
@@ -101,7 +105,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
           {formatCurrency(current.income)}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
-          <DeltaBadge current={current.income} previous={previous.income} label={tx.equal} />
+          <DeltaBadge current={current.income} previous={previous.income} label={tx.equal} invert />
           <span className="text-xs text-muted-foreground">{tx.vs} {formatCurrency(previous.income)}</span>
         </div>
       </div>

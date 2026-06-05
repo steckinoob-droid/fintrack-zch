@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight, PiggyBank, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ export function TransactionsClient() {
   const [categories, setCategories]     = useState<Category[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState("");
-  const [tab, setTab]                   = useState<"all" | "income" | "expense">("all");
+  const [tab, setTab]                   = useState<"all" | "income" | "expense" | "saving">("all");
   const [editTx, setEditTx]             = useState<Transaction | null>(null);
   const [dialogOpen, setDialogOpen]     = useState(false);
 
@@ -60,6 +60,9 @@ export function TransactionsClient() {
 
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const totalSaving  = filtered.filter(t => t.type === "saving").reduce((s, t) => s + t.amount, 0);
+  // balance = income - expenses - savings (savings are outflows from liquid cash)
+  const netBalance   = totalIncome - totalExpense - totalSaving;
 
   return (
     <div className="space-y-6">
@@ -74,7 +77,7 @@ export function TransactionsClient() {
       />
 
       {/* Summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground mb-1">{tx.incomeFiltered}</p>
           <p className="font-display font-bold text-lg text-emerald-400 tabular-nums">{formatCurrency(totalIncome)}</p>
@@ -83,11 +86,15 @@ export function TransactionsClient() {
           <p className="text-xs text-muted-foreground mb-1">{tx.expensesFiltered}</p>
           <p className="font-display font-bold text-lg text-red-400 tabular-nums">{formatCurrency(totalExpense)}</p>
         </div>
-        <div className="glass-card p-4 hidden lg:block">
+        <div className="glass-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">{tx.savingsFiltered}</p>
+          <p className="font-display font-bold text-lg text-indigo-400 tabular-nums">{formatCurrency(totalSaving)}</p>
+        </div>
+        <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground mb-1">{tx.balanceFilter}</p>
           <p className={cn("font-display font-bold text-lg tabular-nums",
-            totalIncome - totalExpense >= 0 ? "text-primary" : "text-red-400")}>
-            {formatCurrency(totalIncome - totalExpense)}
+            netBalance >= 0 ? "text-primary" : "text-red-400")}>
+            {formatCurrency(netBalance)}
           </p>
         </div>
       </div>
@@ -103,6 +110,7 @@ export function TransactionsClient() {
             <TabsTrigger value="all">{tx.allTab}</TabsTrigger>
             <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
             <TabsTrigger value="expense">{tx.expenseTab}</TabsTrigger>
+            <TabsTrigger value="saving">{tx.savingTab}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -123,9 +131,13 @@ export function TransactionsClient() {
             {filtered.map(t => (
               <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors group">
                 <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
-                  t.type === "income" ? "bg-emerald-500/10" : "bg-red-500/10")}>
+                  t.type === "income" ? "bg-emerald-500/10"
+                  : t.type === "saving" ? "bg-indigo-500/10"
+                  : "bg-red-500/10")}>
                   {t.type === "income"
                     ? <ArrowUpRight size={16} className="text-emerald-400" />
+                    : t.type === "saving"
+                    ? <PiggyBank size={16} className="text-indigo-400" />
                     : <ArrowDownRight size={16} className="text-red-400" />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -142,7 +154,9 @@ export function TransactionsClient() {
                   </div>
                 </div>
                 <span className={cn("text-sm font-semibold tabular-nums",
-                  t.type === "income" ? "text-emerald-400" : "text-red-400")}>
+                  t.type === "income" ? "text-emerald-400"
+                  : t.type === "saving" ? "text-indigo-400"
+                  : "text-red-400")}>
                   {t.type === "income" ? "+" : "-"}{formatCurrency(t.amount)}
                 </span>
                 <div className="hidden group-hover:flex items-center gap-1">

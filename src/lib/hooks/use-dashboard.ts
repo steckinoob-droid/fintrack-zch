@@ -73,7 +73,11 @@ export function useDashboard() {
         const allExpenses = transactions
           .filter((t) => t.type === "expense")
           .reduce((s, t) => s + t.amount, 0);
-        const totalBalance = allIncome - allExpenses;
+        const allSavings = transactions
+          .filter((t) => t.type === "saving")
+          .reduce((s, t) => s + t.amount, 0);
+        // totalBalance = liquid cash (savings withdrawn from wallet into goals)
+        const totalBalance = allIncome - allExpenses - allSavings;
 
         const months = getLast6Months();
         const monthlyStats: MonthlyStats[] = months.map((m) => {
