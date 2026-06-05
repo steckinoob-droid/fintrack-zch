@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,10 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export function RegisterForm() {
-  const router = useRouter();
   const { lang } = useLang();
   const tx = appT[lang].auth.register;
   const [showPass, setShowPass] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -39,11 +39,45 @@ export function RegisterForm() {
       options: { data: { name: data.name } },
     });
     if (error) { toast.error(error.message); return; }
-    toast.success(tx.success, tx.successDesc);
-    router.push("/dashboard");
-    router.refresh();
+    setSentTo(data.email);
   }
 
+  /* ── Email verification screen ── */
+  if (sentTo) {
+    return (
+      <div className="glass-card p-8 space-y-6 text-center animate-slide-up">
+        {/* Icon */}
+        <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center ring-1 ring-primary/20">
+          <Mail size={30} className="text-primary" />
+        </div>
+
+        {/* Text */}
+        <div className="space-y-2">
+          <h2 className="font-display font-bold text-xl text-foreground">{tx.verifyTitle}</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {tx.verifyDesc}{" "}
+            <span className="font-semibold text-foreground break-all">{sentTo}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">{tx.verifySpam}</p>
+        </div>
+
+        {/* Warning */}
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+          <p className="text-xs leading-relaxed text-amber-300">{tx.verifyNote}</p>
+        </div>
+
+        {/* CTA */}
+        <Link
+          href="/login"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-[0.98]"
+        >
+          {tx.verifyAction} <ArrowRight size={15} />
+        </Link>
+      </div>
+    );
+  }
+
+  /* ── Registration form ── */
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 space-y-4">
       <div className="space-y-1.5">

@@ -38,6 +38,11 @@ export const appT = {
         submit: "Create account", submitting: "Creating account...",
         hasAccount: "Already have an account?", signIn: "Sign in",
         success: "Account created!", successDesc: "Check your email to confirm.",
+        verifyTitle: "Check your email",
+        verifyDesc: "We sent a confirmation link to",
+        verifySpam: "Can't find it? Check your spam or junk folder.",
+        verifyNote: "⚠️ You must confirm your email before you can sign in.",
+        verifyAction: "Go to sign in",
       },
       forgotPassword: {
         title: "Reset password", subtitle: "Enter your email and we'll send you a reset link.",
@@ -298,6 +303,11 @@ export const appT = {
         submit: "Criar conta", submitting: "Criando conta...",
         hasAccount: "Já tem uma conta?", signIn: "Fazer login",
         success: "Conta criada!", successDesc: "Verifique seu email para confirmar.",
+        verifyTitle: "Verifique seu email",
+        verifyDesc: "Enviamos um link de confirmação para",
+        verifySpam: "Não encontrou? Verifique a pasta de spam ou lixo eletrônico.",
+        verifyNote: "⚠️ Você precisa confirmar seu email antes de fazer login.",
+        verifyAction: "Ir para o login",
       },
       forgotPassword: {
         title: "Recuperar senha", subtitle: "Digite seu email e enviaremos um link para redefinir sua senha.",
