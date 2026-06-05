@@ -141,6 +141,16 @@ export function NotificationsPanel() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  // Lock body scroll while panel is open (prevents page scrolling behind the panel on mobile)
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
   const unread = notifications.filter((n) => !read.has(n.id)).length;
 
   function markAllRead() {
@@ -169,7 +179,7 @@ export function NotificationsPanel() {
 
       {open && (
         <div className="absolute right-0 top-11 w-80 max-w-[calc(100vw-1rem)] z-50 animate-slide-up">
-          <div className="glass-card border border-border/60 shadow-2xl overflow-hidden">
+          <div className="rounded-xl border border-border/60 shadow-2xl overflow-hidden bg-card">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
               <div className="flex items-center gap-2">
