@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils/currency";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
-import type { Transaction, Category, SavingsGoal } from "@/lib/types";
+import type { Transaction, Category, SavingsGoal, TransactionType } from "@/lib/types";
 
 interface SearchResult {
   id: string;
@@ -16,7 +16,7 @@ interface SearchResult {
   subtitle: string;
   href: string;
   amount?: number;
-  transactionType?: "income" | "expense";
+  transactionType?: TransactionType;
   color?: string;
 }
 

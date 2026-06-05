@@ -60,7 +60,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
   useEffect(() => {
     if (open) {
       if (transaction) {
-        reset({ title: transaction.title, amount: String(transaction.amount), type: transaction.type,
+        reset({ title: transaction.title, amount: String(transaction.amount), type: transaction.type === "saving" ? "expense" : transaction.type,
           category_id: transaction.category_id ?? "", date: transaction.date,
           notes: transaction.notes ?? "", is_recurring: transaction.is_recurring,
           recurrence_interval: transaction.recurrence_interval ?? undefined });
