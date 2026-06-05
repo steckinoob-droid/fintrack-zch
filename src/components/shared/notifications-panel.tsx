@@ -103,13 +103,13 @@ export function NotificationsPanel() {
       const income = txs.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + t.amount, 0);
       const expenses = txs.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
       const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
-      if (savingsRate > 20) {
+      if (savingsRate > 20 && income > 0) {
         notes.push({
           id: "savings-good",
           icon: <TrendingUp size={15} className="text-emerald-400" />,
-          title: "Ótima taxa de poupança!",
-          description: `Você está economizando ${Math.round(savingsRate)}% da renda este mês.`,
-          href: "/reports",
+          title: "Bom saldo mensal!",
+          description: `${Math.round(savingsRate)}% da renda ainda não foi gasta. Considere mover o saldo para suas metas.`,
+          href: "/goals",
           urgency: "success",
           read: false,
         });

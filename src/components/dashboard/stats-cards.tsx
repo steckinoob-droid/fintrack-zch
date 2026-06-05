@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Wallet, Percent } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -42,14 +42,14 @@ export function StatsCards({ data }: StatsCardsProps) {
     },
     {
       label: tx.savingsRate,
-      value: `${Math.max(0, savingsRate)}%`,
+      value: netMonth >= 0 ? formatCurrency(netMonth) : `-${formatCurrency(Math.abs(netMonth))}`,
       subtext: netMonth >= 0
-        ? `${formatCurrency(netMonth)} ${tx.savedThisMonth}`
+        ? `${Math.max(0, savingsRate)}% ${tx.savedThisMonth}`
         : `${formatCurrency(Math.abs(netMonth))} ${tx.inTheRed}`,
-      icon: Percent,
-      iconBg: savingsRate >= 20 ? "bg-indigo-500/10" : "bg-amber-500/10",
-      iconColor: savingsRate >= 20 ? "text-indigo-400" : "text-amber-400",
-      valueColor: savingsRate >= 20 ? "text-indigo-400" : "text-amber-400",
+      icon: PiggyBank,
+      iconBg: netMonth >= 0 ? "bg-indigo-500/10" : "bg-red-500/10",
+      iconColor: netMonth >= 0 ? "text-indigo-400" : "text-red-400",
+      valueColor: netMonth >= 0 ? "text-indigo-400" : "text-red-400",
     },
   ];
 
