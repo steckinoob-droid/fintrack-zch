@@ -1,4 +1,4 @@
-export type TransactionType = "income" | "expense";
+export type TransactionType = "income" | "expense" | "saving";
 
 export interface Profile {
   id: string;
@@ -70,7 +70,7 @@ export interface DashboardData {
   totalBalance: number;
   monthIncome: number;
   monthExpenses: number;
-  savingsRate: number;
+  monthSavings: number;
   recentTransactions: Transaction[];
   monthlyStats: MonthlyStats[];
   budgets: Budget[];

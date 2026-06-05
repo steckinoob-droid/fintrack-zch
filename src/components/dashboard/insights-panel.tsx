@@ -19,7 +19,7 @@ interface Insight {
 
 function useInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
   const tx = appT[lang].dashboard.insights;
-  const { monthIncome, monthExpenses, savingsRate, monthlyStats, budgets, goals } = data;
+  const { monthIncome, monthExpenses, monthlyStats, budgets, goals } = data;
   const current  = monthlyStats[monthlyStats.length - 1];
   const previous = monthlyStats[monthlyStats.length - 2];
   const now      = new Date();
@@ -28,23 +28,25 @@ function useInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
 
   const list: Insight[] = [];
 
-  if (savingsRate >= 20) {
-    list.push({ id: "savings-great", icon: Award, iconColor: "text-emerald-400", iconBg: "bg-emerald-500/10",
-      title: `${tx.savingsGreat} ${savingsRate}%`,
-      description: lang === "en"
-        ? "You're saving above the recommended 20%. Keep it up to reach your goals faster!"
-        : "Você está economizando acima dos 20% recomendados. Continue assim!",
-      href: "/reports", priority: 5 });
-  } else if (savingsRate > 0) {
-    list.push({ id: "savings-low", icon: PiggyBank, iconColor: "text-amber-400", iconBg: "bg-amber-500/10",
-      title: `${tx.savingsLow} ${savingsRate}%`,
-      description: `${tx.savingsLowDesc} ${formatCurrency((0.2 - savingsRate / 100) * monthIncome)} ${tx.savingsLowDesc2}`,
-      href: "/budgets", priority: 2 });
-  } else if (monthExpenses > monthIncome && monthIncome > 0) {
+  // Spending vs income alert
+  if (monthExpenses > monthIncome && monthIncome > 0) {
     list.push({ id: "spending-over", icon: AlertTriangle, iconColor: "text-red-400", iconBg: "bg-red-500/10",
       title: tx.spendingOver,
       description: `${tx.spendingOverDesc} ${formatCurrency(monthExpenses - monthIncome)}.`,
       href: "/budgets", priority: 1 });
+  }
+
+  // Budget usage alert
+  const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
+  const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
+  const budgetPct     = totalBudgeted > 0 ? Math.round((totalSpent / totalBudgeted) * 100) : 0;
+  if (totalBudgeted > 0 && budgetPct >= 80 && budgetPct < 100) {
+    list.push({ id: "budget-warn-total", icon: AlertTriangle, iconColor: "text-amber-400", iconBg: "bg-amber-500/10",
+      title: lang === "en" ? `${budgetPct}% of monthly budget used` : `${budgetPct}% do orçamento mensal usado`,
+      description: lang === "en"
+        ? `R$ ${formatCurrency(totalBudgeted - totalSpent)} remaining across all budgets.`
+        : `${formatCurrency(totalBudgeted - totalSpent)} restantes em todos os orçamentos.`,
+      href: "/budgets", priority: 2 });
   }
 
   if (current && previous && previous.expenses > 0) {

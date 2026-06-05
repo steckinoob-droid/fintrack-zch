@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatCompact } from "@/lib/utils/currency";
 import { getLast6Months, getMonthRange, formatShortMonth } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
-import type { Transaction } from "@/lib/types";
+import type { Transaction, SavingsGoal } from "@/lib/types";
 import { ChartSkeleton } from "@/components/shared/skeleton";
+import { Target, CalendarDays } from "lucide-react";
+import { differenceInDays, parseISO } from "date-fns";
+import { cn } from "@/lib/utils/cn";
 
 const COLORS = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 
@@ -39,13 +43,18 @@ export function ReportsClient() {
   const tx = appT[lang].reports;
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase.from("transactions").select("*, category:categories(*)").order("date", { ascending: false });
-      setTransactions(data ?? []);
+      const [txRes, goalsRes] = await Promise.all([
+        supabase.from("transactions").select("*, category:categories(*)").order("date", { ascending: false }),
+        supabase.from("savings_goals").select("*").order("created_at", { ascending: false }),
+      ]);
+      setTransactions(txRes.data ?? []);
+      setGoals(goalsRes.data ?? []);
       setLoading(false);
     }
     load();
@@ -74,10 +83,8 @@ export function ReportsClient() {
   const incomeData = Array.from(incomeCatMap.entries()).map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
-  const savingsData = monthlyData.map(m => ({
-    month: m.month,
-    [tx.savings_label]: m.income > 0 ? Math.round(((m.income - m.expenses) / m.income) * 100) : 0,
-  }));
+  const totalSaved  = goals.reduce((s, g) => s + g.current_amount, 0);
+  const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
 
   const axisStyle = { fill: "hsl(215 16% 60%)", fontSize: 11 };
 
@@ -188,22 +195,88 @@ export function ReportsClient() {
         </TabsContent>
 
         <TabsContent value="savings" className="space-y-4">
+          {/* Summary row */}
+          {goals.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="glass-card p-4">
+                <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Total saved" : "Total poupado"}</p>
+                <p className="font-display font-bold text-lg tabular-nums text-primary">{formatCurrency(totalSaved)}</p>
+              </div>
+              <div className="glass-card p-4">
+                <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Total target" : "Meta total"}</p>
+                <p className="font-display font-bold text-lg tabular-nums">{formatCurrency(totalTarget)}</p>
+              </div>
+              <div className="glass-card p-4 col-span-2 sm:col-span-1">
+                <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Overall progress" : "Progresso geral"}</p>
+                <p className="font-display font-bold text-lg tabular-nums text-indigo-400">
+                  {totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0}%
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Goals list */}
           <div className="glass-card p-5">
             <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.savingsRate}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{tx.savingsRateDesc}</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={savingsData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} width={40} />
-                <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(255,255,255,0.08)" }} />
-                <Line type="monotone" dataKey={tx.savings_label} stroke="#6366f1" strokeWidth={2.5}
-                  dot={{ fill: "#6366f1", r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-              <p className="text-xs text-indigo-300">{tx.savingsTip} <strong>20%</strong> {tx.savingsTip2}</p>
-            </div>
+            <p className="text-xs text-muted-foreground mb-5">{tx.savingsRateDesc}</p>
+
+            {goals.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <div className="h-12 w-12 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                  <Target size={22} className="text-indigo-400" />
+                </div>
+                <p className="text-sm font-medium text-foreground">{lang === "en" ? "No savings goals yet" : "Nenhuma meta criada ainda"}</p>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  {lang === "en" ? "Create a goal in the Goals section to track your savings progress here." : "Crie uma meta na seção Metas para acompanhar seu progresso aqui."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {goals.map((goal) => {
+                  const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+                  const completed = pct >= 100;
+                  const daysLeft = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
+                  return (
+                    <div key={goal.id}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: goal.color + "20" }}>
+                            <Target size={13} style={{ color: goal.color }} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground leading-none">{goal.name}</p>
+                            {goal.deadline && daysLeft !== null && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <CalendarDays size={10} className="text-muted-foreground" />
+                                <p className="text-xs text-muted-foreground">
+                                  {daysLeft > 0 ? `${daysLeft} ${lang === "en" ? "days left" : "dias restantes"}` : daysLeft === 0 ? (lang === "en" ? "Due today" : "Vence hoje") : (lang === "en" ? "Overdue" : "Prazo expirado")}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <span className={cn("font-display font-bold text-sm tabular-nums", completed ? "text-emerald-400" : "text-foreground")}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <Progress value={pct} className="h-2 mb-1.5"
+                        indicatorClassName={cn("transition-all duration-700", completed ? "bg-emerald-500" : "")}
+                        style={{ "--progress-color": completed ? "#10b981" : goal.color } as React.CSSProperties}
+                      />
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="tabular-nums" style={{ color: goal.color }}>{formatCurrency(goal.current_amount)}</span>
+                        <span className="tabular-nums">{formatCurrency(goal.target_amount)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+            <p className="text-xs text-indigo-300">{tx.savingsTip} <strong>20%</strong> {tx.savingsTip2}</p>
           </div>
         </TabsContent>
       </Tabs>

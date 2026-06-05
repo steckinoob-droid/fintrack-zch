@@ -32,10 +32,29 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
 
   async function onSubmit(data: FormData) {
     const supabase = createClient();
-    const added    = parseFloat(data.amount.replace(",", "."));
+    const added     = parseFloat(data.amount.replace(",", "."));
     const newAmount = Math.min(goal.target_amount, goal.current_amount + added);
+
+    // 1. Update goal amount
     const { error } = await supabase.from("savings_goals").update({ current_amount: newAmount }).eq("id", goal.id);
     if (error) { toast.error(lang === "en" ? "Error depositing" : "Erro ao depositar"); return; }
+
+    // 2. Create a saving transaction to properly track it in finances
+    //    (requires DB migration 003 — silently skips if not applied yet)
+    try {
+      await supabase.from("transactions").insert({
+        user_id: goal.user_id,
+        title: `${lang === "en" ? "Deposit" : "Depósito"}: ${goal.name}`,
+        amount: added,
+        type: "saving",
+        date: new Date().toISOString().slice(0, 10),
+        category_id: null,
+        notes: `${lang === "en" ? "Savings goal" : "Meta de poupança"}: ${goal.name}`,
+      });
+    } catch {
+      // DB migration not applied yet — goal still updated, transaction skipped
+    }
+
     toast.success(tx.success, `${formatCurrency(added)} ${tx.successDesc}`);
     reset();
     onSuccess();

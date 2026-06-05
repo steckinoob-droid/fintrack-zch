@@ -63,6 +63,9 @@ export function useDashboard() {
         const monthExpenses = currentMonthTx
           .filter((t) => t.type === "expense")
           .reduce((s, t) => s + t.amount, 0);
+        const monthSavings = currentMonthTx
+          .filter((t) => t.type === "saving")
+          .reduce((s, t) => s + t.amount, 0);
 
         const allIncome = transactions
           .filter((t) => t.type === "income")
@@ -71,10 +74,6 @@ export function useDashboard() {
           .filter((t) => t.type === "expense")
           .reduce((s, t) => s + t.amount, 0);
         const totalBalance = allIncome - allExpenses;
-
-        const savingsRate = monthIncome > 0
-          ? Math.round(((monthIncome - monthExpenses) / monthIncome) * 100)
-          : 0;
 
         const months = getLast6Months();
         const monthlyStats: MonthlyStats[] = months.map((m) => {
@@ -96,7 +95,7 @@ export function useDashboard() {
           totalBalance,
           monthIncome,
           monthExpenses,
-          savingsRate,
+          monthSavings,
           recentTransactions: transactions.slice(0, 8),
           monthlyStats,
           budgets: budgetsWithSpent,

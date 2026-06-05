@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Wallet, PiggyBank } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PieChart } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -12,8 +12,17 @@ interface StatsCardsProps { data: DashboardData }
 export function StatsCards({ data }: StatsCardsProps) {
   const { lang } = useLang();
   const tx = appT[lang].dashboard;
-  const { totalBalance, monthIncome, monthExpenses, savingsRate } = data;
-  const netMonth = monthIncome - monthExpenses;
+  const { totalBalance, monthIncome, monthExpenses, budgets } = data;
+
+  const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
+  const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
+  const budgetPct     = totalBudgeted > 0 ? Math.round((totalSpent / totalBudgeted) * 100) : null;
+  const budgetOver    = budgetPct !== null && budgetPct >= 100;
+  const budgetWarn    = budgetPct !== null && budgetPct >= 80 && !budgetOver;
+
+  const budgetIconBg    = budgetOver ? "bg-red-500/10" : budgetWarn ? "bg-amber-500/10" : "bg-indigo-500/10";
+  const budgetIconColor = budgetOver ? "text-red-400"  : budgetWarn ? "text-amber-400"  : "text-indigo-400";
+  const budgetValColor  = budgetOver ? "text-red-400"  : budgetWarn ? "text-amber-400"  : "text-foreground";
 
   const cards = [
     {
@@ -41,15 +50,15 @@ export function StatsCards({ data }: StatsCardsProps) {
       valueColor: "text-red-400",
     },
     {
-      label: tx.savingsRate,
-      value: netMonth >= 0 ? formatCurrency(netMonth) : `-${formatCurrency(Math.abs(netMonth))}`,
-      subtext: netMonth >= 0
-        ? `${Math.max(0, savingsRate)}% ${tx.savedThisMonth}`
-        : `${formatCurrency(Math.abs(netMonth))} ${tx.inTheRed}`,
-      icon: PiggyBank,
-      iconBg: netMonth >= 0 ? "bg-indigo-500/10" : "bg-red-500/10",
-      iconColor: netMonth >= 0 ? "text-indigo-400" : "text-red-400",
-      valueColor: netMonth >= 0 ? "text-indigo-400" : "text-red-400",
+      label: tx.budgetUsage,
+      value: budgetPct !== null ? `${budgetPct}%` : "—",
+      subtext: totalBudgeted > 0
+        ? `${formatCurrency(totalSpent)} ${lang === "en" ? "of" : "de"} ${formatCurrency(totalBudgeted)}`
+        : tx.noBudgetsShort,
+      icon: PieChart,
+      iconBg: budgetPct === null ? "bg-muted/30" : budgetIconBg,
+      iconColor: budgetPct === null ? "text-muted-foreground" : budgetIconColor,
+      valueColor: budgetPct === null ? "text-muted-foreground" : budgetValColor,
     },
   ];
 
