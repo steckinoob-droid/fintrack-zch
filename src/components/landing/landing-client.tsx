@@ -143,9 +143,9 @@ export function LandingClient() {
             </Link>
             <Link
               href="/register"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-[0.98]"
+              className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-[0.98] sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm"
             >
-              {tx.nav.getStarted} <ArrowRight size={14} />
+              {tx.nav.getStarted} <ArrowRight size={12} className="sm:hidden" /><ArrowRight size={14} className="hidden sm:inline" />
             </Link>
           </div>
         </div>
