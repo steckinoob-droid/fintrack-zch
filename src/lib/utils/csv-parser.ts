@@ -112,10 +112,18 @@ function parseTypeCell(s: string): "income" | "expense" | null {
 }
 
 const DATE_KW  = ["data", "date", "dt", "competencia", "vencimento", "lancamento data"];
-const TITLE_KW = ["descri", "histor", "memo", "titulo", "lancamento", "estabeleci",
-                  "loja", "comercio", "benefici", "detalhe", "observa", "particip"];
+// Columns that look like date/time but are NOT the main date — skip for title fallback
+const TIME_KW  = ["hora", "horario", "time", "hour", "hh", "hhmm"];
+const TITLE_KW = [
+  "descri", "histor", "memo", "titulo", "lancamento", "estabeleci",
+  "loja", "comercio", "benefici", "detalhe", "observa", "particip",
+  // PIX / TED / bank transfer fields
+  "origem", "destino", "beneficiario", "pagador", "remetente",
+  "destinatario", "nome", "titular", "razao social", "favorecido",
+  "contrapart", "portador",
+];
 const AMT_KW   = ["valor", "amount", "value", "debito", "credito", "montante",
-                  "quantia", "preco", "total", "preco", "moviment"];
+                  "quantia", "preco", "total", "moviment"];
 // "Tipo", "Natureza", "D/C", "Operação" — separate from amount
 const TYPE_KW  = ["tipo", "natureza", "operacao", "dc ", "d c", "entrada saida",
                   "categoria transacao", "tipo lancamento", "tipo operacao"];
@@ -126,19 +134,28 @@ export function detectColumns(headers: string[]): Partial<ColumnMap> {
   // First pass: keyword matching (order-independent)
   for (let i = 0; i < headers.length; i++) {
     const l = norm(headers[i]);
+    // Skip time-only columns — they look like dates but aren't the main date column
+    if (TIME_KW.some(k => l === norm(k))) continue;
     if (map.typeCol   === undefined && TYPE_KW.some(k  => l.includes(norm(k))))   { map.typeCol   = i; continue; }
     if (map.dateCol   === undefined && DATE_KW.some(k  => l.includes(norm(k))))   { map.dateCol   = i; continue; }
     if (map.titleCol  === undefined && TITLE_KW.some(k => l.includes(norm(k))))   { map.titleCol  = i; continue; }
     if (map.amountCol === undefined && AMT_KW.some(k   => l.includes(norm(k))))   { map.amountCol = i; }
   }
 
-  // Fallback: if date + amount detected but title missing, pick first unassigned column
+  // Fallback: if date + amount detected but title missing,
+  // pick the first unassigned column that is NOT a time/date/type column
   if (map.dateCol !== undefined && map.amountCol !== undefined && map.titleCol === undefined) {
     const used = new Set<number>(
       [map.dateCol, map.amountCol, map.typeCol].filter((v): v is number => v !== undefined)
     );
-    const remaining = headers.map((_, i) => i).filter(i => !used.has(i));
-    if (remaining.length >= 1) map.titleCol = remaining[0];
+    const candidates = headers
+      .map((h, i) => ({ i, l: norm(h) }))
+      .filter(({ i, l }) =>
+        !used.has(i) &&
+        !TIME_KW.some(k => l === norm(k)) &&    // skip "hora"
+        !DATE_KW.some(k => l.includes(norm(k))) // skip secondary date cols
+      );
+    if (candidates.length >= 1) map.titleCol = candidates[0].i;
   }
 
   return map;
