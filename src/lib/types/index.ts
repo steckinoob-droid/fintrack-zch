@@ -64,6 +64,7 @@ export interface MonthlyStats {
   income: number;
   expenses: number;
   balance: number;
+  daysOfData: number; // actual days spanned by transactions (for accurate daily rate)
 }
 
 export interface DashboardData {

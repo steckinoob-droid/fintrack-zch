@@ -68,15 +68,18 @@ export function DashboardClient() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          <RecentTransactions transactions={data.recentTransactions} />
+          {/* Left: recent transactions + insights fill the column naturally */}
+          <div className="space-y-4">
+            <RecentTransactions transactions={data.recentTransactions} />
+            <InsightsPanel data={data} />
+          </div>
+          {/* Right: score + budgets + goals stack without fixed height */}
           <div className="space-y-4">
             <HealthScoreCard data={data} />
             <BudgetProgressList budgets={data.budgets} />
             <SavingsGoalsOverview goals={data.goals.slice(0, 3)} />
           </div>
         </div>
-
-        <InsightsPanel data={data} />
       </div>
     </>
   );

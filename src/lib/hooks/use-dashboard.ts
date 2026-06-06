@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DashboardData, Transaction, Budget, SavingsGoal, MonthlyStats } from "@/lib/types";
 import { getLast6Months, getMonthRange, formatShortMonth } from "@/lib/utils/date";
+import { differenceInCalendarDays, parseISO } from "date-fns";
 import { seedDefaultCategories } from "@/lib/utils/seed-categories";
 import { generateRecurringTransactions } from "@/lib/utils/recurring";
 
@@ -83,9 +84,16 @@ export function useDashboard() {
         const monthlyStats: MonthlyStats[] = months.map((m) => {
           const { start, end } = getMonthRange(m);
           const mTx = transactions.filter((t) => t.date >= start && t.date <= end);
-          const income = mTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-          const expenses = mTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-          return { month: formatShortMonth(m), income, expenses, balance: income - expenses };
+          const income   = mTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+          const expenses = mTx.filter((t) => t.type !== "income").reduce((s, t) => s + t.amount, 0);
+
+          // Count actual days spanned so daily rate isn't distorted by partial imports
+          const sortedDates = mTx.map(t => t.date).sort();
+          const daysOfData = sortedDates.length >= 2
+            ? differenceInCalendarDays(parseISO(sortedDates[sortedDates.length - 1]), parseISO(sortedDates[0])) + 1
+            : sortedDates.length === 1 ? 1 : 0;
+
+          return { month: formatShortMonth(m), income, expenses, balance: income - expenses, daysOfData };
         });
 
         const budgetsWithSpent = budgets.map((b) => {

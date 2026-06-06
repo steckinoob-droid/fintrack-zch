@@ -52,14 +52,22 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
   const monthPct       = Math.round((dayOfMonth / daysInCurrent) * 100);
 
   // ─── Core calculation ──────────────────────────────────────────────
-  // Daily rate: how much is being spent per day ON AVERAGE this month
-  const currentDailyRate  = dayOfMonth > 0 ? monthExpenses / dayOfMonth : 0;
+  // Current daily rate based on days elapsed this month
+  const currentDailyRate = dayOfMonth > 0 ? monthExpenses / dayOfMonth : 0;
 
-  // Previous month's daily rate (full month)
-  const previousDailyRate = daysInPrev > 0 ? previous.expenses / daysInPrev : 0;
+  // Previous month daily rate using ACTUAL days with data (not full month),
+  // so a partial CSV import (e.g. May 7–31) doesn't understate the rate.
+  const prevDaysBase      = previous.daysOfData > 0 ? previous.daysOfData : daysInPrev;
+  const previousDailyRate = prevDaysBase > 0 ? previous.expenses / prevDaysBase : 0;
 
-  // Projected total = what you've already spent + remaining days at current rate
-  const projectedRemainder = currentDailyRate * daysLeft;
+  // Forecast projection: blend previous month (stable) with current month once
+  // we have enough data (14+ days). Before that, previous month is the anchor
+  // so a CSV import on day 5 doesn't produce a crazy high projection.
+  const forecastRate = previousDailyRate > 0
+    ? (dayOfMonth >= 14 ? previousDailyRate * 0.6 + currentDailyRate * 0.4 : previousDailyRate)
+    : currentDailyRate;
+
+  const projectedRemainder = forecastRate * daysLeft;
   const forecast           = monthExpenses + projectedRemainder;
 
   // How much of the previous month we EXPECTED to have spent by this day
