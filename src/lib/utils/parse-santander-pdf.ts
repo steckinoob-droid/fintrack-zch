@@ -66,6 +66,21 @@ function extractTrailingAmount(line: string): AmountResult | null {
   return { amount, negative: sign === "-", descPart };
 }
 
+// ── Pattern helpers (handle both spaced and concatenated PDF text) ────────────
+//
+// Some pages (e.g. page 3 of the Santander PDF) have all text concatenated
+// without spaces: "COMPRACARTAODEBMC" instead of "COMPRA CARTAO DEB MC".
+// We match patterns against both the raw-normalized string AND a space-stripped
+// version so we never miss a discard/type match.
+
+/** Match needle against haystack, tolerating absent spaces in either string. */
+function matchesNorm(haystack: string, needle: string): boolean {
+  const h  = norm(haystack);
+  const hs = h.replace(/\s/g, "");
+  const ns = needle.replace(/\s/g, "");
+  return h.startsWith(needle) || h.includes(needle) || hs.startsWith(ns) || hs.includes(ns);
+}
+
 // ── Skip / discard rules ─────────────────────────────────────────────────────
 
 const DISCARD_NORM = [
@@ -73,16 +88,23 @@ const DISCARD_NORM = [
   "saldo bloqueado", "saldo disponivel",
   "remuneracao aplicacao", "remuneracao basica",
   "juros taxa",
-  "para: 1432",   // TRANSFERENCIA PROGRAMADA destination line
+  "para: 1432",           // TRANSFERENCIA PROGRAMADA destination line
   "extrato_pf",
   "balp_uy",
   "pagina:",
-  "data descri",  // column header row
+  "data descri",          // column header row (spaced pages)
+  "extrato consolidado",  // page header (spaced) / "extratoconsolidado" (concatenated)
+  "venha conhecer",       // advertising block
+  "fale conosco",
+  "central de atendimento",
+  "prezada",
+  "nome\n", "agencia",    // summary table labels
 ];
 
 function shouldDiscard(line: string): boolean {
-  const n = norm(line);
-  return DISCARD_NORM.some(d => n.startsWith(d) || n.includes(d));
+  // Also discard pure month/year lines like "maio/2026"
+  if (/^[a-záàãâéêíóôõúç]+\/\d{4}$/i.test(norm(line))) return true;
+  return DISCARD_NORM.some(d => matchesNorm(line, d));
 }
 
 const SECTION_END_NORM = [
@@ -95,8 +117,7 @@ const SECTION_END_NORM = [
 ];
 
 function isSectionEnd(line: string): boolean {
-  const n = norm(line);
-  return SECTION_END_NORM.some(d => n.startsWith(d));
+  return SECTION_END_NORM.some(d => matchesNorm(line, d));
 }
 
 // ── Type detection ───────────────────────────────────────────────────────────
@@ -110,7 +131,6 @@ const INCOME_NORM = [
   "credito em conta",
   "transferencia recebida",
   "walker corretora",
-  "carolina soares castello",  // well-known credit example (generic)
 ];
 
 const EXPENSE_NORM = [
@@ -122,9 +142,8 @@ const EXPENSE_NORM = [
 ];
 
 function detectType(desc: string, negative: boolean): "income" | "expense" {
-  const n = norm(desc);
-  if (INCOME_NORM.some(k => n.includes(k))) return "income";
-  if (EXPENSE_NORM.some(k => n.includes(k))) return "expense";
+  if (INCOME_NORM.some(k => matchesNorm(desc, k))) return "income";
+  if (EXPENSE_NORM.some(k => matchesNorm(desc, k))) return "expense";
   // Trailing dash is the most reliable signal
   return negative ? "expense" : "income";
 }
@@ -138,8 +157,7 @@ const INTERNAL_NORM = [
 ];
 
 function isInternal(desc: string): boolean {
-  const n = norm(desc);
-  return INTERNAL_NORM.some(k => n.includes(k));
+  return INTERNAL_NORM.some(k => matchesNorm(desc, k));
 }
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
@@ -243,7 +261,6 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
   const transactions: ParsedRow[] = [];
 
   let inSection = false;  // inside "Conta Corrente" > "Movimentação"
-  let pastHeader = false; // past the column header row
 
   let currentDate: string | null = null;
   let descAccum: string[] = [];
@@ -280,12 +297,14 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
     if (!line) continue;
 
     // ── Section detection ─────────────────────────────────────────────────
+    // The "Movimentação" sub-heading inside "Conta Corrente" marks the start.
+    // NOTE: pdfjs does NOT extract the visual column-header row ("Data /
+    // Descrição / Nº Documento / Movimento / Saldo") — those are styled table
+    // cells rendered as vector graphics. We therefore start processing
+    // immediately after finding "Movimentação", with no header-row gate.
     if (!inSection) {
-      // Trigger on "Movimentação" line that comes after "Conta Corrente"
-      if (/^Movimenta[çc][ãa]o$/i.test(norm(line)) ||
-          norm(line) === "movimentacao") {
+      if (matchesNorm(line, "movimentacao")) {
         inSection = true;
-        pastHeader = false;
         continue;
       }
       continue;
@@ -293,14 +312,6 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
 
     // ── Section end ───────────────────────────────────────────────────────
     if (isSectionEnd(line)) break;
-
-    // ── Column header row ─────────────────────────────────────────────────
-    if (!pastHeader) {
-      if (/Data/i.test(line) && /Movimento/i.test(line)) {
-        pastHeader = true;
-      }
-      continue;
-    }
 
     // ── Discard rows ──────────────────────────────────────────────────────
     if (shouldDiscard(line)) continue;
