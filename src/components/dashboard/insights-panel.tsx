@@ -22,10 +22,23 @@ function useInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
   const { monthIncome, monthExpenses, monthlyStats, budgets, goals } = data;
   const current  = monthlyStats[monthlyStats.length - 1];
   const previous = monthlyStats[monthlyStats.length - 2];
-  const now      = new Date();
+  const now        = new Date();
   const dayOfMonth = now.getDate();
-  // Need at least 3 days of data for a meaningful forecast
-  const dailyAvg = dayOfMonth >= 3 ? monthExpenses / dayOfMonth : 0;
+
+  // Forecast: use PREVIOUS month as the primary base — completely immune to
+  // CSV bulk-imports and early-month noise (day 1–13 the current sample is tiny).
+  // After 14 days of the current month we blend in current data (40%).
+  const daysInPrevMonth = getDaysInMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const prevDailyAvg = previous && previous.expenses > 0
+    ? previous.expenses / daysInPrevMonth
+    : 0;
+  const curDailyAvg = dayOfMonth >= 14 ? monthExpenses / dayOfMonth : 0;
+  const dailyAvg =
+    prevDailyAvg > 0
+      ? curDailyAvg > 0
+        ? prevDailyAvg * 0.6 + curDailyAvg * 0.4   // blend after 2 weeks
+        : prevDailyAvg                               // early month: pure prev
+      : curDailyAvg;                                 // first month ever: current only
   const forecast = dailyAvg > 0 ? dailyAvg * getDaysInMonth(now) : 0;
 
   const list: Insight[] = [];
