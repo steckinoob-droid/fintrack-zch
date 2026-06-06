@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
-  PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check, SlidersHorizontal, X,
+  PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check, SlidersHorizontal, X, AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TransactionRowSkeleton } from "@/components/shared/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TransactionDialog } from "./transaction-dialog";
 import { CsvImportDialog } from "./csv-import-dialog";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
@@ -50,9 +51,12 @@ export function TransactionsClient() {
   const [showFilters, setShowFilters] = useState(false);
 
   // ── Dialogs ──────────────────────────────────────────────────────────────
-  const [editTx, setEditTx]       = useState<Transaction | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [editTx, setEditTx]           = useState<Transaction | null>(null);
+  const [dialogOpen, setDialogOpen]   = useState(false);
+  const [importOpen, setImportOpen]   = useState(false);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting]       = useState(false);
 
   // ── Quick Add ────────────────────────────────────────────────────────────
   const [quickOpen, setQuickOpen]     = useState(false);
@@ -80,13 +84,29 @@ export function TransactionsClient() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Delete ────────────────────────────────────────────────────────────────
+  // ── Delete single ─────────────────────────────────────────────────────────
   async function handleDelete(id: string) {
     const supabase = createClient();
     const { error } = await supabase.from("transactions").delete().eq("id", id);
     if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
     toast.success(lang === "en" ? "Deleted" : "Excluída");
     setTransactions(prev => prev.filter(t => t.id !== id));
+  }
+
+  // ── Delete all ────────────────────────────────────────────────────────────
+  async function handleDeleteAll() {
+    if (deleteConfirm.toUpperCase() !== "APAGAR") return;
+    setDeleting(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setDeleting(false); return; }
+    const { error } = await supabase.from("transactions").delete().eq("user_id", user.id);
+    setDeleting(false);
+    if (error) { toast.error("Erro ao apagar. Tente novamente."); return; }
+    toast.success(`${transactions.length} transações apagadas.`);
+    setTransactions([]);
+    setDeleteAllOpen(false);
+    setDeleteConfirm("");
   }
 
   // ── Filtering ─────────────────────────────────────────────────────────────
@@ -151,6 +171,13 @@ export function TransactionsClient() {
         description={tx.description}
         action={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline" size="sm"
+              className="text-red-400 hover:text-red-300 hover:border-red-500/50 hover:bg-red-500/10"
+              onClick={() => { setDeleteConfirm(""); setDeleteAllOpen(true); }}
+            >
+              <Trash2 size={14} /> {lang === "en" ? "Delete all" : "Apagar tudo"}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
               <Upload size={14} /> CSV
             </Button>
@@ -444,6 +471,61 @@ export function TransactionsClient() {
 
       <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
         categories={categories} onSuccess={() => { load(); }} />
+
+      {/* ── Delete all confirmation ───────────────────────────────────── */}
+      <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400">
+              <AlertTriangle size={18} /> {lang === "en" ? "Delete all transactions" : "Apagar todas as transações"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-6 pb-2 space-y-4">
+            {/* Warning banner */}
+            <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4 space-y-1">
+              <p className="text-sm font-semibold text-red-400">
+                {lang === "en" ? "This action cannot be undone." : "Esta ação não pode ser desfeita."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {lang === "en"
+                  ? `All ${transactions.length} transactions will be permanently deleted. Budgets and goals are not affected.`
+                  : `Todas as ${transactions.length} transações serão apagadas permanentemente. Orçamentos e metas não são afetados.`}
+              </p>
+            </div>
+
+            {/* Confirm input */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">
+                {lang === "en" ? 'Type ' : 'Digite '}
+                <span className="font-mono font-bold text-foreground">APAGAR</span>
+                {lang === "en" ? ' to confirm:' : ' para confirmar:'}
+              </p>
+              <input
+                type="text"
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleDeleteAll()}
+                placeholder="APAGAR"
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500/60"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteAllOpen(false); setDeleteConfirm(""); }}>
+              {lang === "en" ? "Cancel" : "Cancelar"}
+            </Button>
+            <Button
+              onClick={handleDeleteAll}
+              disabled={deleteConfirm.toUpperCase() !== "APAGAR" || deleting}
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
+            >
+              {deleting
+                ? <><RefreshCw size={13} className="animate-spin" /> {lang === "en" ? "Deleting..." : "Apagando..."}</>
+                : <><Trash2 size={14} /> {lang === "en" ? `Delete ${transactions.length}` : `Apagar ${transactions.length} transações`}</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
