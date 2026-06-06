@@ -126,7 +126,7 @@ export function BudgetsClient() {
     <div className="space-y-6">
       <PageHeader
         title={tx.title}
-        description={`${tx.descriptionPrefix} ${formatMonthYear(viewMonth)}`}
+        description={`${tx.descriptionPrefix} ${formatMonthYear(viewMonth, lang)}`}
         action={
           <div className="flex items-center gap-2">
             {/* Copy from previous month */}
@@ -152,7 +152,7 @@ export function BudgetsClient() {
           <ChevronLeft size={16} />
         </button>
         <span className="text-sm font-semibold text-foreground w-36 text-center capitalize">
-          {formatMonthYear(viewMonth)}
+          {formatMonthYear(viewMonth, lang)}
         </span>
         <button
           onClick={() => setViewMonth(getNextMonth(viewMonth))}
@@ -199,14 +199,18 @@ export function BudgetsClient() {
             <Bell size={16} className="text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">Novo mês, novos orçamentos!</p>
+            <p className="text-sm font-semibold text-foreground">
+              {lang === "en" ? "New month, new budgets!" : "Novo mês, novos orçamentos!"}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Copie os orçamentos do mês passado com um clique e ajuste o que precisar.
+              {lang === "en"
+                ? "Copy last month's budgets with one click and adjust as needed."
+                : "Copie os orçamentos do mês passado com um clique e ajuste o que precisar."}
             </p>
           </div>
           <Button size="sm" onClick={handleCopyPrevMonth} disabled={copying}>
             {copying ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
-            Copiar agora
+            {lang === "en" ? "Copy now" : "Copiar agora"}
           </Button>
         </div>
       )}

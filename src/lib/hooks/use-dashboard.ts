@@ -88,7 +88,7 @@ export function useDashboard(monthOffset = 0) {
           const { start, end } = getMonthRange(m);
           const mTx = transactions.filter((t) => t.date >= start && t.date <= end);
           const income   = mTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-          const expenses = mTx.filter((t) => t.type !== "income").reduce((s, t) => s + t.amount, 0);
+          const expenses = mTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
           // Count actual days spanned so daily rate isn't distorted by partial imports
           const sortedDates = mTx.map(t => t.date).sort();

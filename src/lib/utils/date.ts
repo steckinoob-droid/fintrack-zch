@@ -1,15 +1,15 @@
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, addMonths,
          differenceInCalendarDays, isSameYear, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, enUS } from "date-fns/locale";
 
 export function formatDate(date: string | Date, pattern = "dd/MM/yyyy"): string {
   const d = typeof date === "string" ? parseISO(date) : date;
   return format(d, pattern, { locale: ptBR });
 }
 
-export function formatMonthYear(date: string | Date): string {
+export function formatMonthYear(date: string | Date, lang?: string): string {
   const d = typeof date === "string" ? parseISO(date) : date;
-  return format(d, "MMMM yyyy", { locale: ptBR });
+  return format(d, "MMMM yyyy", { locale: lang === "en" ? enUS : ptBR });
 }
 
 export function formatShortMonth(date: string | Date): string {
@@ -49,18 +49,19 @@ export function getNextMonth(monthStr: string): string {
  * "hoje · 14:30", "ontem", "seg", "05 jun", "05/06/25"
  * createdAt is the ISO timestamp — shown as time only when date is today.
  */
-export function formatRelativeDate(dateStr: string, createdAt?: string): string {
-  const date  = parseISO(dateStr);
-  const today = startOfDay(new Date());
-  const diff  = differenceInCalendarDays(today, startOfDay(date));
+export function formatRelativeDate(dateStr: string, createdAt?: string, lang?: string): string {
+  const date   = parseISO(dateStr);
+  const today  = startOfDay(new Date());
+  const diff   = differenceInCalendarDays(today, startOfDay(date));
+  const locale = lang === "en" ? enUS : ptBR;
 
   if (diff === 0) {
     const time = createdAt ? " · " + format(parseISO(createdAt), "HH:mm") : "";
-    return `hoje${time}`;
+    return lang === "en" ? `today${time}` : `hoje${time}`;
   }
-  if (diff === 1) return "ontem";
-  if (diff < 7)  return format(date, "EEEE", { locale: ptBR });   // "segunda-feira"
-  if (isSameYear(date, new Date())) return format(date, "dd MMM", { locale: ptBR }); // "05 jun"
+  if (diff === 1) return lang === "en" ? "yesterday" : "ontem";
+  if (diff < 7)  return format(date, "EEEE", { locale });
+  if (isSameYear(date, new Date())) return format(date, "dd MMM", { locale });
   return format(date, "dd/MM/yy");
 }
 
@@ -68,14 +69,15 @@ export function formatRelativeDate(dateStr: string, createdAt?: string): string 
  * Returns a human-readable date group label.
  * "Hoje", "Ontem", "Segunda-feira", "5 jun", "05/06/24"
  */
-export function formatGroupDate(dateStr: string): string {
-  const date  = parseISO(dateStr);
-  const today = startOfDay(new Date());
-  const diff  = differenceInCalendarDays(today, startOfDay(date));
-  if (diff === 0) return "Hoje";
-  if (diff === 1) return "Ontem";
-  if (diff < 7)  return format(date, "EEEE", { locale: ptBR });
-  if (isSameYear(date, new Date())) return format(date, "d MMM", { locale: ptBR });
+export function formatGroupDate(dateStr: string, lang?: string): string {
+  const date   = parseISO(dateStr);
+  const today  = startOfDay(new Date());
+  const diff   = differenceInCalendarDays(today, startOfDay(date));
+  const locale = lang === "en" ? enUS : ptBR;
+  if (diff === 0) return lang === "en" ? "Today" : "Hoje";
+  if (diff === 1) return lang === "en" ? "Yesterday" : "Ontem";
+  if (diff < 7)  return format(date, "EEEE", { locale });
+  if (isSameYear(date, new Date())) return format(date, "d MMM", { locale });
   return format(date, "dd/MM/yy");
 }
 

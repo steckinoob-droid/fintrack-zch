@@ -149,15 +149,18 @@ export function TransactionsClient() {
   }
 
   async function handleDeleteAll() {
-    if (deleteConfirm.toUpperCase() !== "APAGAR") return;
+    const CONFIRM_WORD = lang === "en" ? "DELETE" : "APAGAR";
+    if (deleteConfirm.toUpperCase() !== CONFIRM_WORD) return;
     setDeleting(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setDeleting(false); return; }
     const { error } = await supabase.from("transactions").delete().eq("user_id", user.id);
     setDeleting(false);
-    if (error) { toast.error("Erro ao apagar. Tente novamente."); return; }
-    toast.success(`${transactions.length} transações apagadas.`);
+    if (error) { toast.error(lang === "en" ? "Error deleting. Try again." : "Erro ao apagar. Tente novamente."); return; }
+    toast.success(lang === "en"
+      ? `${transactions.length} transaction${transactions.length !== 1 ? "s" : ""} deleted.`
+      : `${transactions.length} transações apagadas.`);
     setTransactions([]);
     setDeleteAllOpen(false);
     setDeleteConfirm("");
@@ -514,7 +517,7 @@ export function TransactionsClient() {
                   return (
                     <div className="flex items-center gap-3 px-4 py-2 bg-muted/10 border-b border-border/30">
                       <span className="text-xs font-semibold text-muted-foreground capitalize tracking-wide">
-                        {formatGroupDate(dateKey)}
+                        {formatGroupDate(dateKey, lang)}
                       </span>
                       <span className="text-xs text-muted-foreground/50">
                         {rows.length} {rows.length === 1 ? (lang === "en" ? "transaction" : "transação") : (lang === "en" ? "transactions" : "transações")}
@@ -671,7 +674,7 @@ export function TransactionsClient() {
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">
                 {lang === "en" ? 'Type ' : 'Digite '}
-                <span className="font-mono font-bold text-foreground">APAGAR</span>
+                <span className="font-mono font-bold text-foreground">{lang === "en" ? "DELETE" : "APAGAR"}</span>
                 {lang === "en" ? ' to confirm:' : ' para confirmar:'}
               </p>
               <input
@@ -679,7 +682,7 @@ export function TransactionsClient() {
                 value={deleteConfirm}
                 onChange={e => setDeleteConfirm(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleDeleteAll()}
-                placeholder="APAGAR"
+                placeholder={lang === "en" ? "DELETE" : "APAGAR"}
                 className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500/60"
               />
             </div>
@@ -690,7 +693,7 @@ export function TransactionsClient() {
             </Button>
             <Button
               onClick={handleDeleteAll}
-              disabled={deleteConfirm.toUpperCase() !== "APAGAR" || deleting}
+              disabled={deleteConfirm.toUpperCase() !== (lang === "en" ? "DELETE" : "APAGAR") || deleting}
               className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
             >
               {deleting

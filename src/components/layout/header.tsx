@@ -67,7 +67,7 @@ export function Header({ user, profile }: HeaderProps) {
             <span className="text-primary font-semibold">{firstName}</span> 👋
           </p>
           <p className="text-xs text-muted-foreground">
-            {formatMonthYear(now)} · {tx.header.subtitle}
+            {formatMonthYear(now, lang)} · {tx.header.subtitle}
           </p>
         </div>
 

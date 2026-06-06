@@ -221,7 +221,7 @@ export function GoalsClient() {
                       ) : (
                         depositHistory[goal.id].map((d, i) => (
                           <div key={i} className="flex items-center justify-between text-xs py-0.5">
-                            <span className="text-muted-foreground">{formatRelativeDate(d.date, d.created_at)}</span>
+                            <span className="text-muted-foreground">{formatRelativeDate(d.date, d.created_at, lang)}</span>
                             <span className="font-medium tabular-nums" style={{ color: goal.color }}>
                               +{formatCurrency(d.amount)}
                             </span>
