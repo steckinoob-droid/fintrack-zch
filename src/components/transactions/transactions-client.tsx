@@ -23,6 +23,7 @@ import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import type { Transaction, Category } from "@/lib/types";
 import { formatCurrency, formatCompact } from "@/lib/utils/currency";
 import { formatRelativeDate, formatGroupDate, getDateRange, type Period } from "@/lib/utils/date";
+import { cleanTitle } from "@/lib/utils/parse-santander-pdf";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -508,23 +509,29 @@ export function TransactionsClient() {
             {grouped.map(([dateKey, rows]) => (
               <div key={dateKey}>
                 {/* Date group header */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-muted/10 border-b border-border/30">
-                  <span className="text-xs font-semibold text-muted-foreground capitalize tracking-wide">
-                    {formatGroupDate(dateKey)}
-                  </span>
-                  <span className="text-xs text-muted-foreground/50">
-                    {rows.length} {rows.length === 1 ? (lang === "en" ? "transaction" : "transação") : (lang === "en" ? "transactions" : "transações")}
-                  </span>
-                  <span className={cn("ml-auto text-xs font-semibold tabular-nums",
-                    rows.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0) >= 0
-                      ? "text-emerald-400" : "text-red-400"
-                  )}>
-                    {(() => {
-                      const net = rows.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
-                      return (net >= 0 ? "+" : "−") + formatCompact(Math.abs(net));
-                    })()}
-                  </span>
-                </div>
+                {(() => {
+                  const net = rows.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+                  return (
+                    <div className="flex items-center gap-3 px-4 py-2 bg-muted/10 border-b border-border/30">
+                      <span className="text-xs font-semibold text-muted-foreground capitalize tracking-wide">
+                        {formatGroupDate(dateKey)}
+                      </span>
+                      <span className="text-xs text-muted-foreground/50">
+                        {rows.length} {rows.length === 1 ? (lang === "en" ? "transaction" : "transação") : (lang === "en" ? "transactions" : "transações")}
+                      </span>
+                      {/* Only show group total for 2+ transactions — with 1 tx
+                          the total is the same number as the row, which looks
+                          like a duplicate and confuses users. */}
+                      {rows.length > 1 && (
+                        <span className={cn("ml-auto text-xs font-semibold tabular-nums",
+                          net >= 0 ? "text-emerald-400" : "text-red-400"
+                        )}>
+                          {(net >= 0 ? "+" : "−") + formatCompact(Math.abs(net))}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Rows */}
                 <div className="divide-y divide-border/30">
@@ -545,7 +552,7 @@ export function TransactionsClient() {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+                          <p className="text-sm font-medium text-foreground truncate">{cleanTitle(t.title)}</p>
                           {t.type === "saving" && (
                             <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
                               {tx.goalDepositBadge}

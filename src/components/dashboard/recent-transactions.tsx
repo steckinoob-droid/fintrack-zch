@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
+import { cleanTitle } from "@/lib/utils/parse-santander-pdf";
 
 interface Props { transactions: Transaction[] }
 
@@ -48,7 +49,7 @@ export function RecentTransactions({ transactions }: Props) {
                 }
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+                <p className="text-sm font-medium text-foreground truncate">{cleanTitle(t.title)}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {t.category?.color && (
                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: t.category.color }} />

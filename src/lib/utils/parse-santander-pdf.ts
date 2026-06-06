@@ -160,6 +160,41 @@ function isInternal(desc: string): boolean {
   return INTERNAL_NORM.some(k => matchesNorm(desc, k));
 }
 
+// ── Title cleanup ─────────────────────────────────────────────────────────────
+//
+// Santander/Bradesco PDFs concatenate a payment-method suffix directly onto the
+// merchant name: "JulianadeSouzaSaturnin COMPRACARTAODEBMC".
+// We strip those noise tokens and add spaces at CamelCase boundaries so the
+// title is human-readable both in the import preview and after it's saved.
+
+/**
+ * Clean up a raw PDF transaction title for display / storage.
+ * Safe to call on already-clean titles — returns them unchanged.
+ */
+export function cleanTitle(raw: string): string {
+  let t = raw
+    // Strip Santander/Bradesco debit-card suffix codes (all variants)
+    .replace(/COMPRACARTAODEBMC/gi, "")
+    .replace(/COMPRA\s*CART[AÃ]O\s*DEB?\s*(?:MC|BMC)?/gi, "")
+    // Strip leading embedded "DD/MM" date (belt-and-suspenders)
+    .replace(/^\d{2}\/\d{2}\s*/, "")
+    // Strip trailing 6-digit document numbers
+    .replace(/\s+\d{6}$/, "")
+    // Strip stray leading/trailing dashes and spaces
+    .replace(/^\s*-\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Nothing left after cleanup → generic fallback
+  if (!t) return "Compra Débito";
+
+  // CamelCase → spaces: "JulianadeSouzaSaturnin" → "Julianade Souza Saturnin"
+  // Handles PIX recipient names stored in PascalCase.
+  t = t.replace(/([a-záàãâéêíóôõúç])([A-ZÁÀÃÂÉÊÍÓÔÕÚÇ])/g, "$1 $2");
+
+  return t.trim();
+}
+
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
 function toISO(dd: string, mm: string, year: number) {
@@ -269,13 +304,7 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
     const parts = [...descAccum, extraDesc].filter(Boolean);
     descAccum = [];
     const raw = parts.join(" ").trim();
-    const desc = raw
-      .replace(/\s+/g, " ")
-      // Remove doc numbers embedded at the end after the real description
-      .replace(/\s+\d{6}$/, "")
-      // Remove stray leading/trailing dashes
-      .replace(/^\s*-\s*/, "")
-      .trim();
+    const desc = cleanTitle(raw);   // strips noise suffixes + CamelCase spacing
 
     if (!desc || !currentDate) return;
     if (shouldDiscard(desc)) return;
