@@ -104,7 +104,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       if (!parsed.length) {
         setError(
           "Nenhuma transação encontrada no PDF. " +
-          "Certifique-se de enviar um extrato Santander (Conta Corrente) válido."
+          "Verifique se o arquivo é um extrato bancário válido e exportado diretamente pelo app do banco."
         );
         setPdfLoading(false);
         return;
@@ -129,8 +129,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     } catch (err) {
       console.error("PDF parse error:", err);
       setError(
-        "Erro ao processar o PDF. Verifique se o arquivo é um extrato Santander " +
-        "no formato 'Extrato Consolidado Inteligente'."
+        "Não foi possível ler o PDF. Certifique-se de enviar o arquivo de extrato " +
+        "exportado diretamente pelo app ou site do seu banco."
       );
     }
     setPdfLoading(false);
@@ -296,40 +296,32 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                 </div>
                 <p className="text-base font-semibold text-foreground mb-1">Clique ou arraste o arquivo</p>
                 <p className="text-xs text-muted-foreground">
-                  Aceita <span className="font-medium text-foreground">CSV</span> (qualquer banco) ou{" "}
-                  <span className="font-medium text-red-400">PDF</span> (extrato Santander)
+                  Aceita <span className="font-medium text-foreground">CSV</span> ou{" "}
+                  <span className="font-medium text-foreground">PDF</span> — formato detectado automaticamente
                 </p>
                 <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               </div>
             )}
 
-            {/* PDF callout for Santander */}
-            <div className="rounded-xl bg-red-500/8 border border-red-500/20 p-3 flex gap-3">
-              <FileText size={16} className="text-red-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-foreground">Santander — Extrato PDF</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  App Santander → Extrato → <span className="font-medium text-foreground">Extrato Consolidado Inteligente</span> → baixar PDF.
-                  Envie o arquivo aqui e as transações serão importadas automaticamente.
-                </p>
-              </div>
-            </div>
-
             <div className="space-y-2.5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">CSV — outros bancos</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Como exportar por banco</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha" },
-                  { bank: "Inter",     steps: "Extrato → Exportar → CSV" },
-                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha" },
-                  { bank: "Bradesco",  steps: "Extrato → Gerar CSV" },
-                  { bank: "C6",        steps: "Extrato → Exportar → Excel/CSV" },
-                  { bank: "Santander", steps: "Extrato → Baixar CSV (alternativo)" },
-                ].map(({ bank, steps }) => (
+                  { bank: "Santander", steps: "Extrato Consolidado Inteligente → PDF", tag: "PDF" },
+                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",      tag: "CSV" },
+                  { bank: "Inter",     steps: "Extrato → Exportar → CSV",              tag: "CSV" },
+                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha",           tag: "CSV" },
+                  { bank: "Bradesco",  steps: "Extrato → Gerar CSV",                   tag: "CSV" },
+                  { bank: "C6",        steps: "Extrato → Exportar → Excel/CSV",        tag: "CSV" },
+                ].map(({ bank, steps, tag }) => (
                   <div key={bank} className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2">
                     <span className="text-xs font-semibold text-foreground shrink-0 w-16">{bank}</span>
-                    <span className="text-xs text-muted-foreground leading-relaxed">{steps}</span>
+                    <span className="text-xs text-muted-foreground leading-relaxed flex-1">{steps}</span>
+                    <span className={cn(
+                      "text-[10px] font-bold shrink-0 mt-0.5",
+                      tag === "PDF" ? "text-red-400" : "text-muted-foreground/60"
+                    )}>{tag}</span>
                   </div>
                 ))}
               </div>
@@ -343,9 +335,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
 
             {/* Auto-mapped banner — PDF variant */}
             {fileMode === "pdf" && rows.length > 0 && (
-              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
-                <FileText size={13} className="text-red-400 shrink-0" />
-                <span className="text-xs text-red-400 font-medium">Extrato Santander PDF — transações extraídas automaticamente</span>
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                <FileText size={13} className="text-emerald-400 shrink-0" />
+                <span className="text-xs text-emerald-400 font-medium">Extrato PDF — transações extraídas automaticamente</span>
               </div>
             )}
 
