@@ -321,8 +321,11 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
 
     if (parsed) {
       // Date at start of descPart?
+      // Use (?!\d) instead of \b: on page 3 text is concatenated with no
+      // spaces, e.g. "01/05MARCIAESTÉTICA" — \b fails between "5" and "M"
+      // because both are word characters, so the date was silently skipped.
       let { descPart } = parsed;
-      const dateM = descPart.match(/^(\d{2})\/(\d{2})\b/);
+      const dateM = descPart.match(/^(\d{2})\/(\d{2})(?!\d)/);
       if (dateM) {
         currentDate = toISO(dateM[1], dateM[2], year);
         descPart = descPart.slice(dateM[0].length).trim();
@@ -333,7 +336,8 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
     }
 
     // ── No amount → date line or description continuation ─────────────────
-    const dateM = line.match(/^(\d{2})\/(\d{2})\b/);
+    // Same fix: (?!\d) instead of \b for concatenated page-3 text.
+    const dateM = line.match(/^(\d{2})\/(\d{2})(?!\d)/);
     if (dateM) {
       currentDate = toISO(dateM[1], dateM[2], year);
       const rest = line.slice(dateM[0].length).trim();

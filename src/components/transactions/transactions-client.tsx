@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
   PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check,
@@ -48,8 +48,22 @@ export function TransactionsClient() {
 
   const [search, setSearch]       = useState("");
   const [tab, setTab]             = useState<"all" | "income" | "expense">("all");
-  const [period, setPeriod]       = useState<Period>("this_month");
+  // Read last-used period from sessionStorage so navigating away and back
+  // (e.g. after an import) doesn't reset to "this_month" and hide transactions.
+  const [period, _setPeriod]      = useState<Period>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("fintrack_tx_period") as Period | null;
+      if (saved && PERIODS.some(p => p.value === saved)) return saved;
+    }
+    return "this_month";
+  });
   const [catFilter, setCatFilter] = useState("__all__");
+
+  // Wrapper that also persists the chosen period across navigation.
+  const setPeriod = useCallback((p: Period) => {
+    _setPeriod(p);
+    if (typeof window !== "undefined") sessionStorage.setItem("fintrack_tx_period", p);
+  }, []);
   const [showFilters, setShowFilters] = useState(false);
 
   const [editTx, setEditTx]           = useState<Transaction | null>(null);
@@ -171,6 +185,28 @@ export function TransactionsClient() {
   }, [filtered]);
 
   const activeFilters = (catFilter !== "__all__" ? 1 : 0) + (period !== "this_month" ? 1 : 0);
+
+  // Auto-expand period once per page visit when data has loaded but the
+  // current period filter hides all transactions.  Typical case: user imports
+  // last month's statement → navigates to Transactions → period is still
+  // "this_month" → nothing visible.  We silently widen to "all" so they see
+  // their data without having to know about the filter.
+  const didAutoExpand = useRef(false);
+  useEffect(() => {
+    if (loading || didAutoExpand.current) return;
+    if (
+      transactions.length > 0 &&
+      filtered.length === 0 &&
+      !search &&
+      catFilter === "__all__" &&
+      tab === "all"
+    ) {
+      didAutoExpand.current = true;
+      setPeriod("all");
+    }
+  // Run only when loading state or transaction counts change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, transactions.length, filtered.length]);
 
   const liveQuickCat = useMemo(() => {
     if (quickCatId !== "__auto__" || quickTitle.length < 3) return null;

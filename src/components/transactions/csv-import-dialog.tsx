@@ -176,7 +176,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   }
 
   function fingerprint(date: string, amount: number, title: string) {
-    return `${date}|${Math.round(amount * 100)}|${title.toLowerCase().trim().replace(/\s+/g, " ")}`;
+    // Normalize aggressively: remove accents, lowercase, strip ALL spaces.
+    // This makes "LIQUIDODEVENCIMENTO" match "LIQUIDO DE VENCIMENTO" so
+    // previously-imported garbled text is correctly detected as a duplicate
+    // of the same transaction parsed with spaces.
+    const norm = title
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "") // strip combining accent marks
+      .replace(/[^a-z0-9]/g, "");      // strip spaces & punctuation
+    return `${date}|${Math.round(amount * 100)}|${norm}`;
   }
 
   async function handleImport(force = false) {
@@ -220,6 +229,10 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         setImporting(false);
         setImportResult({ imported: 0, skipped, examples });
         setStep("result");
+        // Still call onSuccess so the transactions list reloads and resets
+        // its period filter — this reveals existing transactions even when
+        // all rows were detected as duplicates.
+        onSuccess();
         return;
       }
       // ─────────────────────────────────────────────────────────────────────
