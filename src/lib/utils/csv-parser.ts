@@ -3,6 +3,7 @@ export interface ParsedRow {
   title: string;
   amount: number;         // always positive
   type: "income" | "expense";
+  isInternal?: boolean;   // CDB aplicação/resgate, cofrinho — hidden by default
 }
 
 export interface ColumnMap {
@@ -323,8 +324,8 @@ export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
 
     if (!date || amount === null || !title) continue;
 
-    // Skip internal investment / savings-jar transfers
-    if (isInternalTransfer(rawType, title)) continue;
+    // Detect internal investment / savings-jar transfers
+    const internal = isInternalTransfer(rawType, title);
 
     // ── Type resolution ───────────────────────────────────────────────────
     let type: "income" | "expense" | null = null;
@@ -348,7 +349,7 @@ export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
     // 4. Ultimate fallback
     if (!type) type = "expense";
 
-    result.push({ date, title, amount: Math.abs(amount), type });
+    result.push({ date, title, amount: Math.abs(amount), type, isInternal: internal || undefined });
   }
 
   return result;

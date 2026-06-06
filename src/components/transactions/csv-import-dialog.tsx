@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Check, Loader2, AlertCircle, Settings2, RefreshCw, CheckCircle2 } from "lucide-react";
+import {
+  Upload, Check, Loader2, AlertCircle, Settings2,
+  RefreshCw, CheckCircle2, ChevronDown, ChevronUp, Info,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -23,22 +26,23 @@ interface Props {
 interface ImportRow extends ParsedRow {
   categoryId: string;
   skip: boolean;
-  autoTyped: boolean;  // true when type was determined from title keywords (more reliable)
-  autoCat: boolean;    // true when category was auto-suggested
+  autoTyped: boolean;
+  autoCat: boolean;
 }
 
 type Step = "upload" | "preview" | "result";
 
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
-  const [step, setStep]           = useState<Step>("upload");
-  const [headers, setHeaders]     = useState<string[]>([]);
-  const [rawRows, setRawRows]     = useState<string[][]>([]);
-  const [colMap, setColMap]       = useState<Partial<ColumnMap>>({});
-  const [autoMapped, setAutoMapped] = useState(false);   // true = all 3 were auto-detected
-  const [showMapping, setShowMapping] = useState(false); // user can reveal manual mapping
-  const [rows, setRows]           = useState<ImportRow[]>([]);
-  const [importing, setImporting] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [step, setStep]             = useState<Step>("upload");
+  const [headers, setHeaders]       = useState<string[]>([]);
+  const [rawRows, setRawRows]       = useState<string[][]>([]);
+  const [colMap, setColMap]         = useState<Partial<ColumnMap>>({});
+  const [autoMapped, setAutoMapped] = useState(false);
+  const [showMapping, setShowMapping] = useState(false);
+  const [rows, setRows]             = useState<ImportRow[]>([]);
+  const [showInternal, setShowInternal] = useState(false);   // expand CDB/internal rows
+  const [importing, setImporting]   = useState(false);
+  const [error, setError]           = useState<string | null>(null);
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
@@ -49,24 +53,26 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   function reset() {
     setStep("upload"); setRows([]); setHeaders([]); setRawRows([]);
     setColMap({}); setError(null); setAutoMapped(false); setShowMapping(false);
-    setImportResult(null);
+    setImportResult(null); setShowInternal(false);
   }
 
   function buildPreview(raw: string[][], map: ColumnMap) {
     const parsed = buildParsedRows(raw, map);
     const withCats: ImportRow[] = parsed.map(r => {
-      // Refine type using title keywords — more reliable than amount-sign alone
       const titleType = suggestType(r.title);
       const type: "income" | "expense" = titleType ?? r.type;
-      const autoTyped = !!titleType && titleType !== r.type; // type was corrected from title
+      const autoTyped = !!titleType && titleType !== r.type;
 
+      // Internal rows (CDB aplicação/resgate, cofrinho) are pre-unchecked
+      const isInternalRow = r.isInternal === true;
       const typedCats = categories.filter(c => c.type === type);
-      const suggested = suggestCategory(r.title, typedCats);
+      const suggested  = isInternalRow ? null : suggestCategory(r.title, typedCats);
+
       return {
         ...r,
         type,
         categoryId: suggested?.id ?? "__none__",
-        skip: false,
+        skip: isInternalRow,   // internal = pre-unchecked
         autoTyped,
         autoCat: !!suggested,
       };
@@ -102,7 +108,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
           suggestedMap.amountCol !== undefined;
 
         setAutoMapped(allDetected);
-        setShowMapping(!allDetected); // show mapping UI only if needed
+        setShowMapping(!allDetected);
 
         if (allDetected) {
           buildPreview(rows, suggestedMap as ColumnMap);
@@ -118,12 +124,12 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...updates } : r));
   }
 
-  /** Fingerprint: date + rounded amount (avoids float noise) + normalized title */
   function fingerprint(date: string, amount: number, title: string) {
     return `${date}|${Math.round(amount * 100)}|${title.toLowerCase().trim().replace(/\s+/g, " ")}`;
   }
 
   async function handleImport(force = false) {
+    // Only import rows the user has checked (skip=false)
     const toImportRows = rows.filter(r => !r.skip);
     if (!toImportRows.length) return;
     setImporting(true);
@@ -136,8 +142,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     let examples: { date: string; title: string; amount: number }[] = [];
 
     if (!force) {
-      // ── Duplicate detection ─────────────────────────────────────────────
-      const dates = toImportRows.map(r => r.date).sort();
+      // ── Duplicate detection ───────────────────────────────────────────────
+      const dates   = toImportRows.map(r => r.date).sort();
       const minDate = dates[0];
       const maxDate = dates[dates.length - 1];
 
@@ -155,18 +161,17 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       );
 
       const blocked = toImportRows.filter(r => existingSet.has(fingerprint(r.date, r.amount, r.title)));
-      newOnly = toImportRows.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
-      skipped = blocked.length;
+      newOnly  = toImportRows.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
+      skipped  = blocked.length;
       examples = blocked.slice(0, 6).map(r => ({ date: r.date, title: r.title, amount: r.amount }));
 
-      // All duplicates — show result screen with examples + force option
       if (!newOnly.length) {
         setImporting(false);
         setImportResult({ imported: 0, skipped, examples });
         setStep("result");
         return;
       }
-      // ───────────────────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────────────────────────────
     }
 
     const payload = newOnly.map(r => ({
@@ -190,10 +195,14 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     onSuccess();
   }
 
-  const mapReady = colMap.dateCol !== undefined && colMap.titleCol !== undefined && colMap.amountCol !== undefined;
-  const toImport  = rows.filter(r => !r.skip).length;
-  const autoTagged = rows.filter(r => !r.skip && r.categoryId).length;
+  // ── Derived state ────────────────────────────────────────────────────────────
+  const mapReady       = colMap.dateCol !== undefined && colMap.titleCol !== undefined && colMap.amountCol !== undefined;
+  const normalRows     = rows.filter(r => !r.isInternal);
+  const internalRows   = rows.filter(r => r.isInternal);
+  const toImport       = rows.filter(r => !r.skip).length;
+  const autoTagged     = normalRows.filter(r => !r.skip && r.autoCat).length;
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-2xl">
@@ -204,14 +213,12 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         {/* ── STEP 1: UPLOAD ── */}
         {step === "upload" && (
           <div className="px-6 pb-4 space-y-5">
-
             {error && (
               <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
                 <AlertCircle size={14} /> {error}
               </div>
             )}
 
-            {/* Drop zone */}
             <div
               onClick={() => fileRef.current?.click()}
               onDragOver={e => e.preventDefault()}
@@ -227,7 +234,6 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
 
-            {/* Bank export instructions */}
             <div className="space-y-2.5">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Como exportar do seu banco</p>
               <div className="grid grid-cols-2 gap-2">
@@ -246,39 +252,33 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                 ))}
               </div>
             </div>
-
           </div>
         )}
 
         {/* ── STEP 2: PREVIEW ── */}
         {step === "preview" && (
-          <div className="px-6 pb-2 space-y-4">
+          <div className="px-6 pb-2 space-y-3">
 
-            {/* Auto-mapped success banner */}
+            {/* Auto-mapped banner */}
             {autoMapped && !showMapping && rows.length > 0 && (
               <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
                 <div className="flex items-center gap-2 text-xs text-emerald-400">
                   <Check size={13} />
                   <span>Colunas detectadas automaticamente</span>
                 </div>
-                <button
-                  onClick={() => setShowMapping(true)}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
+                <button onClick={() => setShowMapping(true)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
                   <Settings2 size={11} /> Ajustar
                 </button>
               </div>
             )}
 
-            {/* Column mapping — only shown when needed or user requests */}
+            {/* Column mapping */}
             {showMapping && (
               <div className="rounded-lg bg-muted/20 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-foreground">Mapeamento de colunas</p>
                   {autoMapped && (
-                    <button onClick={() => setShowMapping(false)} className="text-xs text-muted-foreground hover:text-foreground">
-                      Ocultar
-                    </button>
+                    <button onClick={() => setShowMapping(false)} className="text-xs text-muted-foreground hover:text-foreground">Ocultar</button>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -291,57 +291,54 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         value={colMap[field] !== undefined ? String(colMap[field]) : ""}
                         onValueChange={v => applyMap({ ...colMap, [field]: parseInt(v) })}
                       >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Selecionar..." />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                         <SelectContent>
                           {headers.map((h, i) => (
-                            <SelectItem key={i} value={String(i)} className="text-xs">
-                              {h || `Coluna ${i + 1}`}
-                            </SelectItem>
+                            <SelectItem key={i} value={String(i)} className="text-xs">{h || `Coluna ${i + 1}`}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                   ))}
                 </div>
-                {!mapReady && (
-                  <p className="text-xs text-amber-400">↑ Selecione as 3 colunas para ver a pré-visualização</p>
-                )}
+                {!mapReady && <p className="text-xs text-amber-400">↑ Selecione as 3 colunas para ver a pré-visualização</p>}
               </div>
             )}
 
-            {/* No auto-detection + no rows yet */}
             {!autoMapped && !mapReady && rows.length === 0 && (
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
                 Não foi possível detectar as colunas automaticamente. Selecione manualmente acima.
               </div>
             )}
 
-            {/* Stats */}
+            {/* Stats bar */}
             {rows.length > 0 && (
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{rows.length} transações detectadas</span>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                <span className="font-medium text-foreground">{normalRows.length} transações</span>
+                {internalRows.length > 0 && (
+                  <span className="text-amber-400">+ {internalRows.length} internas</span>
+                )}
                 <span>·</span>
                 <span className="text-indigo-400">{autoTagged} categorizadas</span>
                 <span>·</span>
-                <span>{toImport} para importar</span>
+                <span className="font-medium text-primary">{toImport} para importar</span>
               </div>
             )}
 
-            {/* Row list */}
-            {rows.length > 0 && (
-              <div className="space-y-1.5 max-h-[42vh] overflow-y-auto pr-1">
-                {rows.map((row, i) => {
+            {/* Normal rows */}
+            {normalRows.length > 0 && (
+              <div className="space-y-1.5 max-h-[36vh] overflow-y-auto pr-1">
+                {normalRows.map((row) => {
+                  const idx = rows.indexOf(row);
                   const typedCats = categories.filter(c => c.type === row.type);
                   return (
-                    <div key={i} className={cn(
+                    <div key={idx} className={cn(
                       "rounded-lg border p-2.5 transition-opacity",
                       row.skip ? "opacity-35 border-border/20" : "border-border/50"
                     )}>
                       <div className="flex items-center gap-2 mb-1.5">
                         <button
-                          onClick={() => updateRow(i, { skip: !row.skip })}
+                          onClick={() => updateRow(idx, { skip: !row.skip })}
                           className={cn(
                             "h-4 w-4 rounded shrink-0 border-2 flex items-center justify-center transition-colors",
                             !row.skip ? "border-primary bg-primary" : "border-border bg-transparent"
@@ -352,7 +349,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         <span className="text-xs text-muted-foreground w-20 shrink-0 tabular-nums">{row.date}</span>
                         <span className="text-xs font-medium text-foreground flex-1 truncate">{row.title}</span>
                         {row.autoCat && (
-                          <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-indigo-400 shrink-0" title="Categoria detectada automaticamente">
+                          <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-indigo-400 shrink-0">
                             <Check size={9} /> auto
                           </span>
                         )}
@@ -364,7 +361,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                       <div className="flex items-center gap-2 pl-6">
                         <Select
                           value={row.type}
-                          onValueChange={v => updateRow(i, { type: v as "income" | "expense", categoryId: "__none__", autoTyped: false, autoCat: false })}
+                          onValueChange={v => updateRow(idx, { type: v as "income" | "expense", categoryId: "__none__", autoTyped: false, autoCat: false })}
                         >
                           <SelectTrigger className="h-6 text-xs w-[100px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -374,7 +371,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         </Select>
                         <Select
                           value={row.categoryId}
-                          onValueChange={v => updateRow(i, { categoryId: v, autoCat: false })}
+                          onValueChange={v => updateRow(idx, { categoryId: v, autoCat: false })}
                         >
                           <SelectTrigger className="h-6 text-xs flex-1">
                             <SelectValue placeholder="Sem categoria" />
@@ -390,6 +387,60 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Internal / CDB rows — collapsed by default */}
+            {internalRows.length > 0 && (
+              <div className="rounded-lg border border-amber-500/20 overflow-hidden">
+                <button
+                  onClick={() => setShowInternal(v => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 bg-amber-500/8 hover:bg-amber-500/12 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Info size={13} className="text-amber-400 shrink-0" />
+                    <span className="text-xs font-medium text-amber-400">
+                      {internalRows.length} transações internas ocultadas
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      (CDB aplicação/resgate, cofrinho — não afetam saldo)
+                    </span>
+                  </div>
+                  {showInternal ? <ChevronUp size={13} className="text-muted-foreground" /> : <ChevronDown size={13} className="text-muted-foreground" />}
+                </button>
+
+                {showInternal && (
+                  <div className="p-3 space-y-1.5 max-h-48 overflow-y-auto border-t border-amber-500/15 bg-muted/10">
+                    <p className="text-[10px] text-muted-foreground mb-2">
+                      Marque as que quiser incluir manualmente.
+                    </p>
+                    {internalRows.map((row) => {
+                      const idx = rows.indexOf(row);
+                      return (
+                        <div key={idx} className={cn(
+                          "rounded-lg border p-2 flex items-center gap-2 transition-opacity",
+                          row.skip ? "opacity-40 border-border/20" : "border-amber-500/30"
+                        )}>
+                          <button
+                            onClick={() => updateRow(idx, { skip: !row.skip })}
+                            className={cn(
+                              "h-4 w-4 rounded shrink-0 border-2 flex items-center justify-center transition-colors",
+                              !row.skip ? "border-amber-400 bg-amber-400" : "border-border bg-transparent"
+                            )}
+                          >
+                            {!row.skip && <Check size={9} className="text-black" />}
+                          </button>
+                          <span className="text-xs text-muted-foreground w-20 shrink-0 tabular-nums">{row.date}</span>
+                          <span className="text-xs text-foreground flex-1 truncate">{row.title}</span>
+                          <span className={cn("text-xs tabular-nums font-medium shrink-0",
+                            row.type === "income" ? "text-emerald-400" : "text-red-400")}>
+                            {row.type === "income" ? "+" : "-"}{formatCurrency(row.amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -412,13 +463,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     </p>
                   </div>
                 </div>
-
-                {/* Examples of blocked transactions */}
                 {importResult.examples.length > 0 && (
                   <div className="rounded-lg bg-muted/20 p-3 space-y-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      O que está sendo bloqueado (exemplos):
-                    </p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">O que está sendo bloqueado:</p>
                     {importResult.examples.map((ex, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
@@ -428,14 +475,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     ))}
                   </div>
                 )}
-
-                <p className="text-xs text-muted-foreground">
-                  Se esses dados estão errados ou você quer reimportar mesmo assim, use o botão abaixo.
-                </p>
-
+                <p className="text-xs text-muted-foreground">Se quiser reimportar mesmo assim (ex: dados corrigidos):</p>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="outline" size="sm"
                   className="w-full border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
                   onClick={() => handleImport(true)}
                   disabled={importing}
@@ -453,23 +495,17 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     <CheckCircle2 size={20} className="text-emerald-400" />
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">
-                      {importResult.imported} transações importadas!
-                    </p>
+                    <p className="font-semibold text-foreground">{importResult.imported} transações importadas!</p>
                     {importResult.skipped > 0 && (
                       <p className="text-sm text-muted-foreground">
-                        <span className="font-medium text-amber-400">{importResult.skipped} duplicadas</span> ignoradas — já existiam no histórico.
+                        <span className="font-medium text-amber-400">{importResult.skipped} já existiam</span> — ignoradas como duplicatas.
                       </p>
                     )}
                   </div>
                 </div>
-
-                {/* Examples of what was skipped */}
                 {importResult.skipped > 0 && importResult.examples.length > 0 && (
                   <div className="rounded-lg bg-muted/20 p-3 space-y-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Duplicadas ignoradas (exemplos):
-                    </p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Duplicatas ignoradas (exemplos):</p>
                     {importResult.examples.map((ex, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
@@ -477,6 +513,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         <span className="tabular-nums font-medium text-red-400 shrink-0">{formatCurrency(ex.amount)}</span>
                       </div>
                     ))}
+                    <Button
+                      variant="outline" size="sm"
+                      className="w-full mt-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs"
+                      onClick={() => handleImport(true)}
+                      disabled={importing}
+                    >
+                      {importing
+                        ? <><Loader2 size={13} className="animate-spin" /> Importando...</>
+                        : `Reimportar duplicatas também (${importResult.skipped})`}
+                    </Button>
                   </div>
                 )}
               </div>
@@ -500,12 +546,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
           )}
           {step === "result" && (
             <>
-              <Button variant="outline" onClick={reset}>
-                Importar outro arquivo
-              </Button>
-              <Button onClick={() => { onOpenChange(false); reset(); }}>
-                Fechar
-              </Button>
+              <Button variant="outline" onClick={reset}>Importar outro arquivo</Button>
+              <Button onClick={() => { onOpenChange(false); reset(); }}>Fechar</Button>
             </>
           )}
         </DialogFooter>
