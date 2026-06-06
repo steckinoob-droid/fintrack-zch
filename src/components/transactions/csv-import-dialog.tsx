@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import {
   Upload, Check, Loader2, AlertCircle, Settings2,
-  RefreshCw, CheckCircle2, ChevronDown, ChevronUp, Info,
+  RefreshCw, CheckCircle2, ChevronDown, ChevronUp, Info, FileText,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -31,16 +31,19 @@ interface ImportRow extends ParsedRow {
 }
 
 type Step = "upload" | "preview" | "result";
+type FileMode = "csv" | "pdf";
 
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
   const [step, setStep]             = useState<Step>("upload");
+  const [fileMode, setFileMode]     = useState<FileMode>("csv");
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [headers, setHeaders]       = useState<string[]>([]);
   const [rawRows, setRawRows]       = useState<string[][]>([]);
   const [colMap, setColMap]         = useState<Partial<ColumnMap>>({});
   const [autoMapped, setAutoMapped] = useState(false);
   const [showMapping, setShowMapping] = useState(false);
   const [rows, setRows]             = useState<ImportRow[]>([]);
-  const [showInternal, setShowInternal] = useState(false);   // expand CDB/internal rows
+  const [showInternal, setShowInternal] = useState(false);
   const [importing, setImporting]   = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [importResult, setImportResult] = useState<{
@@ -53,7 +56,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   function reset() {
     setStep("upload"); setRows([]); setHeaders([]); setRawRows([]);
     setColMap({}); setError(null); setAutoMapped(false); setShowMapping(false);
-    setImportResult(null); setShowInternal(false);
+    setImportResult(null); setShowInternal(false); setFileMode("csv"); setPdfLoading(false);
   }
 
   function buildPreview(raw: string[][], map: ColumnMap) {
@@ -90,8 +93,56 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     }
   }
 
-  function handleFile(file: File) {
+  async function handlePDF(file: File) {
     setError(null);
+    setPdfLoading(true);
+    setFileMode("pdf");
+    try {
+      const { parseSantanderPDF } = await import("@/lib/utils/parse-santander-pdf");
+      const parsed = await parseSantanderPDF(file);
+
+      if (!parsed.length) {
+        setError(
+          "Nenhuma transação encontrada no PDF. " +
+          "Certifique-se de enviar um extrato Santander (Conta Corrente) válido."
+        );
+        setPdfLoading(false);
+        return;
+      }
+
+      const withCats: ImportRow[] = parsed.map(r => {
+        const typedCats = categories.filter(c => c.type === r.type);
+        const suggested = r.isInternal ? null : suggestCategory(r.title, typedCats);
+        return {
+          ...r,
+          categoryId: suggested?.id ?? "__none__",
+          skip: r.isInternal === true,
+          autoTyped: false,
+          autoCat: !!suggested,
+        };
+      });
+
+      setRows(withCats);
+      setAutoMapped(true);
+      setShowMapping(false);
+      setStep("preview");
+    } catch (err) {
+      console.error("PDF parse error:", err);
+      setError(
+        "Erro ao processar o PDF. Verifique se o arquivo é um extrato Santander " +
+        "no formato 'Extrato Consolidado Inteligente'."
+      );
+    }
+    setPdfLoading(false);
+  }
+
+  function handleFile(file: File) {
+    // Route by file type
+    const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (isPDF) { handlePDF(file); return; }
+
+    setError(null);
+    setFileMode("csv");
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -207,35 +258,66 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Importar CSV do banco</DialogTitle>
+          <DialogTitle>Importar Extrato</DialogTitle>
         </DialogHeader>
 
         {/* ── STEP 1: UPLOAD ── */}
         {step === "upload" && (
           <div className="px-6 pb-4 space-y-5">
             {error && (
-              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
-                <AlertCircle size={14} /> {error}
+              <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" /> <span>{error}</span>
               </div>
             )}
 
-            <div
-              onClick={() => fileRef.current?.click()}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-              className="border-2 border-dashed border-border/50 hover:border-primary/50 rounded-2xl py-12 px-6 text-center cursor-pointer transition-all group hover:bg-primary/[0.02]"
-            >
-              <div className="h-14 w-14 rounded-2xl bg-muted/40 group-hover:bg-primary/10 flex items-center justify-center mx-auto mb-4 transition-colors">
-                <Upload size={26} className="text-muted-foreground group-hover:text-primary transition-colors" />
+            {/* Loading overlay while parsing PDF */}
+            {pdfLoading ? (
+              <div className="border-2 border-dashed border-primary/40 rounded-2xl py-14 px-6 text-center">
+                <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Loader2 size={26} className="text-primary animate-spin" />
+                </div>
+                <p className="text-base font-semibold text-foreground mb-1">Lendo extrato PDF…</p>
+                <p className="text-xs text-muted-foreground">Isso pode levar alguns segundos</p>
               </div>
-              <p className="text-base font-semibold text-foreground mb-1">Clique ou arraste o arquivo CSV</p>
-              <p className="text-xs text-muted-foreground">Formatos aceitos: .csv, .txt</p>
-              <input ref={fileRef} type="file" accept=".csv,.txt,.ofx" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            ) : (
+              <div
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+                className="border-2 border-dashed border-border/50 hover:border-primary/50 rounded-2xl py-10 px-6 text-center cursor-pointer transition-all group hover:bg-primary/[0.02]"
+              >
+                <div className="flex justify-center gap-3 mb-4">
+                  <div className="h-12 w-12 rounded-2xl bg-muted/40 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                    <Upload size={22} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                  <div className="h-12 w-12 rounded-2xl bg-red-500/10 group-hover:bg-red-500/15 flex items-center justify-center transition-colors">
+                    <FileText size={22} className="text-red-400" />
+                  </div>
+                </div>
+                <p className="text-base font-semibold text-foreground mb-1">Clique ou arraste o arquivo</p>
+                <p className="text-xs text-muted-foreground">
+                  Aceita <span className="font-medium text-foreground">CSV</span> (qualquer banco) ou{" "}
+                  <span className="font-medium text-red-400">PDF</span> (extrato Santander)
+                </p>
+                <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+              </div>
+            )}
+
+            {/* PDF callout for Santander */}
+            <div className="rounded-xl bg-red-500/8 border border-red-500/20 p-3 flex gap-3">
+              <FileText size={16} className="text-red-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-foreground">Santander — Extrato PDF</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  App Santander → Extrato → <span className="font-medium text-foreground">Extrato Consolidado Inteligente</span> → baixar PDF.
+                  Envie o arquivo aqui e as transações serão importadas automaticamente.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2.5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Como exportar do seu banco</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">CSV — outros bancos</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { bank: "Nubank",    steps: "App → Perfil → Exportar planilha" },
@@ -243,7 +325,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                   { bank: "Itaú",      steps: "Extrato → Baixar → Planilha" },
                   { bank: "Bradesco",  steps: "Extrato → Gerar CSV" },
                   { bank: "C6",        steps: "Extrato → Exportar → Excel/CSV" },
-                  { bank: "Santander", steps: "Extrato → Baixar CSV" },
+                  { bank: "Santander", steps: "Extrato → Baixar CSV (alternativo)" },
                 ].map(({ bank, steps }) => (
                   <div key={bank} className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2">
                     <span className="text-xs font-semibold text-foreground shrink-0 w-16">{bank}</span>
@@ -259,8 +341,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         {step === "preview" && (
           <div className="px-6 pb-2 space-y-3">
 
-            {/* Auto-mapped banner */}
-            {autoMapped && !showMapping && rows.length > 0 && (
+            {/* Auto-mapped banner — PDF variant */}
+            {fileMode === "pdf" && rows.length > 0 && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
+                <FileText size={13} className="text-red-400 shrink-0" />
+                <span className="text-xs text-red-400 font-medium">Extrato Santander PDF — transações extraídas automaticamente</span>
+              </div>
+            )}
+
+            {/* Auto-mapped banner — CSV variant */}
+            {fileMode === "csv" && autoMapped && !showMapping && rows.length > 0 && (
               <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
                 <div className="flex items-center gap-2 text-xs text-emerald-400">
                   <Check size={13} />
@@ -272,8 +362,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               </div>
             )}
 
-            {/* Column mapping */}
-            {showMapping && (
+            {/* Column mapping — only for CSV */}
+            {fileMode === "csv" && showMapping && (
               <div className="rounded-lg bg-muted/20 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-foreground">Mapeamento de colunas</p>
@@ -305,7 +395,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               </div>
             )}
 
-            {!autoMapped && !mapReady && rows.length === 0 && (
+            {fileMode === "csv" && !autoMapped && !mapReady && rows.length === 0 && (
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
                 Não foi possível detectar as colunas automaticamente. Selecione manualmente acima.
               </div>
@@ -462,7 +552,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                   <div>
                     <p className="font-semibold text-foreground">Nenhuma transação nova</p>
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-medium text-amber-400">{importResult.skipped} transações</span> deste CSV já existem no histórico.
+                      <span className="font-medium text-amber-400">{importResult.skipped} transações</span> deste {fileMode === "pdf" ? "PDF" : "CSV"} já existem no histórico.
                     </p>
                   </div>
                 </div>

@@ -23,15 +23,19 @@ export function QuickAddFab() {
   const [catId, setCatId] = useState("__auto__");
   const [saving, setSaving] = useState(false);
 
-  // Don't show on transactions page (it has its own quick add)
-  if (pathname === "/transactions") return null;
+  // Don't show on transactions page (it has its own quick add).
+  // NOTE: this flag is computed BEFORE the early return so all hooks
+  // are always called in the same order (Rules of Hooks).
+  const isHidden = pathname === "/transactions";
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (!open || categories.length > 0) return;
+    if (isHidden || !open || categories.length > 0) return;
     createClient().from("categories").select("*")
       .then(({ data }) => setCategories(data ?? []));
-  }, [open, categories.length]);
+  }, [isHidden, open, categories.length]);
+
+  // Safe to return null here — all hooks have already been called above.
+  if (isHidden) return null;
 
   const filteredCats = categories.filter(c => c.type === type);
 

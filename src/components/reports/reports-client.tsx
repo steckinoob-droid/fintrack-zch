@@ -90,7 +90,8 @@ export function ReportsClient() {
   const totalSaved  = goals.reduce((s, g) => s + g.current_amount, 0);
   const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
 
-  const axisStyle = { fill: "hsl(215 16% 60%)", fontSize: 11 };
+  const axisStyle    = { fill: "hsl(215 16% 60%)", fontSize: 11 };
+  const yAxisWidth   = 48; // compact on mobile — formatCompact keeps values short
 
   if (loading) {
     return (
@@ -108,12 +109,13 @@ export function ReportsClient() {
       <PageHeader title={tx.title} description={tx.description} />
 
       <Tabs defaultValue="overview">
-        <div className="overflow-x-auto pb-1 -mx-1 px-1">
-          <TabsList className="min-w-max w-full sm:w-auto">
-            <TabsTrigger value="overview" className="flex-1 sm:flex-none">{tx.overview}</TabsTrigger>
-            <TabsTrigger value="expenses" className="flex-1 sm:flex-none">{tx.expensesTab}</TabsTrigger>
-            <TabsTrigger value="income" className="flex-1 sm:flex-none">{tx.incomeTab}</TabsTrigger>
-            <TabsTrigger value="savings" className="flex-1 sm:flex-none">{tx.savingsTab}</TabsTrigger>
+        {/* Full-bleed horizontal scroll: negate parent p-4 padding so tabs go edge-to-edge */}
+        <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
+          <TabsList className="w-max">
+            <TabsTrigger value="overview">{tx.overview}</TabsTrigger>
+            <TabsTrigger value="expenses">{tx.expensesTab}</TabsTrigger>
+            <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
+            <TabsTrigger value="savings">{tx.savingsTab}</TabsTrigger>
           </TabsList>
         </div>
 
@@ -121,11 +123,11 @@ export function ReportsClient() {
           <div className="glass-card p-5">
             <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.incomeVsExpenses}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tx.incomeVsExpensesDesc}</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={60} />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={yAxisWidth} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                 <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 12 }}>{v}</span>} />
                 <Bar dataKey="income" name={tx.incomeLabel} fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -136,11 +138,11 @@ export function ReportsClient() {
           <div className="glass-card p-5">
             <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.monthlyBalance}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tx.monthlyBalanceDesc}</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={60} />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={yAxisWidth} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeDasharray="4 3" />
                 <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]}>
@@ -187,11 +189,11 @@ export function ReportsClient() {
           <div className="glass-card p-5">
             <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.incomeSources}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tx.incomeSourcesDesc}</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={incomeData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={incomeData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={60} />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={yAxisWidth} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                 <Bar dataKey="value" name={tx.incomeLabel} fill="#10b981" radius={[4, 4, 0, 0]} />
               </BarChart>

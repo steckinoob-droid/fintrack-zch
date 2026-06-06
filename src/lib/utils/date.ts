@@ -64,6 +64,21 @@ export function formatRelativeDate(dateStr: string, createdAt?: string): string 
   return format(date, "dd/MM/yy");
 }
 
+/**
+ * Returns a human-readable date group label.
+ * "Hoje", "Ontem", "Segunda-feira", "5 jun", "05/06/24"
+ */
+export function formatGroupDate(dateStr: string): string {
+  const date  = parseISO(dateStr);
+  const today = startOfDay(new Date());
+  const diff  = differenceInCalendarDays(today, startOfDay(date));
+  if (diff === 0) return "Hoje";
+  if (diff === 1) return "Ontem";
+  if (diff < 7)  return format(date, "EEEE", { locale: ptBR });
+  if (isSameYear(date, new Date())) return format(date, "d MMM", { locale: ptBR });
+  return format(date, "dd/MM/yy");
+}
+
 export type Period = "this_month" | "last_month" | "3months" | "year" | "all";
 
 export function getDateRange(period: Period): { start: string; end: string } | null {

@@ -3,13 +3,15 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
-  PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check, SlidersHorizontal, X, AlertTriangle,
+  PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check,
+  SlidersHorizontal, X, AlertTriangle, MoreVertical,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TransactionRowSkeleton } from "@/components/shared/skeleton";
@@ -19,14 +21,13 @@ import { CsvImportDialog } from "./csv-import-dialog";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import type { Transaction, Category } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/currency";
-import { formatRelativeDate, getDateRange, type Period } from "@/lib/utils/date";
+import { formatCurrency, formatCompact } from "@/lib/utils/currency";
+import { formatRelativeDate, formatGroupDate, getDateRange, type Period } from "@/lib/utils/date";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 
-// ── Period labels ────────────────────────────────────────────────────────────
 const PERIODS: { value: Period; label: string; labelEn: string }[] = [
   { value: "this_month",  label: "Este mês",     labelEn: "This month"   },
   { value: "last_month",  label: "Mês passado",  labelEn: "Last month"   },
@@ -45,14 +46,12 @@ export function TransactionsClient() {
   const [categories, setCategories]     = useState<Category[]>([]);
   const [loading, setLoading]           = useState(true);
 
-  // ── Filters ──────────────────────────────────────────────────────────────
-  const [search, setSearch]     = useState("");
-  const [tab, setTab]           = useState<"all" | "income" | "expense">("all");
-  const [period, setPeriod]     = useState<Period>("this_month");
+  const [search, setSearch]       = useState("");
+  const [tab, setTab]             = useState<"all" | "income" | "expense">("all");
+  const [period, setPeriod]       = useState<Period>("this_month");
   const [catFilter, setCatFilter] = useState("__all__");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ── Dialogs ──────────────────────────────────────────────────────────────
   const [editTx, setEditTx]           = useState<Transaction | null>(null);
   const [dialogOpen, setDialogOpen]   = useState(false);
   const [importOpen, setImportOpen]   = useState(false);
@@ -61,7 +60,6 @@ export function TransactionsClient() {
   const [deleting, setDeleting]       = useState(false);
   const [inlineCatTxId, setInlineCatTxId] = useState<string | null>(null);
 
-  // ── Quick Add ────────────────────────────────────────────────────────────
   const [quickOpen, setQuickOpen]     = useState(false);
   const [quickTitle, setQuickTitle]   = useState("");
   const [quickAmount, setQuickAmount] = useState("");
@@ -69,7 +67,6 @@ export function TransactionsClient() {
   const [quickCatId, setQuickCatId]   = useState("__auto__");
   const [quickLoading, setQuickLoading] = useState(false);
 
-  // ── Load ─────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -77,8 +74,7 @@ export function TransactionsClient() {
     const [txRes, catRes] = await Promise.all([
       supabase.from("transactions").select("*, category:categories(*)")
         .eq("user_id", user.id).order("date", { ascending: false }),
-      supabase.from("categories").select("*")
-        .eq("user_id", user.id).order("name"),
+      supabase.from("categories").select("*").eq("user_id", user.id).order("name"),
     ]);
     setTransactions(txRes.data ?? []);
     setCategories(catRes.data ?? []);
@@ -87,7 +83,6 @@ export function TransactionsClient() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Keyboard shortcut: press 'n' when not focused on an input to toggle Quick Add
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -102,7 +97,6 @@ export function TransactionsClient() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // ── Inline category update ────────────────────────────────────────────────
   async function handleInlineCat(txId: string, catId: string) {
     const resolved = catId === "__none__" ? null : catId;
     const supabase = createClient();
@@ -114,26 +108,18 @@ export function TransactionsClient() {
     refresh();
   }
 
-  // ── Delete single (com undo de 4s) ────────────────────────────────────────
   function handleDelete(id: string) {
     const deleted = transactions.find(t => t.id === id);
     if (!deleted) return;
-
-    // Remoção otimista imediata
     setTransactions(prev => prev.filter(t => t.id !== id));
-
     const timeoutId = setTimeout(async () => {
       const supabase = createClient();
       const { error } = await supabase.from("transactions").delete().eq("id", id);
       if (error) {
-        // Se falhou, restaura
         setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
         toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir");
-      } else {
-        refresh();
-      }
+      } else { refresh(); }
     }, 4000);
-
     toast({
       title: lang === "en" ? "Transaction deleted" : "Transação excluída",
       variant: "default",
@@ -147,7 +133,6 @@ export function TransactionsClient() {
     });
   }
 
-  // ── Delete all ────────────────────────────────────────────────────────────
   async function handleDeleteAll() {
     if (deleteConfirm.toUpperCase() !== "APAGAR") return;
     setDeleting(true);
@@ -161,14 +146,13 @@ export function TransactionsClient() {
     setTransactions([]);
     setDeleteAllOpen(false);
     setDeleteConfirm("");
+    refresh();
   }
 
-  // ── Filtering ─────────────────────────────────────────────────────────────
   const dateRange = useMemo(() => getDateRange(period), [period]);
 
   const filtered = useMemo(() => transactions.filter(t => {
     if (dateRange && (t.date < dateRange.start || t.date > dateRange.end)) return false;
-    // saving type (goal deposits) shows under "all" and "expense" (they're outflows)
     if (tab === "income"  && t.type !== "income")  return false;
     if (tab === "expense" && t.type === "income")  return false;
     if (catFilter !== "__all__" && t.category_id !== catFilter) return false;
@@ -176,14 +160,22 @@ export function TransactionsClient() {
     return true;
   }), [transactions, dateRange, tab, catFilter, search]);
 
+  // ── Group by date ─────────────────────────────────────────────────────────
+  const grouped = useMemo(() => {
+    const map: Record<string, Transaction[]> = {};
+    for (const t of filtered) {
+      if (!map[t.date]) map[t.date] = [];
+      map[t.date].push(t);
+    }
+    return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
+  }, [filtered]);
+
   const activeFilters = (catFilter !== "__all__" ? 1 : 0) + (period !== "this_month" ? 1 : 0);
 
-  // ── Quick Add ─────────────────────────────────────────────────────────────
   const liveQuickCat = useMemo(() => {
     if (quickCatId !== "__auto__" || quickTitle.length < 3) return null;
-    try {
-      return suggestCategory(quickTitle, categories.filter(c => c.type === quickType));
-    } catch { return null; }
+    try { return suggestCategory(quickTitle, categories.filter(c => c.type === quickType)); }
+    catch { return null; }
   }, [quickTitle, quickType, quickCatId, categories]);
 
   async function handleQuickAdd() {
@@ -208,42 +200,70 @@ export function TransactionsClient() {
     load(); refresh();
   }
 
-  // ── Summary totals (for current filter) ──────────────────────────────────
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  // Expenses include goal deposits (saving type) — they're both cash outflows
   const totalExpense = filtered.filter(t => t.type !== "income").reduce((s, t) => s + t.amount, 0);
   const netBalance   = totalIncome - totalExpense;
 
-  // Clear all filters helper
   function clearFilters() {
     setSearch(""); setTab("all"); setPeriod("this_month"); setCatFilter("__all__");
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title={tx.title}
         description={tx.description}
         action={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline" size="sm"
-              className="text-red-400 hover:text-red-300 hover:border-red-500/50 hover:bg-red-500/10"
-              onClick={() => { setDeleteConfirm(""); setDeleteAllOpen(true); }}
-            >
-              <Trash2 size={14} /> {lang === "en" ? "Delete all" : "Apagar tudo"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-              <Upload size={14} /> CSV
-            </Button>
-            <Button
-              variant={quickOpen ? "default" : "outline"} size="sm"
-              onClick={() => setQuickOpen(v => !v)}
-            >
-              <Zap size={14} /> {lang === "en" ? "Quick" : "Rápido"}
-            </Button>
+            {/* Desktop: show all actions */}
+            <div className="hidden sm:flex items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                className="text-red-400 hover:text-red-300 hover:border-red-500/50 hover:bg-red-500/10"
+                onClick={() => { setDeleteConfirm(""); setDeleteAllOpen(true); }}
+              >
+                <Trash2 size={14} /> {lang === "en" ? "Delete all" : "Apagar tudo"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload size={14} /> Extrato
+              </Button>
+              <Button
+                variant={quickOpen ? "default" : "outline"} size="sm"
+                onClick={() => setQuickOpen(v => !v)}
+              >
+                <Zap size={14} /> {lang === "en" ? "Quick" : "Rápido"}
+              </Button>
+            </div>
+
+            {/* Mobile: overflow menu */}
+            <div className="sm:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical size={15} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                    <Upload size={14} className="mr-2" /> Importar Extrato
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setQuickOpen(v => !v)}>
+                    <Zap size={14} className="mr-2" /> {lang === "en" ? "Quick add" : "Rápido"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-400 focus:text-red-400"
+                    onClick={() => { setDeleteConfirm(""); setDeleteAllOpen(true); }}
+                  >
+                    <Trash2 size={14} className="mr-2" /> {lang === "en" ? "Delete all" : "Apagar tudo"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
             <Button size="sm" onClick={() => { setEditTx(null); setDialogOpen(true); }}>
-              <Plus size={15} /> {tx.add}
+              <Plus size={15} />
+              <span className="hidden sm:inline ml-1">{tx.add}</span>
             </Button>
           </div>
         }
@@ -255,12 +275,11 @@ export function TransactionsClient() {
           <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
             <Zap size={12} className="text-primary" />
             {lang === "en" ? "Quick add — Enter to save" : "Adicionar rápido — Enter para salvar"}
-            <span className="ml-auto text-muted-foreground font-normal">
+            <span className="ml-auto text-muted-foreground font-normal hidden sm:inline">
               {lang === "en" ? "press N to toggle" : "tecla N para fechar"}
             </span>
           </p>
           <div className="flex flex-wrap gap-2 items-start">
-            {/* Type toggle */}
             <div className="flex rounded-lg overflow-hidden border border-border text-xs shrink-0">
               <button onClick={() => { setQuickType("expense"); setQuickCatId("__auto__"); }}
                 className={cn("px-3 py-1.5 transition-colors", quickType === "expense"
@@ -274,7 +293,7 @@ export function TransactionsClient() {
               </button>
             </div>
             <Input className="flex-1 min-w-32 h-8 text-sm"
-              placeholder={lang === "en" ? "Description (auto-categorizes)" : "Descrição (auto-categoriza)"}
+              placeholder={lang === "en" ? "Description" : "Descrição"}
               value={quickTitle} onChange={e => setQuickTitle(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleQuickAdd()} autoFocus />
             <Input className="w-28 h-8 text-sm" placeholder="R$ 0,00" inputMode="decimal"
@@ -297,9 +316,6 @@ export function TransactionsClient() {
                   <Check size={9} /> {liveQuickCat.name}
                 </span>
               )}
-              {quickCatId === "__auto__" && !liveQuickCat && quickTitle.length >= 3 && (
-                <span className="text-[10px] text-muted-foreground pl-1">sem sugestão</span>
-              )}
             </div>
             <Button size="sm" className="h-8" onClick={handleQuickAdd} disabled={quickLoading}>
               {quickLoading ? <RefreshCw size={13} className="animate-spin" /> : lang === "en" ? "Add" : "Adicionar"}
@@ -309,46 +325,38 @@ export function TransactionsClient() {
       )}
 
       {/* ── Summary cards ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.incomeFiltered}</p>
-          <p className="font-display font-bold text-lg text-emerald-400 tabular-nums">{formatCurrency(totalIncome)}</p>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.incomeFiltered}</p>
+          <p className="font-display font-bold text-sm sm:text-lg text-emerald-400 tabular-nums truncate">{formatCompact(totalIncome)}</p>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.expensesFiltered}</p>
-          <p className="font-display font-bold text-lg text-red-400 tabular-nums">{formatCurrency(totalExpense)}</p>
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.expensesFiltered}</p>
+          <p className="font-display font-bold text-sm sm:text-lg text-red-400 tabular-nums truncate">{formatCompact(totalExpense)}</p>
         </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.balanceFilter}</p>
-          <p className={cn("font-display font-bold text-lg tabular-nums", netBalance >= 0 ? "text-primary" : "text-red-400")}>
-            {formatCurrency(netBalance)}
+        <div className="glass-card p-3 sm:p-4">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.balanceFilter}</p>
+          <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate", netBalance >= 0 ? "text-primary" : "text-red-400")}>
+            {formatCompact(netBalance)}
           </p>
         </div>
       </div>
 
       {/* ── Filters row ───────────────────────────────────────────────── */}
       <div className="space-y-2">
-        {/* Top row: search + type tabs + filter toggle */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder={tx.search} value={search}
-              onChange={e => setSearch(e.target.value)} className="pl-9" />
+              onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
-          <Tabs value={tab} onValueChange={v => setTab(v as typeof tab)}>
-            <TabsList>
-              <TabsTrigger value="all">{tx.allTab}</TabsTrigger>
-              <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
-              <TabsTrigger value="expense">{tx.expenseTab}</TabsTrigger>
-            </TabsList>
-          </Tabs>
           <Button
             variant="outline" size="sm"
             onClick={() => setShowFilters(v => !v)}
-            className={cn("shrink-0", activeFilters > 0 && "border-primary text-primary")}
+            className={cn("shrink-0 h-9", activeFilters > 0 && "border-primary text-primary")}
           >
             <SlidersHorizontal size={14} />
-            {lang === "en" ? "Filters" : "Filtros"}
+            <span className="hidden sm:inline ml-1">{lang === "en" ? "Filters" : "Filtros"}</span>
             {activeFilters > 0 && (
               <span className="ml-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                 {activeFilters}
@@ -357,10 +365,17 @@ export function TransactionsClient() {
           </Button>
         </div>
 
-        {/* Period chips + category filter (collapsible) */}
+        {/* Type tabs */}
+        <Tabs value={tab} onValueChange={v => setTab(v as typeof tab)}>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="all" className="flex-1 sm:flex-none">{tx.allTab}</TabsTrigger>
+            <TabsTrigger value="income" className="flex-1 sm:flex-none">{tx.incomeTab}</TabsTrigger>
+            <TabsTrigger value="expense" className="flex-1 sm:flex-none">{tx.expenseTab}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {showFilters && (
           <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-muted/20 border border-border/40">
-            {/* Period chips */}
             <div className="flex flex-wrap gap-1">
               {PERIODS.map(p => (
                 <button
@@ -377,11 +392,7 @@ export function TransactionsClient() {
                 </button>
               ))}
             </div>
-
-            {/* Separator */}
             <div className="h-5 w-px bg-border/60 hidden sm:block" />
-
-            {/* Category filter */}
             <Select value={catFilter} onValueChange={setCatFilter}>
               <SelectTrigger className="h-7 text-xs w-44">
                 <SelectValue placeholder={lang === "en" ? "All categories" : "Todas as categorias"} />
@@ -395,8 +406,6 @@ export function TransactionsClient() {
                 ))}
               </SelectContent>
             </Select>
-
-            {/* Clear */}
             {activeFilters > 0 && (
               <button onClick={clearFilters}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -406,7 +415,6 @@ export function TransactionsClient() {
           </div>
         )}
 
-        {/* Active filter chips summary */}
         {!showFilters && activeFilters > 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="text-primary font-medium">
@@ -415,12 +423,7 @@ export function TransactionsClient() {
                 : ""}
             </span>
             {catFilter !== "__all__" && (
-              <>
-                <span>·</span>
-                <span className="text-primary font-medium">
-                  {categories.find(c => c.id === catFilter)?.name}
-                </span>
-              </>
+              <><span>·</span><span className="text-primary font-medium">{categories.find(c => c.id === catFilter)?.name}</span></>
             )}
             <button onClick={clearFilters} className="hover:text-foreground transition-colors ml-1">
               <X size={11} />
@@ -429,7 +432,7 @@ export function TransactionsClient() {
         )}
       </div>
 
-      {/* ── Transaction list ──────────────────────────────────────────── */}
+      {/* ── Transaction list (grouped by date) ────────────────────────── */}
       <div className="glass-card overflow-hidden">
         {loading ? (
           <div className="divide-y divide-border/40">
@@ -451,90 +454,123 @@ export function TransactionsClient() {
             }
           />
         ) : (
-          <div className="divide-y divide-border/30">
-            {filtered.map(t => (
-              <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors group">
-                {/* Icon */}
-                <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
-                  t.type === "income" ? "bg-emerald-500/10"
-                  : t.type === "saving" ? "bg-indigo-500/10"
-                  : "bg-red-500/10")}>
-                  {t.type === "income"
-                    ? <ArrowUpRight size={16} className="text-emerald-400" />
-                    : t.type === "saving"
-                    ? <PiggyBank size={16} className="text-indigo-400" />
-                    : <ArrowDownRight size={16} className="text-red-400" />}
+          <div>
+            {grouped.map(([dateKey, rows]) => (
+              <div key={dateKey}>
+                {/* Date group header */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-muted/10 border-b border-border/30">
+                  <span className="text-xs font-semibold text-muted-foreground capitalize tracking-wide">
+                    {formatGroupDate(dateKey)}
+                  </span>
+                  <span className="text-xs text-muted-foreground/50">
+                    {rows.length} {rows.length === 1 ? (lang === "en" ? "transaction" : "transação") : (lang === "en" ? "transactions" : "transações")}
+                  </span>
+                  <span className={cn("ml-auto text-xs font-semibold tabular-nums",
+                    rows.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0) >= 0
+                      ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    {(() => {
+                      const net = rows.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+                      return (net >= 0 ? "+" : "−") + formatCompact(Math.abs(net));
+                    })()}
+                  </span>
                 </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
-                    {t.type === "saving" && (
-                      <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
-                        {tx.goalDepositBadge}
+                {/* Rows */}
+                <div className="divide-y divide-border/30">
+                  {rows.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors group">
+                      {/* Type icon */}
+                      <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                        t.type === "income" ? "bg-emerald-500/10"
+                        : t.type === "saving" ? "bg-indigo-500/10"
+                        : "bg-red-500/10")}>
+                        {t.type === "income"
+                          ? <ArrowUpRight size={15} className="text-emerald-400" />
+                          : t.type === "saving"
+                          ? <PiggyBank size={15} className="text-indigo-400" />
+                          : <ArrowDownRight size={15} className="text-red-400" />}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+                          {t.type === "saving" && (
+                            <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
+                              {tx.goalDepositBadge}
+                            </span>
+                          )}
+                          {t.is_recurring && (
+                            <span title={tx.recurring} className="shrink-0">
+                              <RefreshCw size={10} className="text-primary" />
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Category + date */}
+                        <div className="flex items-center gap-1.5">
+                          {inlineCatTxId === t.id ? (
+                            <Select
+                              defaultOpen
+                              value={t.category_id ?? "__none__"}
+                              onValueChange={v => handleInlineCat(t.id, v)}
+                              onOpenChange={open => { if (!open) setInlineCatTxId(null); }}
+                            >
+                              <SelectTrigger className="h-5 text-xs border-none bg-transparent p-0 w-auto gap-1 focus:ring-0 shadow-none">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__" className="text-xs">{common.noCategory}</SelectItem>
+                                {categories.filter(c => c.type === t.type || t.type === "saving").map(c => (
+                                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <button
+                              onClick={() => setInlineCatTxId(t.id)}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                              title={lang === "en" ? "Click to change category" : "Clique para mudar categoria"}
+                            >
+                              {/* Category color dot */}
+                              {t.category?.color ? (
+                                <span
+                                  className="h-2 w-2 rounded-full shrink-0"
+                                  style={{ backgroundColor: t.category.color }}
+                                />
+                              ) : (
+                                <span className="h-2 w-2 rounded-full shrink-0 bg-muted-foreground/30" />
+                              )}
+                              <span className={cn(!t.category?.name && "italic opacity-50")}>
+                                {t.category?.name ?? (lang === "en" ? "No category" : "Sem categoria")}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Amount */}
+                      <span className={cn("text-sm font-semibold tabular-nums shrink-0",
+                        t.type === "income" ? "text-emerald-400"
+                        : t.type === "saving" ? "text-indigo-400"
+                        : "text-red-400")}>
+                        {t.type === "income" ? "+" : "−"}{formatCurrency(t.amount)}
                       </span>
-                    )}
-                    {t.is_recurring && (
-                      <span title={tx.recurring} className="shrink-0 text-primary"><RefreshCw size={11} /></span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {/* Inline category editor — click to change without opening full dialog */}
-                    {inlineCatTxId === t.id ? (
-                      <Select
-                        defaultOpen
-                        value={t.category_id ?? "__none__"}
-                        onValueChange={v => handleInlineCat(t.id, v)}
-                        onOpenChange={open => { if (!open) setInlineCatTxId(null); }}
-                      >
-                        <SelectTrigger className="h-5 text-xs border-none bg-transparent p-0 w-auto gap-1 focus:ring-0 shadow-none">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__" className="text-xs">{common.noCategory}</SelectItem>
-                          {categories.filter(c => c.type === t.type || t.type === "saving").map(c => (
-                            <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <button
-                        onClick={() => setInlineCatTxId(t.id)}
-                        className={cn(
-                          "text-xs transition-colors hover:text-primary",
-                          t.category?.name ? "text-muted-foreground" : "text-muted-foreground/50 underline decoration-dashed underline-offset-2"
-                        )}
-                        title={lang === "en" ? "Click to change category" : "Clique para mudar categoria"}
-                      >
-                        {t.category?.name ?? common.noCategory}
-                      </button>
-                    )}
-                    <span className="text-xs text-muted-foreground">·</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {formatRelativeDate(t.date, t.created_at)}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Amount */}
-                <span className={cn("text-sm font-semibold tabular-nums shrink-0",
-                  t.type === "income" ? "text-emerald-400"
-                  : t.type === "saving" ? "text-indigo-400"
-                  : "text-red-400")}>
-                  {t.type === "income" ? "+" : "−"}{formatCurrency(t.amount)}
-                </span>
-
-                {/* Actions */}
-                <div className="hidden group-hover:flex items-center gap-1 shrink-0">
-                  <button onClick={() => { setEditTx(t); setDialogOpen(true); }}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                    <Pencil size={13} />
-                  </button>
-                  <button onClick={() => handleDelete(t.id)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                    <Trash2 size={13} />
-                  </button>
+                      {/* Actions (hover on desktop, always visible on mobile touch) */}
+                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                        <button onClick={() => { setEditTx(t); setDialogOpen(true); }}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => handleDelete(t.id)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -542,7 +578,6 @@ export function TransactionsClient() {
         )}
       </div>
 
-      {/* Count hint */}
       {!loading && filtered.length > 0 && (
         <p className="text-xs text-muted-foreground text-center">
           {filtered.length} {lang === "en" ? "transactions" : "transações"}
@@ -552,12 +587,12 @@ export function TransactionsClient() {
 
       <TransactionDialog open={dialogOpen} onOpenChange={setDialogOpen}
         transaction={editTx} categories={categories}
-        onSuccess={() => { setDialogOpen(false); load(); }} />
+        onSuccess={() => { setDialogOpen(false); load(); refresh(); }} />
 
       <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
         categories={categories} onSuccess={() => { load(); refresh(); setPeriod("all"); }} />
 
-      {/* ── Delete all confirmation ───────────────────────────────────── */}
+      {/* Delete all dialog */}
       <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -566,19 +601,16 @@ export function TransactionsClient() {
             </DialogTitle>
           </DialogHeader>
           <div className="px-6 pb-2 space-y-4">
-            {/* Warning banner */}
             <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4 space-y-1">
               <p className="text-sm font-semibold text-red-400">
                 {lang === "en" ? "This action cannot be undone." : "Esta ação não pode ser desfeita."}
               </p>
               <p className="text-xs text-muted-foreground">
                 {lang === "en"
-                  ? `All ${transactions.length} transactions will be permanently deleted. Budgets and goals are not affected.`
-                  : `Todas as ${transactions.length} transações serão apagadas permanentemente. Orçamentos e metas não são afetados.`}
+                  ? `All ${transactions.length} transactions will be permanently deleted.`
+                  : `Todas as ${transactions.length} transações serão apagadas permanentemente.`}
               </p>
             </div>
-
-            {/* Confirm input */}
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">
                 {lang === "en" ? 'Type ' : 'Digite '}
@@ -606,7 +638,7 @@ export function TransactionsClient() {
             >
               {deleting
                 ? <><RefreshCw size={13} className="animate-spin" /> {lang === "en" ? "Deleting..." : "Apagando..."}</>
-                : <><Trash2 size={14} /> {lang === "en" ? `Delete ${transactions.length}` : `Apagar ${transactions.length} transações`}</>}
+                : <><Trash2 size={14} /> {lang === "en" ? `Delete ${transactions.length}` : `Apagar ${transactions.length}`}</>}
             </Button>
           </DialogFooter>
         </DialogContent>
