@@ -106,7 +106,11 @@ export function TransactionsClient() {
             <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
               <Upload size={14} /> CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setQuickOpen(v => !v)}>
+            <Button
+              variant={quickOpen ? "default" : "outline"}
+              size="sm"
+              onClick={() => setQuickOpen(!quickOpen)}
+            >
               <Zap size={14} /> {lang === "en" ? "Quick" : "Rápido"}
             </Button>
             <Button size="sm" onClick={() => { setEditTx(null); setDialogOpen(true); }}>

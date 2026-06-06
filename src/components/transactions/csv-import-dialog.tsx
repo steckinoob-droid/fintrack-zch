@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Check, Loader2, AlertCircle } from "lucide-react";
+import { Upload, Check, Loader2, AlertCircle, Settings2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -28,17 +28,20 @@ interface ImportRow extends ParsedRow {
 type Step = "upload" | "preview";
 
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
-  const [step, setStep]       = useState<Step>("upload");
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [rawRows, setRawRows] = useState<string[][]>([]);
-  const [colMap, setColMap]   = useState<Partial<ColumnMap>>({});
-  const [rows, setRows]       = useState<ImportRow[]>([]);
+  const [step, setStep]           = useState<Step>("upload");
+  const [headers, setHeaders]     = useState<string[]>([]);
+  const [rawRows, setRawRows]     = useState<string[][]>([]);
+  const [colMap, setColMap]       = useState<Partial<ColumnMap>>({});
+  const [autoMapped, setAutoMapped] = useState(false);   // true = all 3 were auto-detected
+  const [showMapping, setShowMapping] = useState(false); // user can reveal manual mapping
+  const [rows, setRows]           = useState<ImportRow[]>([]);
   const [importing, setImporting] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError]         = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function reset() {
-    setStep("upload"); setRows([]); setHeaders([]); setRawRows([]); setColMap({}); setError(null);
+    setStep("upload"); setRows([]); setHeaders([]); setRawRows([]);
+    setColMap({}); setError(null); setAutoMapped(false); setShowMapping(false);
   }
 
   function buildPreview(raw: string[][], map: ColumnMap) {
@@ -53,6 +56,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
 
   function applyMap(newMap: Partial<ColumnMap>) {
     setColMap(newMap);
+    setAutoMapped(false);
     if (newMap.dateCol !== undefined && newMap.titleCol !== undefined && newMap.amountCol !== undefined) {
       buildPreview(rawRows, newMap as ColumnMap);
     } else {
@@ -71,7 +75,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         setRawRows(rows);
         setColMap(suggestedMap);
         setStep("preview");
-        if (suggestedMap.dateCol !== undefined && suggestedMap.titleCol !== undefined && suggestedMap.amountCol !== undefined) {
+
+        const allDetected =
+          suggestedMap.dateCol !== undefined &&
+          suggestedMap.titleCol !== undefined &&
+          suggestedMap.amountCol !== undefined;
+
+        setAutoMapped(allDetected);
+        setShowMapping(!allDetected); // show mapping UI only if needed
+
+        if (allDetected) {
           buildPreview(rows, suggestedMap as ColumnMap);
         }
       } catch {
@@ -115,7 +128,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   }
 
   const mapReady = colMap.dateCol !== undefined && colMap.titleCol !== undefined && colMap.amountCol !== undefined;
-  const toImport = rows.filter(r => !r.skip).length;
+  const toImport  = rows.filter(r => !r.skip).length;
   const autoTagged = rows.filter(r => !r.skip && r.categoryId).length;
 
   return (
@@ -148,7 +161,6 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               <input ref={fileRef} type="file" accept=".csv,.txt,.ofx" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
-
             <div className="rounded-lg bg-muted/20 p-3 space-y-2">
               <p className="text-xs font-semibold text-foreground">Como exportar:</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -166,50 +178,85 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         {/* ── STEP 2: PREVIEW ── */}
         {step === "preview" && (
           <div className="px-6 pb-2 space-y-4">
-            {/* Column mapping */}
-            <div className="rounded-lg bg-muted/20 p-3 space-y-2">
-              <p className="text-xs font-semibold text-foreground">Mapeamento de colunas do CSV</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(["dateCol", "titleCol", "amountCol"] as const).map(field => (
-                  <div key={field} className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      {field === "dateCol" ? "📅 Data" : field === "titleCol" ? "📝 Descrição" : "💰 Valor"}
-                    </p>
-                    <Select
-                      value={colMap[field] !== undefined ? String(colMap[field]) : ""}
-                      onValueChange={v => applyMap({ ...colMap, [field]: parseInt(v) })}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Selecionar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {headers.map((h, i) => (
-                          <SelectItem key={i} value={String(i)} className="text-xs">{h || `Coluna ${i + 1}`}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-              </div>
-              {!mapReady && (
-                <p className="text-xs text-amber-400">↑ Selecione as 3 colunas para ver a pré-visualização</p>
-              )}
-            </div>
 
-            {/* Stats bar */}
+            {/* Auto-mapped success banner */}
+            {autoMapped && !showMapping && rows.length > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                  <Check size={13} />
+                  <span>Colunas detectadas automaticamente</span>
+                </div>
+                <button
+                  onClick={() => setShowMapping(true)}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  <Settings2 size={11} /> Ajustar
+                </button>
+              </div>
+            )}
+
+            {/* Column mapping — only shown when needed or user requests */}
+            {showMapping && (
+              <div className="rounded-lg bg-muted/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-foreground">Mapeamento de colunas</p>
+                  {autoMapped && (
+                    <button onClick={() => setShowMapping(false)} className="text-xs text-muted-foreground hover:text-foreground">
+                      Ocultar
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["dateCol", "titleCol", "amountCol"] as const).map(field => (
+                    <div key={field} className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        {field === "dateCol" ? "📅 Data" : field === "titleCol" ? "📝 Descrição" : "💰 Valor"}
+                      </p>
+                      <Select
+                        value={colMap[field] !== undefined ? String(colMap[field]) : ""}
+                        onValueChange={v => applyMap({ ...colMap, [field]: parseInt(v) })}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Selecionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {headers.map((h, i) => (
+                            <SelectItem key={i} value={String(i)} className="text-xs">
+                              {h || `Coluna ${i + 1}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+                {!mapReady && (
+                  <p className="text-xs text-amber-400">↑ Selecione as 3 colunas para ver a pré-visualização</p>
+                )}
+              </div>
+            )}
+
+            {/* No auto-detection + no rows yet */}
+            {!autoMapped && !mapReady && rows.length === 0 && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
+                Não foi possível detectar as colunas automaticamente. Selecione manualmente acima.
+              </div>
+            )}
+
+            {/* Stats */}
             {rows.length > 0 && (
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{rows.length} transações detectadas</span>
                 <span>·</span>
-                <span className="text-indigo-400">{autoTagged} categorizadas automaticamente</span>
+                <span className="text-indigo-400">{autoTagged} categorizadas</span>
                 <span>·</span>
-                <span>{toImport} serão importadas</span>
+                <span>{toImport} para importar</span>
               </div>
             )}
 
-            {/* Rows */}
+            {/* Row list */}
             {rows.length > 0 && (
-              <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-[42vh] overflow-y-auto pr-1">
                 {rows.map((row, i) => {
                   const typedCats = categories.filter(c => c.type === row.type);
                   return (
@@ -217,7 +264,6 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                       "rounded-lg border p-2.5 transition-opacity",
                       row.skip ? "opacity-35 border-border/20" : "border-border/50"
                     )}>
-                      {/* Top row: checkbox + date + title + amount */}
                       <div className="flex items-center gap-2 mb-1.5">
                         <button
                           onClick={() => updateRow(i, { skip: !row.skip })}
@@ -235,7 +281,6 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                           {row.type === "income" ? "+" : "-"}{formatCurrency(row.amount)}
                         </span>
                       </div>
-                      {/* Bottom row: type + category */}
                       <div className="flex items-center gap-2 pl-6">
                         <Select
                           value={row.type}
@@ -265,12 +310,6 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     </div>
                   );
                 })}
-              </div>
-            )}
-
-            {mapReady && rows.length === 0 && (
-              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400">
-                Nenhuma linha válida encontrada. Verifique se as colunas estão corretas.
               </div>
             )}
           </div>
