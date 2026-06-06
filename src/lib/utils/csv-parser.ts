@@ -9,15 +9,21 @@ export interface ColumnMap {
   dateCol: number;
   titleCol: number;
   amountCol: number;
+  typeCol?: number;       // optional "Tipo / Natureza / D|C" column
 }
 
-/** Remove accents for fuzzy matching: "Descrição" → "descricao" */
+/** Normalize: lowercase + remove accents + replace non-alphanumeric with space */
 function norm(s: string): string {
   if (!s) return "";
   try {
-    return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    return s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
   } catch {
-    return s.toLowerCase();
+    return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   }
 }
 
@@ -43,7 +49,7 @@ function splitLine(line: string, delim: string): string[] {
   return result;
 }
 
-function parseDate(s: string): string | null {
+export function parseDate(s: string): string | null {
   s = s.trim().replace(/"/g, "");
   // DD/MM/YYYY
   const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -53,20 +59,66 @@ function parseDate(s: string): string | null {
   // DD-MM-YYYY
   const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
   if (m2) return `${m2[3]}-${m2[2].padStart(2, "0")}-${m2[1].padStart(2, "0")}`;
+  // MM/DD/YYYY (US format — less common)
+  const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m3) return `${m3[3]}-${m3[1].padStart(2, "0")}-${m3[2].padStart(2, "0")}`;
   return null;
 }
 
-function parseAmount(s: string): number | null {
+export function parseAmount(s: string): number | null {
   const clean = s.trim().replace(/"/g, "").replace(/R\$\s*/g, "").replace(/\s/g, "");
-  // Brazilian: -1.234,56 or 1.234,56
-  const br = clean.replace(/\./g, "").replace(",", ".");
-  const n = parseFloat(br);
+  if (!clean) return null;
+  // Detect if Brazilian format (1.234,56) or US format (1,234.56)
+  const hasBrComma = /\d,\d{1,2}$/.test(clean);
+  const hasBrDot   = /\d\.\d{3}/.test(clean);
+  if (hasBrComma || hasBrDot) {
+    // Brazilian: remove thousand dots, replace comma with period
+    const br = clean.replace(/\./g, "").replace(",", ".");
+    const n = parseFloat(br);
+    return isNaN(n) ? null : n;
+  }
+  // US format or simple
+  const simple = clean.replace(/,/g, "");
+  const n = parseFloat(simple);
   return isNaN(n) ? null : n;
 }
 
-const DATE_KW  = ["data", "date", "dt", "competencia", "vencimento"];
-const TITLE_KW = ["descri", "histor", "memo", "titulo", "lancamento", "estabeleci", "loja", "comercio", "benefici"];
-const AMT_KW   = ["valor", "amount", "value", "debito", "credito", "montante", "quantia", "preco", "total"];
+/**
+ * Parse the "type" column value exported by Brazilian banks.
+ * Returns "income", "expense", or null if ambiguous.
+ */
+function parseTypeCell(s: string): "income" | "expense" | null {
+  const v = norm(s);
+  if (!v) return null;
+
+  // Debit / expense patterns
+  const isExpense =
+    v === "d" || v === "deb" || v === "debito" ||
+    v.includes("saida") || v.includes("saída") ||
+    v.includes("debito") || v.includes("debit") ||
+    v.includes("pagamento") || v.includes("despesa") ||
+    v.includes("compra");
+
+  // Credit / income patterns
+  const isIncome =
+    v === "c" || v === "cred" || v === "credito" ||
+    v.includes("entrada") || v.includes("credito") ||
+    v.includes("credit") || v.includes("deposito") ||
+    v.includes("recebimento") || v.includes("receita");
+
+  if (isExpense && !isIncome) return "expense";
+  if (isIncome && !isExpense) return "income";
+  return null;
+}
+
+const DATE_KW  = ["data", "date", "dt", "competencia", "vencimento", "lancamento data"];
+const TITLE_KW = ["descri", "histor", "memo", "titulo", "lancamento", "estabeleci",
+                  "loja", "comercio", "benefici", "detalhe", "observa", "particip"];
+const AMT_KW   = ["valor", "amount", "value", "debito", "credito", "montante",
+                  "quantia", "preco", "total", "preco", "moviment"];
+// "Tipo", "Natureza", "D/C", "Operação" — separate from amount
+const TYPE_KW  = ["tipo", "natureza", "operacao", "dc ", "d c", "entrada saida",
+                  "categoria transacao", "tipo lancamento", "tipo operacao"];
 
 export function detectColumns(headers: string[]): Partial<ColumnMap> {
   const map: Partial<ColumnMap> = {};
@@ -74,16 +126,18 @@ export function detectColumns(headers: string[]): Partial<ColumnMap> {
   // First pass: keyword matching (order-independent)
   for (let i = 0; i < headers.length; i++) {
     const l = norm(headers[i]);
-    if (DATE_KW.some(k => l.includes(k)) && map.dateCol === undefined)   { map.dateCol  = i; continue; }
-    if (TITLE_KW.some(k => l.includes(k)) && map.titleCol === undefined)  { map.titleCol = i; continue; }
-    if (AMT_KW.some(k => l.includes(k)) && map.amountCol === undefined)   { map.amountCol = i; }
+    if (map.typeCol   === undefined && TYPE_KW.some(k  => l.includes(norm(k))))   { map.typeCol   = i; continue; }
+    if (map.dateCol   === undefined && DATE_KW.some(k  => l.includes(norm(k))))   { map.dateCol   = i; continue; }
+    if (map.titleCol  === undefined && TITLE_KW.some(k => l.includes(norm(k))))   { map.titleCol  = i; continue; }
+    if (map.amountCol === undefined && AMT_KW.some(k   => l.includes(norm(k))))   { map.amountCol = i; }
   }
 
-  // Fallback: if date + amount detected but title missing, use the first unassigned column
+  // Fallback: if date + amount detected but title missing, pick first unassigned column
   if (map.dateCol !== undefined && map.amountCol !== undefined && map.titleCol === undefined) {
-    const used = new Set([map.dateCol, map.amountCol]);
+    const used = new Set<number>(
+      [map.dateCol, map.amountCol, map.typeCol].filter((v): v is number => v !== undefined)
+    );
     const remaining = headers.map((_, i) => i).filter(i => !used.has(i));
-    // prefer the column with the longest string values (most descriptive)
     if (remaining.length >= 1) map.titleCol = remaining[0];
   }
 
@@ -108,16 +162,31 @@ export function parseCSV(content: string): {
 export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
   const result: ParsedRow[] = [];
   for (const row of rows) {
-    const date   = parseDate(row[map.dateCol]    ?? "");
-    const amount = parseAmount(row[map.amountCol] ?? "");
-    const title  = (row[map.titleCol] ?? "").trim();
+    const rawDate   = row[map.dateCol]    ?? "";
+    const rawAmount = row[map.amountCol]  ?? "";
+    const rawTitle  = row[map.titleCol]   ?? "";
+    const rawType   = map.typeCol !== undefined ? (row[map.typeCol] ?? "") : "";
+
+    const date   = parseDate(rawDate);
+    const amount = parseAmount(rawAmount);
+    const title  = rawTitle.trim();
+
     if (!date || amount === null || !title) continue;
-    result.push({
-      date,
-      title,
-      amount: Math.abs(amount),
-      type: amount <= 0 ? "expense" : "income",
-    });
+
+    // ── Type resolution (priority order) ───────────────────────────────────
+    // 1. Explicit type column (most reliable when present)
+    let type: "income" | "expense" | null = rawType ? parseTypeCell(rawType) : null;
+
+    // 2. Amount sign (negative = expense)
+    if (!type) {
+      if (amount < 0) type = "expense";
+      else if (amount > 0) type = null; // positive alone isn't conclusive for all banks
+    }
+
+    // 3. Default to expense when ambiguous (most bank rows are purchases)
+    if (!type) type = "expense";
+
+    result.push({ date, title, amount: Math.abs(amount), type });
   }
   return result;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight, PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight, PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +90,15 @@ export function TransactionsClient() {
     load();
   }
 
+  // Live category preview for Quick Add (auto-detect mode)
+  const liveQuickCat = useMemo(() => {
+    if (quickCatId !== "__auto__" || quickTitle.length < 3) return null;
+    try {
+      const typedCats = categories.filter(c => c.type === quickType);
+      return suggestCategory(quickTitle, typedCats);
+    } catch { return null; }
+  }, [quickTitle, quickType, quickCatId, categories]);
+
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const totalSaving  = filtered.filter(t => t.type === "saving").reduce((s, t) => s + t.amount, 0);
@@ -145,17 +154,29 @@ export function TransactionsClient() {
             <Input className="w-28 h-8 text-sm" placeholder="R$ 0,00" inputMode="decimal"
               value={quickAmount} onChange={e => setQuickAmount(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleQuickAdd()} />
-            <Select value={quickCatId} onValueChange={setQuickCatId}>
-              <SelectTrigger className="w-36 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__auto__" className="text-xs">{lang === "en" ? "Auto-detect" : "Auto-detectar"}</SelectItem>
-                {categories.filter(c => c.type === quickType).map(c => (
-                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col gap-0.5">
+              <Select value={quickCatId} onValueChange={setQuickCatId}>
+                <SelectTrigger className="w-36 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__" className="text-xs">
+                    {lang === "en" ? "Auto-detect" : "Auto-detectar"}
+                  </SelectItem>
+                  {categories.filter(c => c.type === quickType).map(c => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {quickCatId === "__auto__" && liveQuickCat && (
+                <span className="text-[10px] text-indigo-400 pl-1 flex items-center gap-0.5">
+                  <Check size={9} /> {liveQuickCat.name}
+                </span>
+              )}
+              {quickCatId === "__auto__" && !liveQuickCat && quickTitle.length >= 3 && (
+                <span className="text-[10px] text-muted-foreground pl-1">sem sugestão</span>
+              )}
+            </div>
             <Button size="sm" className="h-8" onClick={handleQuickAdd} disabled={quickLoading}>
               {quickLoading ? <RefreshCw size={13} className="animate-spin" /> : lang === "en" ? "Add" : "Adicionar"}
             </Button>

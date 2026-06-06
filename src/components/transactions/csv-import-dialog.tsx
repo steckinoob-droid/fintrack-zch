@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/lib/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils/currency";
 import { parseCSV, buildParsedRows, type ParsedRow, type ColumnMap } from "@/lib/utils/csv-parser";
-import { suggestCategory } from "@/lib/utils/auto-categorize";
+import { suggestCategory, suggestType } from "@/lib/utils/auto-categorize";
 import { cn } from "@/lib/utils/cn";
 import type { Category } from "@/lib/types";
 
@@ -23,6 +23,8 @@ interface Props {
 interface ImportRow extends ParsedRow {
   categoryId: string;
   skip: boolean;
+  autoTyped: boolean;  // true when type was determined from title keywords (more reliable)
+  autoCat: boolean;    // true when category was auto-suggested
 }
 
 type Step = "upload" | "preview";
@@ -47,9 +49,21 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   function buildPreview(raw: string[][], map: ColumnMap) {
     const parsed = buildParsedRows(raw, map);
     const withCats: ImportRow[] = parsed.map(r => {
-      const typedCats = categories.filter(c => c.type === r.type);
+      // Refine type using title keywords — more reliable than amount-sign alone
+      const titleType = suggestType(r.title);
+      const type: "income" | "expense" = titleType ?? r.type;
+      const autoTyped = !!titleType && titleType !== r.type; // type was corrected from title
+
+      const typedCats = categories.filter(c => c.type === type);
       const suggested = suggestCategory(r.title, typedCats);
-      return { ...r, categoryId: suggested?.id ?? "__none__", skip: false };
+      return {
+        ...r,
+        type,
+        categoryId: suggested?.id ?? "__none__",
+        skip: false,
+        autoTyped,
+        autoCat: !!suggested,
+      };
     });
     setRows(withCats);
   }
@@ -276,6 +290,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         </button>
                         <span className="text-xs text-muted-foreground w-20 shrink-0 tabular-nums">{row.date}</span>
                         <span className="text-xs font-medium text-foreground flex-1 truncate">{row.title}</span>
+                        {row.autoCat && (
+                          <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-indigo-400 shrink-0" title="Categoria detectada automaticamente">
+                            <Check size={9} /> auto
+                          </span>
+                        )}
                         <span className={cn("text-xs font-bold tabular-nums shrink-0",
                           row.type === "income" ? "text-emerald-400" : "text-red-400")}>
                           {row.type === "income" ? "+" : "-"}{formatCurrency(row.amount)}
@@ -284,7 +303,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                       <div className="flex items-center gap-2 pl-6">
                         <Select
                           value={row.type}
-                          onValueChange={v => updateRow(i, { type: v as "income" | "expense", categoryId: "__none__" })}
+                          onValueChange={v => updateRow(i, { type: v as "income" | "expense", categoryId: "__none__", autoTyped: false, autoCat: false })}
                         >
                           <SelectTrigger className="h-6 text-xs w-[100px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -294,7 +313,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         </Select>
                         <Select
                           value={row.categoryId}
-                          onValueChange={v => updateRow(i, { categoryId: v })}
+                          onValueChange={v => updateRow(i, { categoryId: v, autoCat: false })}
                         >
                           <SelectTrigger className="h-6 text-xs flex-1">
                             <SelectValue placeholder="Sem categoria" />
