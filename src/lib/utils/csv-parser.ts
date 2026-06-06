@@ -13,7 +13,12 @@ export interface ColumnMap {
 
 /** Remove accents for fuzzy matching: "Descrição" → "descricao" */
 function norm(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!s) return "";
+  try {
+    return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  } catch {
+    return s.toLowerCase();
+  }
 }
 
 function detectDelimiter(line: string): string {

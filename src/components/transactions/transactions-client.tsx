@@ -38,7 +38,7 @@ export function TransactionsClient() {
   const [quickTitle, setQuickTitle]     = useState("");
   const [quickAmount, setQuickAmount]   = useState("");
   const [quickType, setQuickType]       = useState<"income" | "expense">("expense");
-  const [quickCatId, setQuickCatId]     = useState("");
+  const [quickCatId, setQuickCatId]     = useState("__auto__");
   const [quickLoading, setQuickLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -76,17 +76,17 @@ export function TransactionsClient() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setQuickLoading(false); return; }
     const typedCats = categories.filter(c => c.type === quickType);
-    const suggested = quickCatId ? null : suggestCategory(quickTitle, typedCats);
+    const suggested = quickCatId === "__auto__" ? suggestCategory(quickTitle, typedCats) : null;
     const { error } = await supabase.from("transactions").insert({
       user_id: user.id, title: quickTitle.trim(), amount,
-      type: quickType, category_id: quickCatId || suggested?.id || null,
+      type: quickType, category_id: (quickCatId !== "__auto__" ? quickCatId : suggested?.id) ?? null,
       date: new Date().toISOString().slice(0, 10),
       notes: null, is_recurring: false, recurrence_interval: null,
     });
     setQuickLoading(false);
     if (error) { toast.error(lang === "en" ? "Error adding" : "Erro ao adicionar"); return; }
     toast.success(lang === "en" ? "Transaction added" : "Transação adicionada");
-    setQuickTitle(""); setQuickAmount(""); setQuickCatId("");
+    setQuickTitle(""); setQuickAmount(""); setQuickCatId("__auto__");
     load();
   }
 
@@ -129,11 +129,11 @@ export function TransactionsClient() {
           </p>
           <div className="flex flex-wrap gap-2">
             <div className="flex rounded-lg overflow-hidden border border-border text-xs shrink-0">
-              <button onClick={() => { setQuickType("expense"); setQuickCatId(""); }}
+              <button onClick={() => { setQuickType("expense"); setQuickCatId("__auto__"); }}
                 className={cn("px-3 py-1.5 transition-colors", quickType === "expense" ? "bg-red-500/20 text-red-400 font-medium" : "text-muted-foreground hover:text-foreground")}>
                 − {lang === "en" ? "Expense" : "Despesa"}
               </button>
-              <button onClick={() => { setQuickType("income"); setQuickCatId(""); }}
+              <button onClick={() => { setQuickType("income"); setQuickCatId("__auto__"); }}
                 className={cn("px-3 py-1.5 transition-colors", quickType === "income" ? "bg-emerald-500/20 text-emerald-400 font-medium" : "text-muted-foreground hover:text-foreground")}>
                 + {lang === "en" ? "Income" : "Receita"}
               </button>
@@ -147,10 +147,10 @@ export function TransactionsClient() {
               onKeyDown={e => e.key === "Enter" && handleQuickAdd()} />
             <Select value={quickCatId} onValueChange={setQuickCatId}>
               <SelectTrigger className="w-36 h-8 text-xs">
-                <SelectValue placeholder={lang === "en" ? "Category (opt.)" : "Categoria (opt.)"} />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="" className="text-xs">{lang === "en" ? "Auto-detect" : "Auto-detectar"}</SelectItem>
+                <SelectItem value="__auto__" className="text-xs">{lang === "en" ? "Auto-detect" : "Auto-detectar"}</SelectItem>
                 {categories.filter(c => c.type === quickType).map(c => (
                   <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
                 ))}

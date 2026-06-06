@@ -1,7 +1,13 @@
 import type { Category } from "@/lib/types";
 
+/** Remove diacritics safely: "Descrição" → "descricao" */
 function norm(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!s) return "";
+  try {
+    return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  } catch {
+    return s.toLowerCase();
+  }
 }
 
 // words: keywords found in the transaction title
@@ -68,7 +74,7 @@ const RULES: Array<{ words: string[]; hints: string[] }> = [
     hints: ["seguro", "plano", "saude"],
   },
   {
-    words: ["roupa", "vestuario", "zara", "renner", "riachuelo", "c&a ", "hm ", "shein"],
+    words: ["roupa", "vestuario", "zara", "renner", "riachuelo", "hm ", "shein"],
     hints: ["roupa", "vestuario", "moda", "compras"],
   },
   {
@@ -80,19 +86,24 @@ const RULES: Array<{ words: string[]; hints: string[] }> = [
 /**
  * Given a transaction title and a list of categories (pre-filtered by type),
  * returns the best matching category or null if no match found.
+ * Wrapped in try/catch — never throws.
  */
 export function suggestCategory(title: string, categories: Category[]): Category | null {
-  if (!title || !categories.length) return null;
-  const t = norm(title);
+  try {
+    if (!title || !categories.length) return null;
+    const t = norm(title);
 
-  for (const rule of RULES) {
-    if (rule.words.some(w => t.includes(norm(w)))) {
-      const match = categories.find(c => {
-        const cn = norm(c.name);
-        return rule.hints.some(h => cn.includes(h) || h.includes(cn.slice(0, 5)));
-      });
-      if (match) return match;
+    for (const rule of RULES) {
+      if (rule.words.some(w => t.includes(norm(w)))) {
+        const match = categories.find(c => {
+          const cn = norm(c.name ?? "");
+          return rule.hints.some(h => cn.includes(h) || h.includes(cn.slice(0, 5)));
+        });
+        if (match) return match;
+      }
     }
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 }

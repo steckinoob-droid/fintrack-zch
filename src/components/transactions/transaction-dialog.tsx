@@ -62,14 +62,18 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
   // Auto-suggest category when typing title (only for new transactions)
   const prevTitleRef = useRef("");
   useEffect(() => {
-    if (isEdit || !open) return;
-    if (!watchedTitle || watchedTitle === prevTitleRef.current) return;
-    prevTitleRef.current = watchedTitle;
-    if (watchedTitle.length < 3) return;
-    const currentCat = watch("category_id");
-    if (currentCat) return; // don't override a manual selection
-    const suggested = suggestCategory(watchedTitle, filteredCats);
-    if (suggested) setValue("category_id", suggested.id);
+    try {
+      if (isEdit || !open) return;
+      if (!watchedTitle || watchedTitle === prevTitleRef.current) return;
+      prevTitleRef.current = watchedTitle;
+      if (watchedTitle.length < 3) return;
+      const currentCat = watch("category_id");
+      if (currentCat) return; // don't override a manual selection
+      const suggested = suggestCategory(watchedTitle, filteredCats);
+      if (suggested) setValue("category_id", suggested.id);
+    } catch {
+      // silently ignore auto-suggest errors — never crash the dialog
+    }
   }, [watchedTitle, type, open, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

@@ -49,7 +49,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const withCats: ImportRow[] = parsed.map(r => {
       const typedCats = categories.filter(c => c.type === r.type);
       const suggested = suggestCategory(r.title, typedCats);
-      return { ...r, categoryId: suggested?.id ?? "", skip: false };
+      return { ...r, categoryId: suggested?.id ?? "__none__", skip: false };
     });
     setRows(withCats);
   }
@@ -112,7 +112,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       amount: r.amount,
       type: r.type,
       date: r.date,
-      category_id: r.categoryId || null,
+      category_id: (r.categoryId && r.categoryId !== "__none__") ? r.categoryId : null,
       notes: null,
       is_recurring: false,
       recurrence_interval: null,
@@ -284,7 +284,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                       <div className="flex items-center gap-2 pl-6">
                         <Select
                           value={row.type}
-                          onValueChange={v => updateRow(i, { type: v as "income" | "expense", categoryId: "" })}
+                          onValueChange={v => updateRow(i, { type: v as "income" | "expense", categoryId: "__none__" })}
                         >
                           <SelectTrigger className="h-6 text-xs w-[100px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -300,7 +300,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                             <SelectValue placeholder="Sem categoria" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="" className="text-xs">Sem categoria</SelectItem>
+                            <SelectItem value="__none__" className="text-xs">Sem categoria</SelectItem>
                             {typedCats.map(c => (
                               <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
                             ))}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { TrendingUp, TrendingDown, AlertTriangle, Lightbulb, Target, PiggyBank, Flame, Award, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, Lightbulb, Target, Flame, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import { formatCurrency } from "@/lib/utils/currency";
