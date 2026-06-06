@@ -21,10 +21,12 @@ export interface ScoreComponent {
   key: string;
   labelPt: string;
   labelEn: string;
-  score: number;              // 0–max
+  score: number;              // 0–max (internal)
   max: number;
   pct: number;                // 0–100 for the bar
   status: "great" | "good" | "warn" | "bad";
+  contextPt: string;          // human-readable current value shown in UI
+  contextEn: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -49,36 +51,46 @@ function lerp(t: number, ...stops: [at: number, pts: number][]) {
 
 /**
  * SAVINGS RATE — 35 pts
- * Measures how much of income is kept (income - expenses) / income.
- * Savings transfers to goals count as saving, not spending.
+ * How much of income is kept after all spending (including goal deposits,
+ * which are legitimate savings). Formula: (income - expenses) / income.
+ *
+ * NOTE: goal deposits (monthSavings) are NOT subtracted here — depositing
+ * to a goal IS saving, and should be rewarded, not penalized.
  */
-function calcSavingsRate(income: number, expenses: number, savings: number): ScoreComponent {
+function calcSavingsRate(income: number, expenses: number): ScoreComponent {
   const MAX = 35;
-  if (income <= 0) {
-    return { key: "savings", labelPt: "Taxa de poupança", labelEn: "Savings rate",
-             score: 0, max: MAX, pct: 0, status: "bad" };
-  }
-  const saved = income - expenses - savings;           // liquid left over
-  const rate  = clamp(saved / income, -1, 1);          // -100% to +100%
+  const ratePct = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
 
-  // Score table: rate → points
-  const pts = Math.round(clamp(
+  if (income <= 0) {
+    return {
+      key: "savings", labelPt: "Poupança do mês", labelEn: "Monthly savings",
+      score: 0, max: MAX, pct: 0, status: "bad",
+      contextPt: "Sem renda registrada", contextEn: "No income recorded",
+    };
+  }
+
+  const rate = clamp((income - expenses) / income, -1, 1);
+  const pts  = Math.round(clamp(
     rate <= 0     ? 0 :
-    rate <= 0.05  ? lerp(rate,  [0, 0],    [0.05, 6]) :
-    rate <= 0.15  ? lerp(rate,  [0.05, 6], [0.15, 18]) :
-    rate <= 0.25  ? lerp(rate,  [0.15, 18],[0.25, 27]) :
-                    lerp(rate,  [0.25, 27],[0.40, 35]),
+    rate <= 0.05  ? lerp(rate, [0, 0],     [0.05, 6]) :
+    rate <= 0.15  ? lerp(rate, [0.05, 6],  [0.15, 18]) :
+    rate <= 0.25  ? lerp(rate, [0.15, 18], [0.25, 27]) :
+                    lerp(rate, [0.25, 27],  [0.40, 35]),
     0, MAX
   ));
 
+  const contextPt = ratePct <= 0
+    ? `Gastos ${Math.abs(ratePct)}% acima da renda`
+    : `${ratePct}% da renda guardado`;
+  const contextEn = ratePct <= 0
+    ? `Spending ${Math.abs(ratePct)}% above income`
+    : `${ratePct}% of income saved`;
+
   return {
-    key: "savings",
-    labelPt: "Taxa de poupança",
-    labelEn: "Savings rate",
-    score: pts,
-    max: MAX,
-    pct: Math.round((pts / MAX) * 100),
+    key: "savings", labelPt: "Poupança do mês", labelEn: "Monthly savings",
+    score: pts, max: MAX, pct: Math.round((pts / MAX) * 100),
     status: pts >= 25 ? "great" : pts >= 15 ? "good" : pts >= 7 ? "warn" : "bad",
+    contextPt, contextEn,
   };
 }
 
@@ -90,36 +102,48 @@ function calcSavingsRate(income: number, expenses: number, savings: number): Sco
 function calcBudgetDiscipline(budgets: DashboardData["budgets"]): ScoreComponent {
   const MAX = 25;
   if (!budgets.length) {
-    return { key: "budget", labelPt: "Orçamentos", labelEn: "Budget discipline",
-             score: 12, max: MAX, pct: 48, status: "warn" };
+    return {
+      key: "budget", labelPt: "Orçamentos", labelEn: "Budgets",
+      score: 12, max: MAX, pct: 48, status: "warn",
+      contextPt: "Nenhum orçamento definido", contextEn: "No budgets set",
+    };
   }
 
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
   if (totalBudgeted <= 0) {
-    return { key: "budget", labelPt: "Orçamentos", labelEn: "Budget discipline",
-             score: 12, max: MAX, pct: 48, status: "warn" };
+    return {
+      key: "budget", labelPt: "Orçamentos", labelEn: "Budgets",
+      score: 12, max: MAX, pct: 48, status: "warn",
+      contextPt: "Nenhum orçamento definido", contextEn: "No budgets set",
+    };
   }
 
-  const ratio = totalSpent / totalBudgeted;
+  const ratio   = totalSpent / totalBudgeted;
+  const usedPct = Math.round(ratio * 100);
   const pts = Math.round(clamp(
     ratio <= 0.5  ? 25 :
-    ratio <= 0.8  ? lerp(ratio,  [0.5, 25],  [0.8, 20]) :
-    ratio <= 0.95 ? lerp(ratio,  [0.8, 20],  [0.95, 14]) :
-    ratio <= 1.0  ? lerp(ratio,  [0.95, 14], [1.0, 8]) :
-    ratio <= 1.15 ? lerp(ratio,  [1.0, 8],   [1.15, 2]) :
+    ratio <= 0.8  ? lerp(ratio, [0.5, 25],  [0.8, 20]) :
+    ratio <= 0.95 ? lerp(ratio, [0.8, 20],  [0.95, 14]) :
+    ratio <= 1.0  ? lerp(ratio, [0.95, 14], [1.0, 8]) :
+    ratio <= 1.15 ? lerp(ratio, [1.0, 8],   [1.15, 2]) :
                     0,
     0, MAX
   ));
 
+  const overBudget = budgets.filter(b => (b.spent ?? 0) > b.amount).length;
+  const contextPt = overBudget > 0
+    ? `${overBudget} orçamento(s) estourado(s)`
+    : `${usedPct}% do orçamento usado`;
+  const contextEn = overBudget > 0
+    ? `${overBudget} budget(s) exceeded`
+    : `${usedPct}% of budget used`;
+
   return {
-    key: "budget",
-    labelPt: "Orçamentos",
-    labelEn: "Budget discipline",
-    score: pts,
-    max: MAX,
-    pct: Math.round((pts / MAX) * 100),
+    key: "budget", labelPt: "Orçamentos", labelEn: "Budgets",
+    score: pts, max: MAX, pct: Math.round((pts / MAX) * 100),
     status: pts >= 20 ? "great" : pts >= 14 ? "good" : pts >= 8 ? "warn" : "bad",
+    contextPt, contextEn,
   };
 }
 
@@ -130,11 +154,15 @@ function calcBudgetDiscipline(budgets: DashboardData["budgets"]): ScoreComponent
 function calcExpenseControl(income: number, expenses: number): ScoreComponent {
   const MAX = 25;
   if (income <= 0) {
-    return { key: "expense", labelPt: "Controle de gastos", labelEn: "Expense control",
-             score: 0, max: MAX, pct: 0, status: "bad" };
+    return {
+      key: "expense", labelPt: "Gastos vs. renda", labelEn: "Spending ratio",
+      score: 0, max: MAX, pct: 0, status: "bad",
+      contextPt: "Sem renda registrada", contextEn: "No income recorded",
+    };
   }
 
-  const ratio = clamp(expenses / income, 0, 2);
+  const ratio    = clamp(expenses / income, 0, 2);
+  const spentPct = Math.round(ratio * 100);
   const pts = Math.round(clamp(
     ratio <= 0.50 ? 25 :
     ratio <= 0.65 ? lerp(ratio, [0.50, 25], [0.65, 20]) :
@@ -145,14 +173,14 @@ function calcExpenseControl(income: number, expenses: number): ScoreComponent {
     0, MAX
   ));
 
+  const contextPt = `${spentPct}% da renda em gastos`;
+  const contextEn = `${spentPct}% of income spent`;
+
   return {
-    key: "expense",
-    labelPt: "Controle de gastos",
-    labelEn: "Expense control",
-    score: pts,
-    max: MAX,
-    pct: Math.round((pts / MAX) * 100),
+    key: "expense", labelPt: "Gastos vs. renda", labelEn: "Spending ratio",
+    score: pts, max: MAX, pct: Math.round((pts / MAX) * 100),
     status: pts >= 20 ? "great" : pts >= 14 ? "good" : pts >= 8 ? "warn" : "bad",
+    contextPt, contextEn,
   };
 }
 
@@ -165,30 +193,34 @@ function calcGoalsProgress(goals: DashboardData["goals"]): ScoreComponent {
   const MAX = 15;
   const active = goals.filter(g => g.target_amount > 0);
   if (!active.length) {
-    return { key: "goals", labelPt: "Metas de poupança", labelEn: "Savings goals",
-             score: 7, max: MAX, pct: 47, status: "warn" };
+    return {
+      key: "goals", labelPt: "Progresso das metas", labelEn: "Goal progress",
+      score: 7, max: MAX, pct: 47, status: "warn",
+      contextPt: "Nenhuma meta definida", contextEn: "No goals set",
+    };
   }
 
   const avgPct = active.reduce((s, g) =>
     s + Math.min(1, g.current_amount / g.target_amount), 0) / active.length;
+  const avgPctRounded = Math.round(avgPct * 100);
 
   const pts = Math.round(clamp(
     avgPct < 0.1  ? 2 :
-    avgPct < 0.25 ? lerp(avgPct, [0.1, 2],  [0.25, 6]) :
-    avgPct < 0.5  ? lerp(avgPct, [0.25, 6], [0.5, 10]) :
-    avgPct < 0.75 ? lerp(avgPct, [0.5, 10], [0.75, 13]) :
-                    lerp(avgPct, [0.75, 13], [1.0, 15]),
+    avgPct < 0.25 ? lerp(avgPct, [0.1, 2],   [0.25, 6]) :
+    avgPct < 0.5  ? lerp(avgPct, [0.25, 6],  [0.5, 10]) :
+    avgPct < 0.75 ? lerp(avgPct, [0.5, 10],  [0.75, 13]) :
+                    lerp(avgPct, [0.75, 13],  [1.0, 15]),
     0, MAX
   ));
 
+  const contextPt = `${avgPctRounded}% concluído em média`;
+  const contextEn = `${avgPctRounded}% complete on average`;
+
   return {
-    key: "goals",
-    labelPt: "Metas de poupança",
-    labelEn: "Savings goals",
-    score: pts,
-    max: MAX,
-    pct: Math.round((pts / MAX) * 100),
+    key: "goals", labelPt: "Progresso das metas", labelEn: "Goal progress",
+    score: pts, max: MAX, pct: Math.round((pts / MAX) * 100),
     status: pts >= 12 ? "great" : pts >= 8 ? "good" : pts >= 4 ? "warn" : "bad",
+    contextPt, contextEn,
   };
 }
 
@@ -224,77 +256,98 @@ function generateTips(
   const expComp  = components.find(c => c.key === "expense")!;
   const goalComp = components.find(c => c.key === "goals")!;
 
-  // Savings tips
+  // ── Savings tip ───────────────────────────────────────────────────────────
+  // Uses the same formula as calcSavingsRate: (income - expenses) / income.
+  // Only surfaces an action item when the user genuinely needs to save more.
   if (savComp.status === "bad" || savComp.status === "warn") {
-    const rate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
+    const saved  = income - expenses;
+    const rate   = income > 0 ? Math.round((saved / income) * 100) : 0;
+    const target = Math.round(income * 0.20);  // 20% goal
+    const gap    = target - saved;              // positive = need to save more
+
     if (rate <= 0) {
       tips.push({
-        pt: "Você está gastando mais do que ganha. Corte gastos variáveis imediatamente.",
+        pt: "Você está gastando mais do que ganha. Reduza as despesas variáveis urgentemente.",
         en: "You're spending more than you earn. Cut variable expenses immediately.",
       });
-    } else {
+    } else if (gap > 0) {
+      // Rate is positive but below 20% target
       tips.push({
-        pt: `Sua taxa de poupança é ${rate}%. Meta: chegar a 20% guardando R$ ${Math.round((income * 0.2 - (income - expenses)) / 1) } a mais por mês.`,
-        en: `Your savings rate is ${rate}%. Goal: reach 20% by saving R$ ${Math.round((income * 0.2 - (income - expenses)))} more per month.`,
+        pt: `Você poupa ${rate}% da renda. Para chegar a 20%, reserve mais R$ ${gap}/mês.`,
+        en: `You save ${rate}% of income. To reach 20%, set aside R$ ${gap} more per month.`,
       });
     }
+    // gap <= 0 means user already saves ≥ 20% — savComp.status would be "good"/"great",
+    // so this branch only runs when there's a genuine gap.
   }
 
-  // Budget tips
+  // ── Budget tip ────────────────────────────────────────────────────────────
   if (budComp.status === "bad" || budComp.status === "warn") {
     const overBudgets = budgets.filter(b => (b.spent ?? 0) > b.amount);
     if (!budgets.length) {
       tips.push({
-        pt: "Crie orçamentos por categoria para controlar onde o dinheiro vai.",
-        en: "Create category budgets to control where your money goes.",
+        pt: "Crie orçamentos por categoria para saber exatamente para onde o dinheiro vai.",
+        en: "Create category budgets to track exactly where your money goes.",
         href: "/budgets",
       });
     } else if (overBudgets.length) {
+      const names = overBudgets.slice(0, 2).map(b => b.category?.name ?? "—").join(", ");
+      const extra = overBudgets.length > 2 ? ` e mais ${overBudgets.length - 2}` : "";
       tips.push({
-        pt: `${overBudgets.length} orçamento(s) estourado(s): ${overBudgets.map(b => b.category?.name).join(", ")}. Reduza esses gastos no próximo mês.`,
-        en: `${overBudgets.length} budget(s) exceeded: ${overBudgets.map(b => b.category?.name).join(", ")}. Reduce those next month.`,
+        pt: `Orçamento estourado em: ${names}${extra}. Ajuste os limites ou reduza esses gastos.`,
+        en: `Budget exceeded in: ${names}${extra}. Adjust the limits or reduce those expenses.`,
+        href: "/budgets",
       });
     }
   }
 
-  // Expense tips
+  // ── Expense tip ───────────────────────────────────────────────────────────
   if (expComp.status === "bad" || expComp.status === "warn") {
     const ratio = income > 0 ? Math.round((expenses / income) * 100) : 0;
-    if (ratio > 90) {
+    if (ratio > 85) {
       tips.push({
-        pt: `Seus gastos consomem ${ratio}% da renda. Identifique e corte as 3 maiores despesas variáveis.`,
-        en: `Your expenses consume ${ratio}% of income. Identify and cut your top 3 variable expenses.`,
+        pt: `Seus gastos consomem ${ratio}% da renda. Liste as 3 maiores despesas e veja onde cortar.`,
+        en: `Your expenses use ${ratio}% of income. List your top 3 costs and find where to cut.`,
+        href: "/transactions",
       });
     }
   }
 
-  // Goals tips
+  // ── Goals tip ─────────────────────────────────────────────────────────────
   if (goalComp.status === "bad" || goalComp.status === "warn") {
     if (!goals.length) {
       tips.push({
-        pt: "Defina pelo menos uma meta de poupança para dar direção às suas finanças.",
-        en: "Set at least one savings goal to give direction to your finances.",
+        pt: "Crie pelo menos uma meta financeira para dar direção aos seus esforços.",
+        en: "Create at least one financial goal to give direction to your efforts.",
         href: "/goals",
       });
     } else {
-      const avgPct = Math.round(
-        goals.reduce((s, g) => s + Math.min(100, (g.current_amount / g.target_amount) * 100), 0)
-        / goals.length
-      );
+      const active = goals.filter(g => g.target_amount > 0);
+      const avgPct = active.length
+        ? Math.round(active.reduce((s, g) => s + Math.min(100, (g.current_amount / g.target_amount) * 100), 0) / active.length)
+        : 0;
       tips.push({
-        pt: `Suas metas estão em média ${avgPct}% concluídas. Faça depósitos mensais automáticos.`,
-        en: `Your goals are ${avgPct}% complete on average. Set up automatic monthly deposits.`,
+        pt: `Suas metas estão ${avgPct}% concluídas. Um depósito fixo mensal acelera o progresso.`,
+        en: `Your goals are ${avgPct}% complete. A fixed monthly deposit speeds up progress.`,
         href: "/goals",
       });
     }
   }
 
-  // All good tip
+  // ── All-good tip ──────────────────────────────────────────────────────────
   if (!tips.length) {
-    tips.push({
-      pt: "Continue assim! Considere aumentar sua meta de poupança para 30%+ da renda.",
-      en: "Keep it up! Consider increasing your savings target to 30%+ of income.",
-    });
+    const rate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
+    if (rate >= 30) {
+      tips.push({
+        pt: `Excelente! Você poupa ${rate}% da renda. Considere investir o excedente.`,
+        en: `Excellent! You save ${rate}% of income. Consider investing the surplus.`,
+      });
+    } else {
+      tips.push({
+        pt: "Ótimo trabalho! Continue monitorando e tente aumentar a poupança gradualmente.",
+        en: "Great work! Keep monitoring and try to gradually increase your savings.",
+      });
+    }
   }
 
   return tips.slice(0, 3);
@@ -319,7 +372,7 @@ export function calculateHealthScore(data: DashboardData): HealthScore {
   }
 
   const components = [
-    calcSavingsRate(monthIncome, monthExpenses, monthSavings),
+    calcSavingsRate(monthIncome, monthExpenses),   // goal deposits count as savings
     calcBudgetDiscipline(budgets),
     calcExpenseControl(monthIncome, monthExpenses),
     calcGoalsProgress(goals),

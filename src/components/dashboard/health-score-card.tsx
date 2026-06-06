@@ -115,15 +115,15 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
       </div>
 
       {/* Component bars */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {score.components.map(c => (
           <div key={c.key}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs font-medium text-foreground/80">
                 {lang === "en" ? c.labelEn : c.labelPt}
               </span>
               <span className={cn("text-xs font-semibold tabular-nums", STATUS_COLORS[c.status].text)}>
-                {c.score}/{c.max}
+                {lang === "en" ? c.contextEn : c.contextPt}
               </span>
             </div>
             <div className="h-1.5 rounded-full bg-muted/30">
