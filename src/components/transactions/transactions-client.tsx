@@ -45,7 +45,7 @@ export function TransactionsClient() {
 
   // ── Filters ──────────────────────────────────────────────────────────────
   const [search, setSearch]     = useState("");
-  const [tab, setTab]           = useState<"all" | "income" | "expense" | "saving">("all");
+  const [tab, setTab]           = useState<"all" | "income" | "expense">("all");
   const [period, setPeriod]     = useState<Period>("this_month");
   const [catFilter, setCatFilter] = useState("__all__");
   const [showFilters, setShowFilters] = useState(false);
@@ -114,7 +114,9 @@ export function TransactionsClient() {
 
   const filtered = useMemo(() => transactions.filter(t => {
     if (dateRange && (t.date < dateRange.start || t.date > dateRange.end)) return false;
-    if (tab !== "all" && t.type !== tab) return false;
+    // saving type (goal deposits) shows under "all" and "expense" (they're outflows)
+    if (tab === "income"  && t.type !== "income")  return false;
+    if (tab === "expense" && t.type === "income")  return false;
     if (catFilter !== "__all__" && t.category_id !== catFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -155,9 +157,9 @@ export function TransactionsClient() {
 
   // ── Summary totals (for current filter) ──────────────────────────────────
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const totalExpense = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-  const totalSaving  = filtered.filter(t => t.type === "saving").reduce((s, t) => s + t.amount, 0);
-  const netBalance   = totalIncome - totalExpense - totalSaving;
+  // Expenses include goal deposits (saving type) — they're both cash outflows
+  const totalExpense = filtered.filter(t => t.type !== "income").reduce((s, t) => s + t.amount, 0);
+  const netBalance   = totalIncome - totalExpense;
 
   // Clear all filters helper
   function clearFilters() {
@@ -251,7 +253,7 @@ export function TransactionsClient() {
       )}
 
       {/* ── Summary cards ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground mb-1">{tx.incomeFiltered}</p>
           <p className="font-display font-bold text-lg text-emerald-400 tabular-nums">{formatCurrency(totalIncome)}</p>
@@ -259,10 +261,6 @@ export function TransactionsClient() {
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground mb-1">{tx.expensesFiltered}</p>
           <p className="font-display font-bold text-lg text-red-400 tabular-nums">{formatCurrency(totalExpense)}</p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">{tx.savingsFiltered}</p>
-          <p className="font-display font-bold text-lg text-indigo-400 tabular-nums">{formatCurrency(totalSaving)}</p>
         </div>
         <div className="glass-card p-4">
           <p className="text-xs text-muted-foreground mb-1">{tx.balanceFilter}</p>
@@ -286,7 +284,6 @@ export function TransactionsClient() {
               <TabsTrigger value="all">{tx.allTab}</TabsTrigger>
               <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
               <TabsTrigger value="expense">{tx.expenseTab}</TabsTrigger>
-              <TabsTrigger value="saving">{tx.savingTab}</TabsTrigger>
             </TabsList>
           </Tabs>
           <Button
@@ -417,6 +414,11 @@ export function TransactionsClient() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+                    {t.type === "saving" && (
+                      <span className="shrink-0 text-[10px] font-medium text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full">
+                        {tx.goalDepositBadge}
+                      </span>
+                    )}
                     {t.is_recurring && (
                       <span title={tx.recurring} className="shrink-0 text-primary"><RefreshCw size={11} /></span>
                     )}
