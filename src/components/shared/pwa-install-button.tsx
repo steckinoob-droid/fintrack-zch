@@ -20,7 +20,7 @@ function detectPlatform(): Platform {
   return "desktop";
 }
 
-export function PwaInstallButton({ variant = "sidebar" }: { variant?: "sidebar" | "banner" }) {
+export function PwaInstallButton({ variant = "sidebar" }: { variant?: "sidebar" | "banner" | "header" }) {
   const [prompt, setPrompt]             = useState<BeforeInstallPromptEvent | null>(null);
   const [platform, setPlatform]         = useState<Platform>("unknown");
   const [installed, setInstalled]       = useState(false);
@@ -51,6 +51,38 @@ export function PwaInstallButton({ variant = "sidebar" }: { variant?: "sidebar" 
 
   // Don't render during SSR or if already installed
   if (!mounted || installed) return null;
+
+  // ── HEADER variant (mobile icon button, always visible) ─────────────────────
+  if (variant === "header") {
+    return (
+      <>
+        <button
+          onClick={() => {
+            if (platform === "android" && prompt) {
+              prompt.prompt();
+              prompt.userChoice.then(({ outcome }) => {
+                if (outcome === "accepted") { setInstalled(true); setPrompt(null); }
+              });
+            } else {
+              setShowModal(true);
+            }
+          }}
+          className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          aria-label="Instalar como app"
+          title="Instalar como app"
+        >
+          <Download size={17} />
+        </button>
+        {showModal && (
+          platform === "ios"
+            ? <IOSModal onClose={() => setShowModal(false)} />
+            : platform === "android"
+              ? <AndroidManualModal onClose={() => setShowModal(false)} />
+              : <DesktopModal onClose={() => setShowModal(false)} />
+        )}
+      </>
+    );
+  }
 
   // Banner variant: only show on mobile (android/ios)
   if (variant === "banner") {
