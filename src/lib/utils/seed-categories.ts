@@ -10,9 +10,11 @@ const DEFAULT_CATEGORIES = [
   { name: "Alimentação",    type: "expense", color: "#F97316", icon: "utensils"    },
   { name: "Transporte",     type: "expense", color: "#8B5CF6", icon: "car"         },
   { name: "Saúde",          type: "expense", color: "#14B8A6", icon: "heart-pulse" },
+  { name: "Beleza",         type: "expense", color: "#F472B6", icon: "sparkles"    },
   { name: "Lazer",          type: "expense", color: "#EC4899", icon: "gamepad-2"   },
   { name: "Educação",       type: "expense", color: "#3B82F6", icon: "book-open"   },
   { name: "Vestuário",      type: "expense", color: "#A855F7", icon: "shirt"       },
+  { name: "Assinaturas",    type: "expense", color: "#06B6D4", icon: "repeat"      },
 ] as const;
 
 export async function seedDefaultCategories(supabase: SupabaseClient, userId: string) {

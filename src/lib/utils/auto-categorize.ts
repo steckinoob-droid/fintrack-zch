@@ -85,7 +85,7 @@ const RULES: Rule[] = [
     ],
     subs: [
       "99app", "99pop", "99taxi", "99tecnol", "99techno",
-      "ubertecnol", "ubereats", "uberdo", "uberbrasil",
+      "ubertecnol", "ubereats", "uberdo", "uberbrasil", "ubermoto",
     ],
     cats: [
       "transporte", "mobilidade", "locomocao", "uber", "taxi", "onibus",
@@ -97,8 +97,7 @@ const RULES: Rule[] = [
   // ── FOOD DELIVERY ──────────────────────────────────────────────────────────
   {
     words: [
-      "ifood", "rappi", "loggi", "entrega", "delivery",
-      "james", "getninjas",
+      "ifood", "rappi", "loggi", "delivery", "james", "getninjas",
     ],
     subs: [
       "ifood", "rappi", "deliverymuch", "jamesdelivery", "ubereat",
@@ -121,27 +120,57 @@ const RULES: Rule[] = [
       "carrefour", "atacadao",
     ],
     cats: [
-      "alimenta", "mercado", "supermercado", "compras", "comida",
-      "grocery", "mantimento",
+      "alimenta", "mercado", "supermercado", "comida", "grocery", "mantimento",
     ],
   },
 
   // ── RESTAURANTS / FAST FOOD ────────────────────────────────────────────────
+  // Catches: "Azeitona Culinaria Arabe", "Restaurante Italiano", etc.
   {
     words: [
-      "restaurante", "lanchonete", "padaria", "pizzaria",
-      "hamburger", "burger", "churrasco", "cafe", "bistro",
-      "sorvete", "sorveteria", "acai", "tapioca", "sushi",
-      "salgado", "marmita", "crepe", "pastelaria", "doceria",
+      "restaurante", "lanchonete", "padaria", "pizzaria", "hamburger", "burger",
+      "churrasco", "cafe", "bistro", "sorvete", "sorveteria", "acai", "tapioca",
+      "sushi", "salgado", "marmita", "crepe", "pastelaria", "doceria",
       "confeitaria", "subway", "outback", "madero", "girafas", "kfc",
+      // Tipos culinários comuns em nomes de restaurantes
+      "culinaria", "cozinha", "gastronomia", "grill", "gourmet",
+      "arabe", "japones", "italiana", "italiano", "chines", "chinesa",
+      "mexicano", "mexicana", "grego", "grecia", "indiano", "tailandes",
+      "peruano", "coreano", "turco", "libanes", "argentino", "nordestina",
+      "baiana", "mineira", "portuguesa",
+      // Tipos de estabelecimento
+      "espetinho", "churrascaria", "bistrô", "taberna", "tasca",
+      "cantina", "trattoria", "tratoria", "esfiharia", "esfiha",
+      "kebab", "shawarma", "temaki", "yakisoba", "temakeria",
+      "acaiteria", "smoothie", "sucos", "lanches",
     ],
     subs: [
       "mcdonalds", "mcdonald", "bobsburger", "bobs",
-      "burguerking", "burgerking",
+      "burguerking", "burgerking", "burgerme",
     ],
     cats: [
       "alimenta", "restaurante", "comida", "refeicao", "lanches",
-      "fast food", "lanche", "gastronomia",
+      "gastronomia", "lanche",
+    ],
+  },
+
+  // ── BEAUTY / PERSONAL CARE ─────────────────────────────────────────────────
+  // Catches: "MI Produtos De Beleza", "Salão Da Mari", "Studio Unhas"
+  {
+    words: [
+      "beleza", "estetica", "salao", "cabeleireiro", "cabeleireira",
+      "barbearia", "barber", "manicure", "pedicure", "depilacao",
+      "unhas", "maquiagem", "makeup", "spa", "nail", "lashes",
+      "micropigmentacao", "sobrancelha", "botox", "harmonizacao",
+      "cosmetico", "perfumaria", "perfume", "moda intima",
+    ],
+    subs: [
+      "produtosbeleza", "beleza", "estetica", "barber",
+      "naildesign", "studiounhas", "clinicaestetica",
+    ],
+    cats: [
+      "beleza", "estetica", "cuidados", "cosmetico", "pessoal",
+      "higiene", "bem estar",
     ],
   },
 
@@ -153,7 +182,6 @@ const RULES: Rule[] = [
     ],
     subs: [
       "petrobras", "brdistrib", "vibra", "alecombust",
-      "posto ", "gasolina",
     ],
     cats: [
       "combustivel", "transporte", "carro", "veiculo", "auto",
@@ -184,6 +212,22 @@ const RULES: Rule[] = [
     ],
   },
 
+  // ── SUBSCRIPTIONS (non-streaming) ──────────────────────────────────────────
+  {
+    words: [
+      "assinatura", "mensalidade", "adobe", "dropbox",
+      "notion", "canva", "figma", "github", "chatgpt", "openai",
+      "antivirus", "norton", "kaspersky", "icloud",
+    ],
+    subs: [
+      "microsoftsubs", "microsoft365", "office365", "googledrive",
+      "googleone", "googleplay",
+    ],
+    cats: [
+      "assinatura", "subscri", "servico", "streaming", "lazer",
+    ],
+  },
+
   // ── LEISURE / EVENTS ───────────────────────────────────────────────────────
   {
     words: [
@@ -203,11 +247,10 @@ const RULES: Rule[] = [
     subs: [
       "ultrafarma", "panvel", "pacheco", "nissei", "raia",
       "drogasil", "onofre", "bifarma", "extrafarma", "paguemenos",
-      "farmac", "droga",
+      "farmac",
     ],
     cats: [
       "saude", "farmacia", "remedios", "medicamento", "health",
-      "farmaceutico",
     ],
   },
 
@@ -216,12 +259,11 @@ const RULES: Rule[] = [
     words: [
       "academia", "smartfit", "bluefit", "bodytech", "crossfit",
       "pilates", "yoga", "natacao", "boxe", "treino", "spinning",
-      "musculacao", "muaythai",
+      "musculacao", "muaythai", "funcional",
     ],
     subs: ["bioritmo", "jiujitsu", "bioativi"],
     cats: [
-      "saude", "academia", "fitness", "esporte", "gym", "sport",
-      "exercicio", "musculacao",
+      "saude", "academia", "fitness", "esporte", "gym", "exercicio",
     ],
   },
 
@@ -230,7 +272,7 @@ const RULES: Rule[] = [
     words: [
       "hospital", "clinica", "dentista", "medico", "laboratorio",
       "exame", "consulta", "psicologo", "terapia", "cirurgia",
-      "unimed", "hapvida", "amil",
+      "unimed", "hapvida", "amil", "pronto socorro",
     ],
     subs: ["notredame", "bradescosaude", "sulamerica", "prontosocc"],
     cats: [
@@ -248,20 +290,20 @@ const RULES: Rule[] = [
     subs: ["energiaelet", "gasnatural", "aguaesgoto"],
     cats: [
       "moradia", "casa", "aluguel", "condominio", "utilidades",
-      "housing", "energia", "agua", "luz", "gas", "fixo",
+      "energia", "agua", "luz", "gas", "fixo", "housing",
     ],
   },
 
   // ── TELECOM / INTERNET ─────────────────────────────────────────────────────
   {
     words: [
-      "vivo", "claro", "tim", "nextel", "algar", "celular",
-      "telefone", "recarga", "internet",
+      "vivo", "nextel", "algar", "celular", "telefone", "recarga", "internet",
     ],
-    subs: ["bandalarga", "fibra", "recarga", "planocel"],
+    // "claro" e "tim" têm substrings longas pra evitar falso positivo em nomes
+    subs: ["claro br", "timcelular", "tim br", "bandalarga", "fibra", "planocel"],
     cats: [
       "telefone", "telecom", "comunicacao", "internet", "celular",
-      "servicos", "utilidades", "plano",
+      "utilidades", "plano",
     ],
   },
 
@@ -271,10 +313,9 @@ const RULES: Rule[] = [
       "escola", "colegio", "faculdade", "universidade", "mensalidade",
       "matricula", "curso", "aula", "udemy", "coursera", "alura", "duolingo",
     ],
-    subs: ["rocketseat", "livro", "apostila", "escolari", "educac"],
+    subs: ["rocketseat", "livro", "apostila", "escolari"],
     cats: [
-      "educacao", "escola", "aprendizado", "education", "ensino",
-      "estudo", "formacao",
+      "educacao", "escola", "aprendizado", "ensino", "estudo", "formacao",
     ],
   },
 
@@ -283,11 +324,11 @@ const RULES: Rule[] = [
     words: [
       "zara", "renner", "riachuelo", "shein", "marisa",
       "netshoes", "reserva", "ellus", "decathlon", "centauro",
+      "roupa", "vestuario", "calcado", "tenis", "sapato",
     ],
-    subs: ["hm ", "c a ", "cea", "brooksfield", "lojas"],
+    subs: ["brooksfield", "lojarenner", "marisa"],
     cats: [
-      "roupa", "vestuario", "moda", "compras", "fashion", "roupas",
-      "calcado", "tenis",
+      "roupa", "vestuario", "moda", "fashion", "roupas", "calcado",
     ],
   },
 
@@ -302,7 +343,6 @@ const RULES: Rule[] = [
     ],
     cats: [
       "compras", "online", "shopping", "eletronico", "loja",
-      "ecommerce",
     ],
   },
 
@@ -311,8 +351,7 @@ const RULES: Rule[] = [
     words: ["anuidade", "iof", "juros", "multa", "tarifa", "cpmf"],
     subs: ["taxaadm", "taxamanut", "tarifabanc"],
     cats: [
-      "taxa", "banco", "financeiro", "cartao", "tarifa", "fee",
-      "bancario",
+      "taxa", "banco", "financeiro", "cartao", "tarifa", "bancario",
     ],
   },
 
@@ -327,8 +366,7 @@ const RULES: Rule[] = [
       "booking", "airbnb",
     ],
     cats: [
-      "viagem", "turismo", "hospedagem", "hotel", "passagem",
-      "travel", "aerea",
+      "viagem", "turismo", "hospedagem", "hotel", "passagem", "aerea",
     ],
   },
 
@@ -351,8 +389,7 @@ const RULES: Rule[] = [
     words: ["salario", "holerite", "freelance", "honorario", "renda", "mei"],
     subs: [],
     cats: [
-      "salario", "renda", "trabalho", "receita", "income",
-      "vencimento", "pagamento", "remuneracao",
+      "salario", "renda", "trabalho", "receita", "income", "remuneracao",
     ],
   },
 ];
