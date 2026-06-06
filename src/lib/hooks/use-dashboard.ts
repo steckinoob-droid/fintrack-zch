@@ -113,6 +113,7 @@ export function useDashboard(monthOffset = 0) {
           monthExpenses,
           monthSavings,
           recentTransactions: transactions.slice(0, 8),
+          monthTransactions: currentMonthTx,
           monthlyStats,
           budgets: budgetsWithSpent,
           goals,

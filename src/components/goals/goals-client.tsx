@@ -145,7 +145,7 @@ export function GoalsClient() {
                         {autoDeposits[goal.id] && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
                             <RefreshCw size={9} />
-                            {formatCurrency(autoDeposits[goal.id])}/mês
+                            {formatCurrency(autoDeposits[goal.id])}{lang === "en" ? "/mo" : "/mês"}
                           </span>
                         )}
                       </div>
@@ -213,7 +213,7 @@ export function GoalsClient() {
                   {expandedHistory === goal.id && (
                     <div className="space-y-1 pt-1 border-t border-border/30">
                       {!depositHistory[goal.id] ? (
-                        <p className="text-xs text-muted-foreground py-1">Carregando...</p>
+                        <p className="text-xs text-muted-foreground py-1">{lang === "en" ? "Loading..." : "Carregando..."}</p>
                       ) : depositHistory[goal.id].length === 0 ? (
                         <p className="text-xs text-muted-foreground py-1">
                           {lang === "en" ? "No deposits yet." : "Nenhum aporte registrado ainda."}

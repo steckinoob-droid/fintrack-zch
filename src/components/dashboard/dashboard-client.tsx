@@ -109,7 +109,7 @@ export function DashboardClient() {
           <div className="lg:col-span-2">
             <IncomeExpenseChart monthlyStats={data.monthlyStats} />
           </div>
-          <CategoryBreakdown transactions={data.recentTransactions} />
+          <CategoryBreakdown transactions={data.monthTransactions} />
         </div>
 
         <MonthInsights

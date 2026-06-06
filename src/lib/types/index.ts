@@ -72,7 +72,8 @@ export interface DashboardData {
   monthIncome: number;
   monthExpenses: number;
   monthSavings: number;
-  recentTransactions: Transaction[];
+  recentTransactions: Transaction[];   // 8 most recent (any month) — for the activity list
+  monthTransactions: Transaction[];    // all transactions in the viewed month — for charts/breakdown
   monthlyStats: MonthlyStats[];
   budgets: Budget[];
   goals: SavingsGoal[];

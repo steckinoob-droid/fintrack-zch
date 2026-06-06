@@ -287,7 +287,7 @@ export function TransactionsClient() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                    <Upload size={14} className="mr-2" /> Importar Extrato
+                    <Upload size={14} className="mr-2" /> {lang === "en" ? "Import Statement" : "Importar Extrato"}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setQuickOpen(v => !v)}>
                     <Zap size={14} className="mr-2" /> {lang === "en" ? "Quick add" : "Rápido"}
