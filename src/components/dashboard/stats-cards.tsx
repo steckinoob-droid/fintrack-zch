@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { TrendingUp, TrendingDown, Wallet, PieChart } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
@@ -29,13 +30,13 @@ export function StatsCards({ data }: StatsCardsProps) {
 
   const cards = [
     {
-      // Saldo do mês — same period as income/expenses (no more mixed timeframes)
       label: lang === "en" ? "Month Balance" : "Saldo do Mês",
       value: formatCurrency(monthBalance),
       subtext: lang === "en" ? "income minus expenses" : "receitas menos despesas",
       icon: Wallet,
       iconBg: "bg-primary/10", iconColor: "text-primary",
       valueColor: monthBalance >= 0 ? "text-foreground" : "text-red-400",
+      href: "/transactions",
     },
     {
       label: tx.monthIncome,
@@ -44,6 +45,7 @@ export function StatsCards({ data }: StatsCardsProps) {
       icon: TrendingUp,
       iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400",
       valueColor: "text-emerald-400",
+      href: "/transactions",
     },
     {
       label: tx.monthExpenses,
@@ -52,6 +54,7 @@ export function StatsCards({ data }: StatsCardsProps) {
       icon: TrendingDown,
       iconBg: "bg-red-500/10", iconColor: "text-red-400",
       valueColor: "text-red-400",
+      href: "/transactions",
     },
     {
       label: tx.budgetUsage,
@@ -63,13 +66,18 @@ export function StatsCards({ data }: StatsCardsProps) {
       iconBg: budgetPct === null ? "bg-muted/30" : budgetIconBg,
       iconColor: budgetPct === null ? "text-muted-foreground" : budgetIconColor,
       valueColor: budgetPct === null ? "text-muted-foreground" : budgetValColor,
+      href: "/budgets",
     },
   ];
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
       {cards.map((card) => (
-        <div key={card.label} className="stat-card group">
+        <Link
+          key={card.label}
+          href={card.href}
+          className="stat-card group transition-all duration-200 hover:border-white/[0.12] hover:bg-white/[0.05] hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <div className="flex items-start justify-between">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{card.label}</p>
             <div className={cn("rounded-lg p-2 transition-transform group-hover:scale-110", card.iconBg)}>
@@ -80,7 +88,7 @@ export function StatsCards({ data }: StatsCardsProps) {
             {card.value}
           </p>
           <p className="text-xs text-muted-foreground">{card.subtext}</p>
-        </div>
+        </Link>
       ))}
     </div>
   );

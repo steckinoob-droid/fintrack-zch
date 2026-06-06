@@ -252,13 +252,15 @@ export function BudgetsClient() {
                       </p>
                     </div>
                   </div>
-                  <div className="hidden group-hover:flex items-center gap-1">
+                  <div className="card-actions">
                     <button onClick={() => { setEditBudget(b); setDialogOpen(true); }}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title={common.edit}>
                       <Pencil size={13} />
                     </button>
                     <button onClick={() => handleDelete(b.id)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title={common.delete}>
                       <Trash2 size={13} />
                     </button>
                   </div>

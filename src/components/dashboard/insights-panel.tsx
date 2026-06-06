@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { TrendingUp, TrendingDown, AlertTriangle, Lightbulb, Target, Flame, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
@@ -17,7 +18,7 @@ interface Insight {
   href?: string; priority: number;
 }
 
-function useInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
+function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
   const tx = appT[lang].dashboard.insights;
   const { monthIncome, monthExpenses, monthlyStats, budgets, goals } = data;
   const current  = monthlyStats[monthlyStats.length - 1];
@@ -121,8 +122,9 @@ function useInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
 
 export function InsightsPanel({ data }: { data: DashboardData }) {
   const { lang } = useLang();
+  const router   = useRouter();
   const tx       = appT[lang].dashboard.insights;
-  const insights = useMemo(() => useInsights(data, lang), [data, lang]);
+  const insights = useMemo(() => buildInsights(data, lang), [data, lang]);
 
   return (
     <div className="glass-card p-5">
@@ -143,8 +145,15 @@ export function InsightsPanel({ data }: { data: DashboardData }) {
       <div className="space-y-2">
         {insights.map((insight) => (
           <div key={insight.id}
-            className={cn("flex items-start gap-3 rounded-xl p-3 transition-colors", insight.href && "hover:bg-muted/30 cursor-pointer")}
-            onClick={() => insight.href && (window.location.href = insight.href)}>
+            role={insight.href ? "button" : undefined}
+            tabIndex={insight.href ? 0 : undefined}
+            className={cn(
+              "flex items-start gap-3 rounded-xl p-3 transition-colors",
+              insight.href && "hover:bg-muted/30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            )}
+            onClick={() => insight.href && router.push(insight.href)}
+            onKeyDown={e => e.key === "Enter" && insight.href && router.push(insight.href)}
+          >
             <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5", insight.iconBg)}>
               <insight.icon size={15} className={insight.iconColor} />
             </div>
@@ -152,6 +161,9 @@ export function InsightsPanel({ data }: { data: DashboardData }) {
               <p className="text-sm font-medium text-foreground leading-snug">{insight.title}</p>
               <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{insight.description}</p>
             </div>
+            {insight.href && (
+              <ArrowRight size={13} className="shrink-0 mt-1 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+            )}
           </div>
         ))}
       </div>

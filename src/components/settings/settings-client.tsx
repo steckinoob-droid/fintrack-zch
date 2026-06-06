@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, User, LogOut, Trash2, Shield, Globe } from "lucide-react";
+import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ export function SettingsClient() {
   const tx = appT[lang].settings;
 
   const [email, setEmail] = useState("");
+  const [showPwd, setShowPwd]     = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const profileSchema = z.object({ name: z.string().min(2) });
   const passwordSchema = z.object({
@@ -129,14 +131,48 @@ export function SettingsClient() {
         <form onSubmit={passwordForm.handleSubmit(onChangePassword)} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="new-password">{tx.newPassword}</Label>
-            <Input id="new-password" type="password" placeholder="••••••••" {...passwordForm.register("password")} />
+            <div className="relative">
+              <Input
+                id="new-password"
+                type={showPwd ? "text" : "password"}
+                placeholder="••••••••"
+                className="pr-10"
+                {...passwordForm.register("password")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+                aria-label={showPwd ? (lang === "en" ? "Hide password" : "Ocultar senha") : (lang === "en" ? "Show password" : "Mostrar senha")}
+              >
+                {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
             {passwordForm.formState.errors.password && (
               <p className="text-xs text-destructive">{tx.minChars}</p>
             )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="confirm-password">{tx.confirmPassword}</Label>
-            <Input id="confirm-password" type="password" placeholder="••••••••" {...passwordForm.register("confirm")} />
+            <div className="relative">
+              <Input
+                id="confirm-password"
+                type={showConfirm ? "text" : "password"}
+                placeholder="••••••••"
+                className="pr-10"
+                {...passwordForm.register("confirm")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+                aria-label={showConfirm ? (lang === "en" ? "Hide password" : "Ocultar senha") : (lang === "en" ? "Show password" : "Mostrar senha")}
+              >
+                {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
             {passwordForm.formState.errors.confirm && (
               <p className="text-xs text-destructive">{tx.passwordMismatch}</p>
             )}
