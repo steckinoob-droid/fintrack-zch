@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Search, Globe, LogOut } from "lucide-react";
-import { PwaInstallButton } from "@/components/shared/pwa-install-button";
 import { Logo } from "@/components/shared/logo";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
@@ -103,11 +102,6 @@ export function Header({ user, profile }: HeaderProps) {
 
           {/* Notifications */}
           <NotificationsPanel />
-
-          {/* Install PWA — mobile only */}
-          <div className="lg:hidden">
-            <PwaInstallButton variant="header" />
-          </div>
 
           {/* Logout — mobile only */}
           <button

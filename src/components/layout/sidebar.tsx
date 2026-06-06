@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Logo } from "@/components/shared/logo";
-import { PwaInstallButton } from "@/components/shared/pwa-install-button";
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -88,11 +87,6 @@ export function Sidebar({ user, profile }: SidebarProps) {
           </Link>
         </div>
       </nav>
-
-      {/* Install PWA */}
-      <div className="px-3 pb-2">
-        <PwaInstallButton variant="sidebar" />
-      </div>
 
       {/* User */}
       <div className="px-3 py-4 border-t border-border/50">
