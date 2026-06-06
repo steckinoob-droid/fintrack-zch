@@ -189,42 +189,54 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Importar CSV do banco</DialogTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            Exporte o extrato do seu banco e importe aqui — Nubank, Inter, Itaú, Bradesco e outros.
-          </p>
         </DialogHeader>
 
         {/* ── STEP 1: UPLOAD ── */}
         {step === "upload" && (
-          <div className="px-6 pb-2 space-y-4">
+          <div className="px-6 pb-4 space-y-5">
+
             {error && (
               <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
                 <AlertCircle size={14} /> {error}
               </div>
             )}
+
+            {/* Drop zone */}
             <div
               onClick={() => fileRef.current?.click()}
               onDragOver={e => e.preventDefault()}
               onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-              className="border-2 border-dashed border-border/50 hover:border-primary/50 rounded-xl p-10 text-center cursor-pointer transition-colors group"
+              className="border-2 border-dashed border-border/50 hover:border-primary/50 rounded-2xl py-12 px-6 text-center cursor-pointer transition-all group hover:bg-primary/[0.02]"
             >
-              <Upload size={28} className="mx-auto mb-3 text-muted-foreground group-hover:text-primary transition-colors" />
-              <p className="text-sm font-medium text-foreground">Clique ou arraste o arquivo CSV</p>
-              <p className="text-xs text-muted-foreground mt-1">Formatos aceitos: .csv, .txt</p>
+              <div className="h-14 w-14 rounded-2xl bg-muted/40 group-hover:bg-primary/10 flex items-center justify-center mx-auto mb-4 transition-colors">
+                <Upload size={26} className="text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <p className="text-base font-semibold text-foreground mb-1">Clique ou arraste o arquivo CSV</p>
+              <p className="text-xs text-muted-foreground">Formatos aceitos: .csv, .txt</p>
               <input ref={fileRef} type="file" accept=".csv,.txt,.ofx" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
-            <div className="rounded-lg bg-muted/20 p-3 space-y-2">
-              <p className="text-xs font-semibold text-foreground">Como exportar:</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <p>• <strong>Nubank:</strong> App → Perfil → Exportar planilha</p>
-                <p>• <strong>Inter:</strong> Extrato → Exportar → CSV</p>
-                <p>• <strong>Itaú:</strong> Extrato → Baixar → Planilha</p>
-                <p>• <strong>Bradesco:</strong> Extrato → Gerar CSV</p>
-                <p>• <strong>C6:</strong> Extrato → Exportar → Excel/CSV</p>
-                <p>• <strong>Santander:</strong> Extrato → Baixar CSV</p>
+
+            {/* Bank export instructions */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Como exportar do seu banco</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha" },
+                  { bank: "Inter",     steps: "Extrato → Exportar → CSV" },
+                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha" },
+                  { bank: "Bradesco",  steps: "Extrato → Gerar CSV" },
+                  { bank: "C6",        steps: "Extrato → Exportar → Excel/CSV" },
+                  { bank: "Santander", steps: "Extrato → Baixar CSV" },
+                ].map(({ bank, steps }) => (
+                  <div key={bank} className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2">
+                    <span className="text-xs font-semibold text-foreground shrink-0 w-16">{bank}</span>
+                    <span className="text-xs text-muted-foreground leading-relaxed">{steps}</span>
+                  </div>
+                ))}
               </div>
             </div>
+
           </div>
         )}
 
