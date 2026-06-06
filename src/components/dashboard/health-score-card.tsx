@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Lightbulb } from "lucide-react";
+import Link from "next/link";
+import { Lightbulb, ArrowRight } from "lucide-react";
 import { calculateHealthScore } from "@/lib/utils/health-score";
 import { useLang } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils/cn";
@@ -47,7 +48,7 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
         <div>
           <p className="text-sm font-semibold text-foreground">Score de saúde financeira</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {lang === "en" ? score.tipsEn[0] : score.tips[0]}
+            {lang === "en" ? score.tipsEn[0]?.text : score.tips[0]?.text}
           </p>
         </div>
       </div>
@@ -141,7 +142,17 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
           {tips.map((tip, i) => (
             <div key={i} className="flex items-start gap-2">
               <Lightbulb size={12} className="text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+              {tip.href ? (
+                <Link
+                  href={tip.href}
+                  className="text-xs text-muted-foreground leading-relaxed hover:text-primary transition-colors group inline-flex items-center gap-1"
+                >
+                  {tip.text}
+                  <ArrowRight size={10} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              ) : (
+                <p className="text-xs text-muted-foreground leading-relaxed">{tip.text}</p>
+              )}
             </div>
           ))}
         </div>

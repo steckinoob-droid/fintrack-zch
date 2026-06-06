@@ -1,5 +1,10 @@
 import type { DashboardData } from "@/lib/types";
 
+export interface TipItem {
+  text: string;
+  href?: string;
+}
+
 export interface HealthScore {
   total: number;              // 0–100
   grade: "A" | "B" | "C" | "D" | "F";
@@ -7,8 +12,8 @@ export interface HealthScore {
   labelEn: string;
   color: string;              // Tailwind color token
   components: ScoreComponent[];
-  tips: string[];             // up to 3 actionable tips (PT)
-  tipsEn: string[];
+  tips: TipItem[];            // up to 3 actionable tips (PT)
+  tipsEn: TipItem[];
   hasData: boolean;           // false when income is too low to calculate
 }
 
@@ -212,8 +217,8 @@ function generateTips(
   income: number, expenses: number,
   budgets: DashboardData["budgets"],
   goals: DashboardData["goals"],
-): { pt: string; en: string }[] {
-  const tips: { pt: string; en: string }[] = [];
+): { pt: string; en: string; href?: string }[] {
+  const tips: { pt: string; en: string; href?: string }[] = [];
   const savComp  = components.find(c => c.key === "savings")!;
   const budComp  = components.find(c => c.key === "budget")!;
   const expComp  = components.find(c => c.key === "expense")!;
@@ -242,6 +247,7 @@ function generateTips(
       tips.push({
         pt: "Crie orçamentos por categoria para controlar onde o dinheiro vai.",
         en: "Create category budgets to control where your money goes.",
+        href: "/budgets",
       });
     } else if (overBudgets.length) {
       tips.push({
@@ -268,6 +274,7 @@ function generateTips(
       tips.push({
         pt: "Defina pelo menos uma meta de poupança para dar direção às suas finanças.",
         en: "Set at least one savings goal to give direction to your finances.",
+        href: "/goals",
       });
     } else {
       const avgPct = Math.round(
@@ -277,6 +284,7 @@ function generateTips(
       tips.push({
         pt: `Suas metas estão em média ${avgPct}% concluídas. Faça depósitos mensais automáticos.`,
         en: `Your goals are ${avgPct}% complete on average. Set up automatic monthly deposits.`,
+        href: "/goals",
       });
     }
   }
@@ -303,8 +311,9 @@ export function calculateHealthScore(data: DashboardData): HealthScore {
       total: 0, grade: "F",
       label: "Sem dados", labelEn: "No data",
       color: "muted",
-      components: [], tips: ["Adicione suas receitas do mês para calcular o score."],
-      tipsEn: ["Add your monthly income to calculate the score."],
+      components: [],
+      tips:   [{ text: "Adicione suas receitas do mês para calcular o score.", href: "/transactions" }],
+      tipsEn: [{ text: "Add your monthly income to calculate the score.", href: "/transactions" }],
       hasData: false,
     };
   }
@@ -329,8 +338,8 @@ export function calculateHealthScore(data: DashboardData): HealthScore {
     labelEn,
     color,
     components,
-    tips:   rawTips.map(t => t.pt),
-    tipsEn: rawTips.map(t => t.en),
+    tips:   rawTips.map(t => ({ text: t.pt, href: t.href })),
+    tipsEn: rawTips.map(t => ({ text: t.en, href: t.href })),
     hasData: true,
   };
 }
