@@ -150,10 +150,20 @@ function toISO(dd: string, mm: string, year: number) {
 
 // ── pdfjs extraction ─────────────────────────────────────────────────────────
 
+/** Only the fields we actually use from a pdfjs TextItem */
 interface TextItem {
   str: string;
   transform: number[]; // [a,b,c,d,x,y]
   width?: number;
+}
+
+/**
+ * pdfjs content.items is Array<TextItem | TextMarkedContent>.
+ * TextMarkedContent has { type, id } but NO str/transform/width.
+ * We guard with this type predicate so we never call .str on the wrong shape.
+ */
+function isTextItem(item: unknown): item is TextItem {
+  return typeof (item as TextItem).str === "string";
 }
 
 async function extractAllLines(
@@ -162,9 +172,9 @@ async function extractAllLines(
   // Dynamically import pdfjs only in the browser
   const pdfjsLib = await import("pdfjs-dist");
 
-  // Use CDN worker — no webpack config needed
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  // Use the worker we copy to /public during build (see package.json prebuild).
+  // Falls back to unpkg if the local copy is somehow missing.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
 
@@ -174,7 +184,9 @@ async function extractAllLines(
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    const items = content.items as TextItem[];
+
+    // Filter out TextMarkedContent items (no .str) — only keep real text items
+    const items = (content.items as unknown[]).filter(isTextItem);
 
     // Detect statement year from any page header (e.g. "maio/2026")
     if (p <= 2) {
@@ -333,13 +345,16 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
 export async function isSantanderPDF(file: File): Promise<boolean> {
   try {
     const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
     const page = await pdf.getPage(1);
     const content = await page.getTextContent();
-    const text = (content.items as TextItem[]).map(i => i.str).join(" ").toLowerCase();
+    const text = (content.items as unknown[])
+      .filter(isTextItem)
+      .map(i => i.str)
+      .join(" ")
+      .toLowerCase();
     return text.includes("santander") && text.includes("extrato");
   } catch {
     return false;
