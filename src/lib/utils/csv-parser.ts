@@ -216,6 +216,16 @@ export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
 
     if (!date || amount === null || !title) continue;
 
+    // Skip internal savings-jar transfers (PicPay "cofrinho", etc.)
+    // These are not real income/expenses — they net to zero and pollute reports
+    const titleNorm = norm(title);
+    const typeNorm  = norm(rawType);
+    if (
+      titleNorm.includes("cofrinho") ||
+      typeNorm === norm("Dinheiro guardado") ||
+      typeNorm === norm("Dinheiro resgatado")
+    ) continue;
+
     // ── Type resolution (priority order) ───────────────────────────────────
     let type: "income" | "expense" | null = null;
 
