@@ -12,6 +12,7 @@ import { CategoryBreakdown } from "./category-breakdown";
 import { BudgetAlerts } from "./budget-alerts";
 import { MonthInsights } from "./month-insights";
 import { InsightsPanel } from "./insights-panel";
+import { HealthScoreCard } from "./health-score-card";
 import { OnboardingModal } from "@/components/onboarding/onboarding-modal";
 import { StatCardSkeleton, ChartSkeleton, TransactionRowSkeleton } from "@/components/shared/skeleton";
 
@@ -74,7 +75,10 @@ export function DashboardClient() {
           </div>
         </div>
 
-        <InsightsPanel data={data} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <HealthScoreCard data={data} />
+          <InsightsPanel data={data} />
+        </div>
       </div>
     </>
   );

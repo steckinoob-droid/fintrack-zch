@@ -3,6 +3,7 @@ import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/shared/toaster";
 import { LangProvider } from "@/lib/i18n/context";
+import { PwaRegister } from "@/components/shared/pwa-register";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,6 +22,12 @@ export const metadata: Metadata = {
   description: "Gerencie suas finanças com clareza. Receitas, despesas, orçamentos e metas de poupança em um só lugar. Grátis para começar.",
   keywords: ["finanças pessoais", "controle financeiro", "orçamento", "poupança", "investimentos", "fintech"],
   authors: [{ name: "FinTrack" }],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "FinTrack",
+  },
   openGraph: {
     title: "FinTrack — Controle Financeiro Inteligente",
     description: "Gerencie suas finanças com clareza. Receitas, despesas, orçamentos e metas em um só lugar.",
@@ -34,12 +41,19 @@ export const metadata: Metadata = {
     description: "Gerencie suas finanças com clareza.",
   },
   robots: { index: true, follow: true },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0A0E1A",
+  minimumScale: 1,
+  viewportFit: "cover",
+  themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#0A0E1A" }],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -47,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className="dark" suppressHydrationWarning>
       <body className={`${inter.variable} ${plusJakarta.variable}`}>
         <LangProvider>
+          <PwaRegister />
           {children}
           <Toaster />
         </LangProvider>
