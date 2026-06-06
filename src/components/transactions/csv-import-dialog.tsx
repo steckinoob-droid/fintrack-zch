@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Check, Loader2, AlertCircle, Settings2 } from "lucide-react";
+import { Upload, Check, Loader2, AlertCircle, Settings2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ interface ImportRow extends ParsedRow {
   autoCat: boolean;    // true when category was auto-suggested
 }
 
-type Step = "upload" | "preview";
+type Step = "upload" | "preview" | "result";
 
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
   const [step, setStep]           = useState<Step>("upload");
@@ -39,11 +39,13 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   const [rows, setRows]           = useState<ImportRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function reset() {
     setStep("upload"); setRows([]); setHeaders([]); setRawRows([]);
     setColMap({}); setError(null); setAutoMapped(false); setShowMapping(false);
+    setImportResult(null);
   }
 
   function buildPreview(raw: string[][], map: ColumnMap) {
@@ -147,9 +149,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const newOnly = toImport.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
     const skipped = toImport.length - newOnly.length;
 
+    // All duplicates — show result screen inside the dialog
     if (!newOnly.length) {
       setImporting(false);
-      toast.error(`Nenhuma transação nova — ${skipped} já existem.`);
+      setImportResult({ imported: 0, skipped });
+      setStep("result");
       return;
     }
     // ─────────────────────────────────────────────────────────────────────
@@ -169,13 +173,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const { error } = await supabase.from("transactions").insert(payload);
     setImporting(false);
     if (error) { toast.error("Erro ao importar. Tente novamente."); return; }
-    const msg = skipped > 0
-      ? `${newOnly.length} importadas, ${skipped} duplicatas ignoradas.`
-      : `${newOnly.length} transações importadas com sucesso!`;
-    toast.success(msg);
+
+    // Show result screen (imported + skipped)
+    setImportResult({ imported: newOnly.length, skipped });
+    setStep("result");
     onSuccess();
-    onOpenChange(false);
-    reset();
   }
 
   const mapReady = colMap.dateCol !== undefined && colMap.titleCol !== undefined && colMap.amountCol !== undefined;
@@ -371,16 +373,72 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
           </div>
         )}
 
+        {/* ── STEP 3: RESULT ── */}
+        {step === "result" && importResult && (
+          <div className="px-6 pb-2">
+            {importResult.imported === 0 ? (
+              /* All duplicates */
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-5 text-center space-y-3">
+                <div className="flex justify-center">
+                  <div className="h-12 w-12 rounded-full bg-amber-500/15 flex items-center justify-center">
+                    <RefreshCw size={22} className="text-amber-400" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">Nenhuma transação nova</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    As <span className="font-medium text-amber-400">{importResult.skipped} transações</span> deste CSV já estão no seu histórico.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Você provavelmente já importou este arquivo antes.
+                    Para adicionar transações novas, baixe um extrato mais recente do seu banco.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Partial or full success */
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/8 p-5 text-center space-y-3">
+                <div className="flex justify-center">
+                  <div className="h-12 w-12 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                    <CheckCircle2 size={22} className="text-emerald-400" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">
+                    {importResult.imported} transações importadas!
+                  </p>
+                  {importResult.skipped > 0 && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium text-amber-400">{importResult.skipped} duplicadas</span> ignoradas — já existiam no histórico.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <DialogFooter>
-          {step === "upload" ? (
+          {step === "upload" && (
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          ) : (
+          )}
+          {step === "preview" && (
             <>
               <Button variant="outline" onClick={reset}>← Voltar</Button>
               <Button onClick={handleImport} disabled={importing || toImport === 0}>
                 {importing
                   ? <><Loader2 size={14} className="animate-spin" /> Importando...</>
                   : `Importar ${toImport} transações`}
+              </Button>
+            </>
+          )}
+          {step === "result" && (
+            <>
+              <Button variant="outline" onClick={reset}>
+                Importar outro arquivo
+              </Button>
+              <Button onClick={() => { onOpenChange(false); reset(); }}>
+                Fechar
               </Button>
             </>
           )}
