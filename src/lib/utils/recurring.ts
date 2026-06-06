@@ -60,5 +60,21 @@ export async function generateRecurringTransactions(supabase: SupabaseClient, us
       is_recurring: false,
       recurrence_parent_id: parent.id,
     });
+
+    // If this is a goal auto-deposit, update the goal's current_amount
+    if (parent.type === "saving" && parent.notes?.startsWith("goal_id:")) {
+      const goalId = parent.notes.replace("goal_id:", "").trim();
+      if (goalId) {
+        const { data: goal } = await supabase
+          .from("savings_goals")
+          .select("current_amount, target_amount")
+          .eq("id", goalId)
+          .single();
+        if (goal) {
+          const newAmount = Math.min(goal.target_amount, goal.current_amount + parent.amount);
+          await supabase.from("savings_goals").update({ current_amount: newAmount }).eq("id", goalId);
+        }
+      }
+    }
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History } from "lucide-react";
+import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -31,14 +31,30 @@ export function GoalsClient() {
   const [depositOpen, setDepositOpen]       = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
   const [depositHistory, setDepositHistory] = useState<Record<string, { date: string; amount: number; created_at: string }[]>>({});
+  // goalId → monthly auto-deposit amount (0 = none)
+  const [autoDeposits, setAutoDeposits]     = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
-    const { data } = await supabase.from("savings_goals").select("*")
-      .eq("user_id", user.id).order("created_at", { ascending: false });
-    setGoals(data ?? []);
+    const [goalsRes, autoRes] = await Promise.all([
+      supabase.from("savings_goals").select("*")
+        .eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("transactions").select("notes, amount")
+        .eq("user_id", user.id).eq("type", "saving").eq("is_recurring", true)
+        .is("recurrence_parent_id", null),
+    ]);
+    setGoals(goalsRes.data ?? []);
+    // Build map: goalId → deposit amount
+    const map: Record<string, number> = {};
+    for (const t of autoRes.data ?? []) {
+      if (t.notes?.startsWith("goal_id:")) {
+        const gid = t.notes.replace("goal_id:", "").trim();
+        map[gid] = t.amount;
+      }
+    }
+    setAutoDeposits(map);
     setLoading(false);
   }, []);
 
@@ -124,7 +140,15 @@ export function GoalsClient() {
                       <Target size={18} style={{ color: goal.color }} />
                     </div>
                     <div>
-                      <p className="font-display font-semibold text-foreground">{goal.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-display font-semibold text-foreground">{goal.name}</p>
+                        {autoDeposits[goal.id] && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                            <RefreshCw size={9} />
+                            {formatCurrency(autoDeposits[goal.id])}/mês
+                          </span>
+                        )}
+                      </div>
                       {goal.deadline && (
                         <div className="flex items-center gap-1 mt-0.5">
                           <CalendarDays size={11} className="text-muted-foreground" />
