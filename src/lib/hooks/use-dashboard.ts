@@ -16,6 +16,7 @@ export function useDashboard(monthOffset = 0) {
   const { version } = useDashboardRefresh();
 
   useEffect(() => {
+    setLoading(true);
     async function load() {
       try {
         const supabase = createClient();
@@ -124,7 +125,7 @@ export function useDashboard(monthOffset = 0) {
       }
     }
     load();
-  }, [version]); // re-runs whenever any component calls refresh()
+  }, [version, monthOffset]); // re-runs when month changes or any component calls refresh()
 
   return { data, loading, error };
 }
