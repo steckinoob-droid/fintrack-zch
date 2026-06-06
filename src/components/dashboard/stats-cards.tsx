@@ -12,7 +12,10 @@ interface StatsCardsProps { data: DashboardData }
 export function StatsCards({ data }: StatsCardsProps) {
   const { lang } = useLang();
   const tx = appT[lang].dashboard;
-  const { totalBalance, monthIncome, monthExpenses, budgets } = data;
+  const { monthIncome, monthExpenses, monthSavings, budgets } = data;
+
+  // Month balance = income - expenses (savings go to goals, not "spent")
+  const monthBalance = monthIncome - monthExpenses;
 
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
@@ -26,12 +29,13 @@ export function StatsCards({ data }: StatsCardsProps) {
 
   const cards = [
     {
-      label: tx.totalBalance,
-      value: formatCurrency(totalBalance),
-      subtext: tx.netWorth,
+      // Saldo do mês — same period as income/expenses (no more mixed timeframes)
+      label: lang === "en" ? "Month Balance" : "Saldo do Mês",
+      value: formatCurrency(monthBalance),
+      subtext: lang === "en" ? "income minus expenses" : "receitas menos despesas",
       icon: Wallet,
       iconBg: "bg-primary/10", iconColor: "text-primary",
-      valueColor: totalBalance >= 0 ? "text-foreground" : "text-red-400",
+      valueColor: monthBalance >= 0 ? "text-foreground" : "text-red-400",
     },
     {
       label: tx.monthIncome,
