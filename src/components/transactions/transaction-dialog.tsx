@@ -7,7 +7,7 @@ const ICON_LABELS: Record<string, string> = {
   shield: "🛡️", laptop: "💻", "building-2": "🏢", circle: "⚪",
 };
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
+import { suggestCategory } from "@/lib/utils/auto-categorize";
 import type { Transaction, Category } from "@/lib/types";
 
 const schema = z.object({
@@ -54,8 +55,22 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
     resolver: zodResolver(schema),
     defaultValues: { type: "expense", date: new Date().toISOString().slice(0, 10) },
   });
-  const type        = watch("type");
+  const type         = watch("type");
+  const watchedTitle = watch("title");
   const filteredCats = categories.filter(c => c.type === type);
+
+  // Auto-suggest category when typing title (only for new transactions)
+  const prevTitleRef = useRef("");
+  useEffect(() => {
+    if (isEdit || !open) return;
+    if (!watchedTitle || watchedTitle === prevTitleRef.current) return;
+    prevTitleRef.current = watchedTitle;
+    if (watchedTitle.length < 3) return;
+    const currentCat = watch("category_id");
+    if (currentCat) return; // don't override a manual selection
+    const suggested = suggestCategory(watchedTitle, filteredCats);
+    if (suggested) setValue("category_id", suggested.id);
+  }, [watchedTitle, type, open, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (open) {

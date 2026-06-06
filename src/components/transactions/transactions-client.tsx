@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight, PiggyBank, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight, PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TransactionRowSkeleton } from "@/components/shared/skeleton";
 import { TransactionDialog } from "./transaction-dialog";
+import { CsvImportDialog } from "./csv-import-dialog";
+import { suggestCategory } from "@/lib/utils/auto-categorize";
 import type { Transaction, Category } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils/currency";
 import { formatDate } from "@/lib/utils/date";
@@ -30,6 +33,13 @@ export function TransactionsClient() {
   const [tab, setTab]                   = useState<"all" | "income" | "expense" | "saving">("all");
   const [editTx, setEditTx]             = useState<Transaction | null>(null);
   const [dialogOpen, setDialogOpen]     = useState(false);
+  const [importOpen, setImportOpen]     = useState(false);
+  const [quickOpen, setQuickOpen]       = useState(false);
+  const [quickTitle, setQuickTitle]     = useState("");
+  const [quickAmount, setQuickAmount]   = useState("");
+  const [quickType, setQuickType]       = useState<"income" | "expense">("expense");
+  const [quickCatId, setQuickCatId]     = useState("");
+  const [quickLoading, setQuickLoading] = useState(false);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -58,6 +68,28 @@ export function TransactionsClient() {
     return true;
   });
 
+  async function handleQuickAdd() {
+    const amount = parseFloat(quickAmount.replace(",", "."));
+    if (!quickTitle.trim() || isNaN(amount) || amount <= 0) return;
+    setQuickLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setQuickLoading(false); return; }
+    const typedCats = categories.filter(c => c.type === quickType);
+    const suggested = quickCatId ? null : suggestCategory(quickTitle, typedCats);
+    const { error } = await supabase.from("transactions").insert({
+      user_id: user.id, title: quickTitle.trim(), amount,
+      type: quickType, category_id: quickCatId || suggested?.id || null,
+      date: new Date().toISOString().slice(0, 10),
+      notes: null, is_recurring: false, recurrence_interval: null,
+    });
+    setQuickLoading(false);
+    if (error) { toast.error(lang === "en" ? "Error adding" : "Erro ao adicionar"); return; }
+    toast.success(lang === "en" ? "Transaction added" : "Transação adicionada");
+    setQuickTitle(""); setQuickAmount(""); setQuickCatId("");
+    load();
+  }
+
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const totalSaving  = filtered.filter(t => t.type === "saving").reduce((s, t) => s + t.amount, 0);
@@ -70,11 +102,62 @@ export function TransactionsClient() {
         title={tx.title}
         description={tx.description}
         action={
-          <Button onClick={() => { setEditTx(null); setDialogOpen(true); }} size="sm">
-            <Plus size={15} /> {tx.add}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload size={14} /> CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setQuickOpen(v => !v)}>
+              <Zap size={14} /> {lang === "en" ? "Quick" : "Rápido"}
+            </Button>
+            <Button size="sm" onClick={() => { setEditTx(null); setDialogOpen(true); }}>
+              <Plus size={15} /> {tx.add}
+            </Button>
+          </div>
         }
       />
+
+      {/* Quick Add */}
+      {quickOpen && (
+        <div className="glass-card p-3 space-y-2">
+          <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <Zap size={12} className="text-primary" />
+            {lang === "en" ? "Quick add" : "Adicionar rápido"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-border text-xs shrink-0">
+              <button onClick={() => { setQuickType("expense"); setQuickCatId(""); }}
+                className={cn("px-3 py-1.5 transition-colors", quickType === "expense" ? "bg-red-500/20 text-red-400 font-medium" : "text-muted-foreground hover:text-foreground")}>
+                − {lang === "en" ? "Expense" : "Despesa"}
+              </button>
+              <button onClick={() => { setQuickType("income"); setQuickCatId(""); }}
+                className={cn("px-3 py-1.5 transition-colors", quickType === "income" ? "bg-emerald-500/20 text-emerald-400 font-medium" : "text-muted-foreground hover:text-foreground")}>
+                + {lang === "en" ? "Income" : "Receita"}
+              </button>
+            </div>
+            <Input className="flex-1 min-w-32 h-8 text-sm"
+              placeholder={lang === "en" ? "Description (auto-categorizes)" : "Descrição (auto-categoriza)"}
+              value={quickTitle} onChange={e => setQuickTitle(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleQuickAdd()} />
+            <Input className="w-28 h-8 text-sm" placeholder="R$ 0,00" inputMode="decimal"
+              value={quickAmount} onChange={e => setQuickAmount(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleQuickAdd()} />
+            <Select value={quickCatId} onValueChange={setQuickCatId}>
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue placeholder={lang === "en" ? "Category (opt.)" : "Categoria (opt.)"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="" className="text-xs">{lang === "en" ? "Auto-detect" : "Auto-detectar"}</SelectItem>
+                {categories.filter(c => c.type === quickType).map(c => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="h-8" onClick={handleQuickAdd} disabled={quickLoading}>
+              {quickLoading ? <RefreshCw size={13} className="animate-spin" /> : lang === "en" ? "Add" : "Adicionar"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -178,6 +261,9 @@ export function TransactionsClient() {
       <TransactionDialog open={dialogOpen} onOpenChange={setDialogOpen}
         transaction={editTx} categories={categories}
         onSuccess={() => { setDialogOpen(false); load(); }} />
+
+      <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
+        categories={categories} onSuccess={load} />
     </div>
   );
 }
