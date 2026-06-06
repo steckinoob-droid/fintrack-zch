@@ -9,6 +9,7 @@ export interface Toast {
   title: string;
   description?: string;
   variant?: ToastVariant;
+  action?: { label: string; onClick: () => void };
 }
 
 let toastCounter = 0;

@@ -114,13 +114,37 @@ export function TransactionsClient() {
     refresh();
   }
 
-  // ── Delete single ─────────────────────────────────────────────────────────
-  async function handleDelete(id: string) {
-    const supabase = createClient();
-    const { error } = await supabase.from("transactions").delete().eq("id", id);
-    if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
-    toast.success(lang === "en" ? "Deleted" : "Excluída");
+  // ── Delete single (com undo de 4s) ────────────────────────────────────────
+  function handleDelete(id: string) {
+    const deleted = transactions.find(t => t.id === id);
+    if (!deleted) return;
+
+    // Remoção otimista imediata
     setTransactions(prev => prev.filter(t => t.id !== id));
+
+    const timeoutId = setTimeout(async () => {
+      const supabase = createClient();
+      const { error } = await supabase.from("transactions").delete().eq("id", id);
+      if (error) {
+        // Se falhou, restaura
+        setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
+        toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir");
+      } else {
+        refresh();
+      }
+    }, 4000);
+
+    toast({
+      title: lang === "en" ? "Transaction deleted" : "Transação excluída",
+      variant: "default",
+      action: {
+        label: lang === "en" ? "Undo" : "Desfazer",
+        onClick: () => {
+          clearTimeout(timeoutId);
+          setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
+        },
+      },
+    });
   }
 
   // ── Delete all ────────────────────────────────────────────────────────────

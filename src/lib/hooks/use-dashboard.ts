@@ -9,7 +9,7 @@ import { seedDefaultCategories } from "@/lib/utils/seed-categories";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import { generateRecurringTransactions } from "@/lib/utils/recurring";
 
-export function useDashboard() {
+export function useDashboard(monthOffset = 0) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,9 +29,10 @@ export function useDashboard() {
         await generateRecurringTransactions(supabase, user.id);
 
         const now = new Date();
-        const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const target = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+        const currentMonthStart = new Date(target.getFullYear(), target.getMonth(), 1)
           .toISOString().slice(0, 10);
-        const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const currentMonthEnd = new Date(target.getFullYear(), target.getMonth() + 1, 0)
           .toISOString().slice(0, 10);
 
         const [txResult, budgetResult, goalResult] = await Promise.all([
@@ -114,6 +115,7 @@ export function useDashboard() {
           monthlyStats,
           budgets: budgetsWithSpent,
           goals,
+          currentMonth: currentMonthStart,
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erro ao carregar dados");

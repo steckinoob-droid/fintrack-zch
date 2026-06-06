@@ -76,6 +76,7 @@ export interface DashboardData {
   monthlyStats: MonthlyStats[];
   budgets: Budget[];
   goals: SavingsGoal[];
+  currentMonth: string; // YYYY-MM-DD (first day of the viewed month)
 }
 
 export type CategoryWithStats = Category & {

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useDashboard } from "@/lib/hooks/use-dashboard";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -10,24 +12,32 @@ import { BudgetProgressList } from "./budget-progress-list";
 import { SavingsGoalsOverview } from "./savings-goals-overview";
 import { CategoryBreakdown } from "./category-breakdown";
 import { BudgetAlerts } from "./budget-alerts";
-import { MonthInsights } from "./month-insights";
 import { InsightsPanel } from "./insights-panel";
 import { HealthScoreCard } from "./health-score-card";
 import { OnboardingModal } from "@/components/onboarding/onboarding-modal";
 import { StatCardSkeleton, ChartSkeleton, TransactionRowSkeleton } from "@/components/shared/skeleton";
+import { format, parseISO, addMonths, isSameMonth } from "date-fns";
+import { ptBR, enUS } from "date-fns/locale";
 
 export function DashboardClient() {
-  const { data, loading } = useDashboard();
   const { lang } = useLang();
   const tx = appT[lang].dashboard;
+  const [monthOffset, setMonthOffset] = useState(0);
+  const { data, loading } = useDashboard(monthOffset);
+
+  const isCurrentMonth = monthOffset === 0;
+  const viewedMonth = data?.currentMonth
+    ? parseISO(data.currentMonth)
+    : addMonths(new Date(), monthOffset);
+
+  const monthLabel = format(viewedMonth, "MMMM yyyy", {
+    locale: lang === "pt" ? ptBR : enUS,
+  });
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <div className="h-7 w-48 shimmer rounded-lg mb-1" />
-          <div className="h-4 w-64 shimmer rounded-lg" />
-        </div>
+        <div className="h-9 w-64 shimmer rounded-lg" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
         </div>
@@ -51,14 +61,37 @@ export function DashboardClient() {
     <>
       <OnboardingModal />
       <div className="space-y-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">{tx.title}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{tx.subtitle}</p>
+
+        {/* Month navigation */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMonthOffset(v => v - 1)}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <div className="flex-1">
+            <h1 className="font-display text-xl font-bold tracking-tight capitalize">{monthLabel}</h1>
+            {!isCurrentMonth && (
+              <button
+                onClick={() => setMonthOffset(0)}
+                className="text-xs text-primary hover:underline"
+              >
+                {lang === "en" ? "Back to current month" : "Voltar para o mês atual"}
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setMonthOffset(v => Math.min(0, v + 1))}
+            disabled={isCurrentMonth}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
 
         <BudgetAlerts budgets={data.budgets} />
         <StatsCards data={data} />
-        <MonthInsights monthlyStats={data.monthlyStats} monthExpenses={data.monthExpenses} monthIncome={data.monthIncome} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
@@ -68,12 +101,10 @@ export function DashboardClient() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          {/* Left: recent transactions + insights fill the column naturally */}
           <div className="space-y-4">
             <RecentTransactions transactions={data.recentTransactions} />
             <InsightsPanel data={data} />
           </div>
-          {/* Right: score + budgets + goals stack without fixed height */}
           <div className="space-y-4">
             <HealthScoreCard data={data} />
             <BudgetProgressList budgets={data.budgets} />
