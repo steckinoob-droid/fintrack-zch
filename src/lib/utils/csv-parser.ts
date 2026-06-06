@@ -66,7 +66,15 @@ export function parseDate(s: string): string | null {
 }
 
 export function parseAmount(s: string): number | null {
-  const clean = s.trim().replace(/"/g, "").replace(/R\$\s*/g, "").replace(/\s/g, "");
+  let clean = s.trim()
+    .replace(/"/g, "")
+    // Normalize unicode minus sign (U+2212 "−") to regular hyphen-minus (U+002D "-")
+    // PicPay, C6, and some banks export "−R$ 100,00" with the math minus character
+    .replace(/−/g, "-")
+    // Normalize non-breaking space and other whitespace
+    .replace(/[ ​ ]/g, "")
+    .replace(/R\$\s*/g, "")
+    .replace(/\s/g, "");
   if (!clean) return null;
   // Detect if Brazilian format (1.234,56) or US format (1,234.56)
   const hasBrComma = /\d,\d{1,2}$/.test(clean);
@@ -77,37 +85,55 @@ export function parseAmount(s: string): number | null {
     const n = parseFloat(br);
     return isNaN(n) ? null : n;
   }
-  // US format or simple
+  // US format or simple number
   const simple = clean.replace(/,/g, "");
   const n = parseFloat(simple);
   return isNaN(n) ? null : n;
 }
 
 /**
- * Parse the "type" column value exported by Brazilian banks.
- * Returns "income", "expense", or null if ambiguous.
+ * Parse the "tipo / natureza" column value exported by Brazilian banks.
+ * Returns "income", "expense", or null when ambiguous (e.g. "Pix devolvido"
+ * can go either way — caller should fall back to amount sign in that case).
+ *
+ * Handles PicPay, Inter, Itaú, C6, Bradesco exports.
  */
 function parseTypeCell(s: string): "income" | "expense" | null {
   const v = norm(s);
   if (!v) return null;
 
-  // Debit / expense patterns
-  const isExpense =
-    v === "d" || v === "deb" || v === "debito" ||
-    v.includes("saida") || v.includes("saída") ||
-    v.includes("debito") || v.includes("debit") ||
-    v.includes("pagamento") || v.includes("despesa") ||
-    v.includes("compra");
+  // ── Expense patterns ────────────────────────────────────────────────────
+  const EXPENSE_TYPES = [
+    // D/C single-char codes
+    "d", "deb", "debito",
+    // PicPay / generic
+    "compra realizada", "compra",
+    "pix enviado", "ted enviada", "tef debito",
+    "pagamento realizado", "pagamento efetuado",
+    "transferencia enviada", "transf enviada",
+    "saque", "anuidade", "tarifa", "taxa",
+    "dinheiro guardado",       // PicPay: putting money into savings jar
+    // generic
+    "saida", "debito", "debit", "despesa",
+  ];
 
-  // Credit / income patterns
-  const isIncome =
-    v === "c" || v === "cred" || v === "credito" ||
-    v.includes("entrada") || v.includes("credito") ||
-    v.includes("credit") || v.includes("deposito") ||
-    v.includes("recebimento") || v.includes("receita");
+  // ── Income patterns ──────────────────────────────────────────────────────
+  const INCOME_TYPES = [
+    // D/C single-char codes
+    "c", "cred", "credito",
+    // PicPay / generic
+    "pix recebido", "ted recebida", "tef credito",
+    "deposito", "deposito em conta",
+    "transferencia recebida", "transf recebida",
+    "dinheiro resgatado",      // PicPay: withdrawing from savings jar
+    "compra estornada", "estorno",
+    "recebimento", "receita",
+    // generic
+    "entrada", "credit", "deposito",
+  ];
 
-  if (isExpense && !isIncome) return "expense";
-  if (isIncome && !isExpense) return "income";
+  for (const t of INCOME_TYPES)  { if (v.includes(norm(t))) return "income"; }
+  for (const t of EXPENSE_TYPES) { if (v.includes(norm(t))) return "expense"; }
   return null;
 }
 
@@ -191,16 +217,24 @@ export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
     if (!date || amount === null || !title) continue;
 
     // ── Type resolution (priority order) ───────────────────────────────────
-    // 1. Explicit type column (most reliable when present)
-    let type: "income" | "expense" | null = rawType ? parseTypeCell(rawType) : null;
+    let type: "income" | "expense" | null = null;
 
-    // 2. Amount sign (negative = expense)
-    if (!type) {
-      if (amount < 0) type = "expense";
-      else if (amount > 0) type = null; // positive alone isn't conclusive for all banks
+    // 1. Signed amount — most reliable when the CSV explicitly uses +/− or -
+    //    (PicPay uses "−R$ 100,00" / "+R$ 43,00")
+    if (amount < 0) {
+      type = "expense";
+    } else {
+      // Check if the raw cell contained an explicit + sign (means income for sure)
+      const rawClean = rawAmount.replace(/−/g, "-").trim();
+      if (rawClean.startsWith("+")) type = "income";
     }
 
-    // 3. Default to expense when ambiguous (most bank rows are purchases)
+    // 2. Type column — used when amounts are always positive (some banks)
+    if (!type && rawType) {
+      type = parseTypeCell(rawType);
+    }
+
+    // 3. Default to expense when ambiguous
     if (!type) type = "expense";
 
     result.push({ date, title, amount: Math.abs(amount), type });
