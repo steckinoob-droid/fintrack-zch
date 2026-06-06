@@ -501,14 +501,29 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     <p className="font-semibold text-foreground">{importResult.imported} transações importadas!</p>
                     {importResult.skipped > 0 && (
                       <p className="text-sm text-muted-foreground">
-                        <span className="font-medium text-amber-400">{importResult.skipped} já existiam</span> — ignoradas como duplicatas.
+                        <span className="font-medium text-amber-400">{importResult.skipped} já existiam</span> no histórico — ignoradas.
                       </p>
                     )}
                   </div>
                 </div>
+
+                {/* Explain filter hiding older months */}
+                {importResult.skipped > 0 && (
+                  <div className="rounded-lg bg-muted/30 px-3 py-2.5 flex items-start gap-2">
+                    <Info size={13} className="text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      As <span className="text-foreground font-medium">{importResult.skipped} já importadas</span> podem estar em meses anteriores.
+                      Em <span className="text-foreground font-medium">Transações</span>, mude o filtro de período para{" "}
+                      <span className="text-primary font-medium">Tudo</span> para ver o histórico completo.
+                    </p>
+                  </div>
+                )}
+
                 {importResult.skipped > 0 && importResult.examples.length > 0 && (
                   <div className="rounded-lg bg-muted/20 p-3 space-y-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Duplicatas ignoradas (exemplos):</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Exemplos das já existentes:
+                    </p>
                     {importResult.examples.map((ex, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
@@ -524,7 +539,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     >
                       {importing
                         ? <><Loader2 size={13} className="animate-spin" /> Importando...</>
-                        : `Reimportar duplicatas também (${importResult.skipped})`}
+                        : `Forçar reimportação (vai criar duplicatas!)`}
                     </Button>
                   </div>
                 )}

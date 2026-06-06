@@ -531,7 +531,7 @@ export function TransactionsClient() {
         onSuccess={() => { setDialogOpen(false); load(); }} />
 
       <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
-        categories={categories} onSuccess={() => { load(); refresh(); }} />
+        categories={categories} onSuccess={() => { load(); refresh(); setPeriod("all"); }} />
 
       {/* ── Delete all confirmation ───────────────────────────────────── */}
       <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>
