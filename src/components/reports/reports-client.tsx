@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ReferenceLine } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -142,6 +142,7 @@ export function ReportsClient() {
                 <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
                 <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={60} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeDasharray="4 3" />
                 <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]}>
                   {monthlyData.map((d, i) => <Cell key={i} fill={d.balance >= 0 ? "#10b981" : "#ef4444"} />)}
                 </Bar>
