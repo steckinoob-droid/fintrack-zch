@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Lightbulb, ArrowRight } from "lucide-react";
+import { Lightbulb } from "lucide-react";
 import { calculateHealthScore } from "@/lib/utils/health-score";
 import { useLang } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils/cn";
@@ -145,10 +145,9 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
               {tip.href ? (
                 <Link
                   href={tip.href}
-                  className="text-xs text-muted-foreground leading-relaxed hover:text-primary transition-colors group inline-flex items-center gap-1"
+                  className="text-xs text-muted-foreground leading-relaxed underline underline-offset-2 decoration-muted-foreground/40 hover:text-foreground hover:decoration-foreground transition-colors"
                 >
                   {tip.text}
-                  <ArrowRight size={10} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>
               ) : (
                 <p className="text-xs text-muted-foreground leading-relaxed">{tip.text}</p>
