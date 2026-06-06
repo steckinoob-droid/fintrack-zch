@@ -39,7 +39,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   const [rows, setRows]           = useState<ImportRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    imported: number;
+    skipped: number;
+    examples: { date: string; title: string; amount: number }[];
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function reset() {
@@ -119,44 +123,51 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     return `${date}|${Math.round(amount * 100)}|${title.toLowerCase().trim().replace(/\s+/g, " ")}`;
   }
 
-  async function handleImport() {
-    const toImport = rows.filter(r => !r.skip);
-    if (!toImport.length) return;
+  async function handleImport(force = false) {
+    const toImportRows = rows.filter(r => !r.skip);
+    if (!toImportRows.length) return;
     setImporting(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setImporting(false); return; }
 
-    // ── Duplicate detection ───────────────────────────────────────────────
-    // Fetch existing transactions in the date range covered by this CSV
-    const dates = toImport.map(r => r.date).sort();
-    const minDate = dates[0];
-    const maxDate = dates[dates.length - 1];
+    let newOnly = toImportRows;
+    let skipped = 0;
+    let examples: { date: string; title: string; amount: number }[] = [];
 
-    const { data: existing } = await supabase
-      .from("transactions")
-      .select("date, amount, title")
-      .eq("user_id", user.id)
-      .gte("date", minDate)
-      .lte("date", maxDate);
+    if (!force) {
+      // ── Duplicate detection ─────────────────────────────────────────────
+      const dates = toImportRows.map(r => r.date).sort();
+      const minDate = dates[0];
+      const maxDate = dates[dates.length - 1];
 
-    const existingSet = new Set<string>(
-      (existing ?? []).map((t: { date: string; amount: number; title: string }) =>
-        fingerprint(t.date, t.amount, t.title)
-      )
-    );
+      const { data: existing } = await supabase
+        .from("transactions")
+        .select("date, amount, title")
+        .eq("user_id", user.id)
+        .gte("date", minDate)
+        .lte("date", maxDate);
 
-    const newOnly = toImport.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
-    const skipped = toImport.length - newOnly.length;
+      const existingSet = new Set<string>(
+        (existing ?? []).map((t: { date: string; amount: number; title: string }) =>
+          fingerprint(t.date, t.amount, t.title)
+        )
+      );
 
-    // All duplicates — show result screen inside the dialog
-    if (!newOnly.length) {
-      setImporting(false);
-      setImportResult({ imported: 0, skipped });
-      setStep("result");
-      return;
+      const blocked = toImportRows.filter(r => existingSet.has(fingerprint(r.date, r.amount, r.title)));
+      newOnly = toImportRows.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
+      skipped = blocked.length;
+      examples = blocked.slice(0, 6).map(r => ({ date: r.date, title: r.title, amount: r.amount }));
+
+      // All duplicates — show result screen with examples + force option
+      if (!newOnly.length) {
+        setImporting(false);
+        setImportResult({ imported: 0, skipped, examples });
+        setStep("result");
+        return;
+      }
+      // ───────────────────────────────────────────────────────────────────
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     const payload = newOnly.map(r => ({
       user_id: user.id,
@@ -174,8 +185,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     setImporting(false);
     if (error) { toast.error("Erro ao importar. Tente novamente."); return; }
 
-    // Show result screen (imported + skipped)
-    setImportResult({ imported: newOnly.length, skipped });
+    setImportResult({ imported: newOnly.length, skipped, examples });
     setStep("result");
     onSuccess();
   }
@@ -387,44 +397,88 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
 
         {/* ── STEP 3: RESULT ── */}
         {step === "result" && importResult && (
-          <div className="px-6 pb-2">
+          <div className="px-6 pb-2 space-y-3">
             {importResult.imported === 0 ? (
               /* All duplicates */
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-5 text-center space-y-3">
-                <div className="flex justify-center">
-                  <div className="h-12 w-12 rounded-full bg-amber-500/15 flex items-center justify-center">
-                    <RefreshCw size={22} className="text-amber-400" />
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <RefreshCw size={20} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">Nenhuma transação nova</p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-amber-400">{importResult.skipped} transações</span> deste CSV já existem no histórico.
+                    </p>
                   </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-foreground">Nenhuma transação nova</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    As <span className="font-medium text-amber-400">{importResult.skipped} transações</span> deste CSV já estão no seu histórico.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Você provavelmente já importou este arquivo antes.
-                    Para adicionar transações novas, baixe um extrato mais recente do seu banco.
-                  </p>
-                </div>
+
+                {/* Examples of blocked transactions */}
+                {importResult.examples.length > 0 && (
+                  <div className="rounded-lg bg-muted/20 p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      O que está sendo bloqueado (exemplos):
+                    </p>
+                    {importResult.examples.map((ex, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
+                        <span className="text-foreground flex-1 truncate">{ex.title}</span>
+                        <span className="tabular-nums font-medium text-red-400 shrink-0">{formatCurrency(ex.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Se esses dados estão errados ou você quer reimportar mesmo assim, use o botão abaixo.
+                </p>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                  onClick={() => handleImport(true)}
+                  disabled={importing}
+                >
+                  {importing
+                    ? <><Loader2 size={13} className="animate-spin" /> Importando...</>
+                    : `Importar mesmo assim (${importResult.skipped} transações)`}
+                </Button>
               </div>
             ) : (
               /* Partial or full success */
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/8 p-5 text-center space-y-3">
-                <div className="flex justify-center">
-                  <div className="h-12 w-12 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                    <CheckCircle2 size={22} className="text-emerald-400" />
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/8 p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={20} className="text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      {importResult.imported} transações importadas!
+                    </p>
+                    {importResult.skipped > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-amber-400">{importResult.skipped} duplicadas</span> ignoradas — já existiam no histórico.
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-foreground">
-                    {importResult.imported} transações importadas!
-                  </p>
-                  {importResult.skipped > 0 && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      <span className="font-medium text-amber-400">{importResult.skipped} duplicadas</span> ignoradas — já existiam no histórico.
+
+                {/* Examples of what was skipped */}
+                {importResult.skipped > 0 && importResult.examples.length > 0 && (
+                  <div className="rounded-lg bg-muted/20 p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Duplicadas ignoradas (exemplos):
                     </p>
-                  )}
-                </div>
+                    {importResult.examples.map((ex, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
+                        <span className="text-foreground flex-1 truncate">{ex.title}</span>
+                        <span className="tabular-nums font-medium text-red-400 shrink-0">{formatCurrency(ex.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -437,7 +491,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
           {step === "preview" && (
             <>
               <Button variant="outline" onClick={reset}>← Voltar</Button>
-              <Button onClick={handleImport} disabled={importing || toImport === 0}>
+              <Button onClick={() => handleImport()} disabled={importing || toImport === 0}>
                 {importing
                   ? <><Loader2 size={14} className="animate-spin" /> Importando...</>
                   : `Importar ${toImport} transações`}
