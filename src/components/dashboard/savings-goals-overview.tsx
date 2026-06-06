@@ -8,9 +8,9 @@ import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 
-interface Props { goals: SavingsGoal[] }
+interface Props { goals: SavingsGoal[]; monthSavings?: number }
 
-export function SavingsGoalsOverview({ goals }: Props) {
+export function SavingsGoalsOverview({ goals, monthSavings }: Props) {
   const { lang } = useLang();
   const tx = appT[lang].dashboard;
 
@@ -61,6 +61,12 @@ export function SavingsGoalsOverview({ goals }: Props) {
         </div>
       </div>
 
+      {monthSavings !== undefined && monthSavings > 0 && (
+        <div className="flex items-center justify-between text-xs mb-3 pb-3 border-b border-border/30">
+          <span className="text-muted-foreground">{tx.depositedInGoals}</span>
+          <span className="text-indigo-400 font-semibold tabular-nums">{formatCurrency(monthSavings)}</span>
+        </div>
+      )}
       <div className="space-y-3.5">
         {goals.map((goal) => {
           const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));

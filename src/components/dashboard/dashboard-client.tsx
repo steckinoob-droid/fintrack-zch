@@ -126,7 +126,7 @@ export function DashboardClient() {
           <div className="space-y-4">
             <HealthScoreCard data={data} />
             <BudgetProgressList budgets={data.budgets} />
-            <SavingsGoalsOverview goals={data.goals.slice(0, 3)} />
+            <SavingsGoalsOverview goals={data.goals.slice(0, 3)} monthSavings={data.monthSavings} />
           </div>
         </div>
       </div>

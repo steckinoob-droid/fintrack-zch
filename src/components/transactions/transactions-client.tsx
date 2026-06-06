@@ -48,7 +48,7 @@ export function TransactionsClient() {
   const [loading, setLoading]           = useState(true);
 
   const [search, setSearch]       = useState("");
-  const [tab, setTab]             = useState<"all" | "income" | "expense">("all");
+  const [tab, setTab]             = useState<"all" | "income" | "expense" | "saving">("all");
   // Read last-used period from sessionStorage so navigating away and back
   // (e.g. after an import) doesn't reset to "this_month" and hide transactions.
   const [period, _setPeriod]      = useState<Period>(() => {
@@ -172,7 +172,8 @@ export function TransactionsClient() {
   const filtered = useMemo(() => transactions.filter(t => {
     if (dateRange && (t.date < dateRange.start || t.date > dateRange.end)) return false;
     if (tab === "income"  && t.type !== "income")  return false;
-    if (tab === "expense" && t.type === "income")  return false;
+    if (tab === "expense" && t.type !== "expense") return false;
+    if (tab === "saving"  && t.type !== "saving")  return false;
     if (catFilter !== "__all__" && t.category_id !== catFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -372,7 +373,9 @@ export function TransactionsClient() {
           <p className="font-display font-bold text-sm sm:text-lg text-emerald-400 tabular-nums truncate">{formatCompact(totalIncome)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
-          <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.expensesFiltered}</p>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">
+            {tab === "saving" ? tx.savingsTab : tx.expensesFiltered}
+          </p>
           <p className="font-display font-bold text-sm sm:text-lg text-red-400 tabular-nums truncate">{formatCompact(totalExpense)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
@@ -412,6 +415,7 @@ export function TransactionsClient() {
             <TabsTrigger value="all" className="flex-1 sm:flex-none">{tx.allTab}</TabsTrigger>
             <TabsTrigger value="income" className="flex-1 sm:flex-none">{tx.incomeTab}</TabsTrigger>
             <TabsTrigger value="expense" className="flex-1 sm:flex-none">{tx.expenseTab}</TabsTrigger>
+            <TabsTrigger value="saving" className="flex-1 sm:flex-none">{tx.savingsTab}</TabsTrigger>
           </TabsList>
         </Tabs>
 

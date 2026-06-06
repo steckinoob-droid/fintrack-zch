@@ -63,7 +63,7 @@ function calcSavingsRate(income: number, expenses: number): ScoreComponent {
 
   if (income <= 0) {
     return {
-      key: "savings", labelPt: "Poupança do mês", labelEn: "Monthly savings",
+      key: "savings", labelPt: "Taxa de poupança", labelEn: "Savings rate",
       score: 0, max: MAX, pct: 0, status: "bad",
       contextPt: "Sem renda registrada", contextEn: "No income recorded",
     };
@@ -81,13 +81,13 @@ function calcSavingsRate(income: number, expenses: number): ScoreComponent {
 
   const contextPt = ratePct <= 0
     ? `Gastos ${Math.abs(ratePct)}% acima da renda`
-    : `${ratePct}% da renda guardado`;
+    : `${ratePct}% da renda economizado`;
   const contextEn = ratePct <= 0
     ? `Spending ${Math.abs(ratePct)}% above income`
-    : `${ratePct}% of income saved`;
+    : `${ratePct}% of income unspent`;
 
   return {
-    key: "savings", labelPt: "Poupança do mês", labelEn: "Monthly savings",
+    key: "savings", labelPt: "Taxa de poupança", labelEn: "Savings rate",
     score: pts, max: MAX, pct: Math.round((pts / MAX) * 100),
     status: pts >= 25 ? "great" : pts >= 15 ? "good" : pts >= 7 ? "warn" : "bad",
     contextPt, contextEn,
