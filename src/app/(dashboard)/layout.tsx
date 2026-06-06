@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { DashboardProviders } from "@/components/layout/dashboard-providers";
+import { PwaInstallButton } from "@/components/shared/pwa-install-button";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -27,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <DashboardProviders>{children}</DashboardProviders>
           </div>
         </main>
+        <PwaInstallButton variant="banner" />
         <MobileNav />
       </div>
     </div>
