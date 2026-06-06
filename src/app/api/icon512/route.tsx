@@ -1,41 +1,37 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const size   = { width: 192, height: 192 };
-export const contentType = "image/png";
 
-export default function AppleIcon() {
+export async function GET() {
   return new ImageResponse(
     <div
       style={{
-        width: 192,
-        height: 192,
+        width: 512,
+        height: 512,
         background: "#0A0E1A",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 40,
       }}
     >
       <div
         style={{
-          width: 120,
-          height: 120,
+          width: 320,
+          height: 320,
           background: "#10B981",
           borderRadius: "50%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           color: "#FFFFFF",
-          fontSize: 78,
+          fontSize: 210,
           fontWeight: 800,
           fontFamily: "sans-serif",
-          letterSpacing: -2,
         }}
       >
         F
       </div>
     </div>,
-    { width: 192, height: 192 }
+    { width: 512, height: 512 }
   );
 }
