@@ -320,7 +320,11 @@ export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
 
     const date  = parseDate(rawDate);
     const amount = parseAmount(rawAmount);
-    const title  = rawTitle.trim();
+
+    // If Descrição column is empty, fall back to Histórico/type column as title.
+    // Inter bank often leaves the description blank for automatic CDB entries,
+    // rendimentos, and some PIX types — without this they'd be silently dropped.
+    const title = rawTitle.trim() || rawType.trim();
 
     if (!date || amount === null || !title) continue;
 

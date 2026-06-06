@@ -318,6 +318,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                 {internalRows.length > 0 && (
                   <span className="text-amber-400">+ {internalRows.length} internas</span>
                 )}
+                {rawRows.length > rows.length && (
+                  <span className="text-red-400">· {rawRows.length - rows.length} linhas sem data/valor</span>
+                )}
                 <span>·</span>
                 <span className="text-indigo-400">{autoTagged} categorizadas</span>
                 <span>·</span>
