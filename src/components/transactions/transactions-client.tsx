@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { TransactionDialog } from "./transaction-dialog";
 import { CsvImportDialog } from "./csv-import-dialog";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
+import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import type { Transaction, Category } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils/currency";
 import { formatRelativeDate, getDateRange, type Period } from "@/lib/utils/date";
@@ -38,6 +39,7 @@ export function TransactionsClient() {
   const { lang } = useLang();
   const tx     = appT[lang].transactions;
   const common = appT[lang].common;
+  const { refresh } = useDashboardRefresh();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
@@ -57,6 +59,7 @@ export function TransactionsClient() {
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting]       = useState(false);
+  const [inlineCatTxId, setInlineCatTxId] = useState<string | null>(null);
 
   // ── Quick Add ────────────────────────────────────────────────────────────
   const [quickOpen, setQuickOpen]     = useState(false);
@@ -83,6 +86,33 @@ export function TransactionsClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Keyboard shortcut: press 'n' when not focused on an input to toggle Quick Add
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      if (e.key === "n" && !inInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setQuickOpen(v => !v);
+      }
+      if (e.key === "Escape") setInlineCatTxId(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // ── Inline category update ────────────────────────────────────────────────
+  async function handleInlineCat(txId: string, catId: string) {
+    const resolved = catId === "__none__" ? null : catId;
+    const supabase = createClient();
+    await supabase.from("transactions").update({ category_id: resolved }).eq("id", txId);
+    setTransactions(prev => prev.map(t =>
+      t.id !== txId ? t : { ...t, category_id: resolved, category: categories.find(c => c.id === resolved) }
+    ));
+    setInlineCatTxId(null);
+    refresh();
+  }
 
   // ── Delete single ─────────────────────────────────────────────────────────
   async function handleDelete(id: string) {
@@ -150,9 +180,8 @@ export function TransactionsClient() {
     setQuickLoading(false);
     if (error) { toast.error(lang === "en" ? "Error" : "Erro ao adicionar"); return; }
     toast.success(lang === "en" ? "Added!" : "Adicionada!");
-    // Clear fields but keep Quick Add open for rapid entry
     setQuickTitle(""); setQuickAmount(""); setQuickCatId("__auto__");
-    load();
+    load(); refresh();
   }
 
   // ── Summary totals (for current filter) ──────────────────────────────────
@@ -201,7 +230,10 @@ export function TransactionsClient() {
         <div className="glass-card p-3 space-y-2">
           <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
             <Zap size={12} className="text-primary" />
-            {lang === "en" ? "Quick add — press Enter to save" : "Adicionar rápido — Enter para salvar"}
+            {lang === "en" ? "Quick add — Enter to save" : "Adicionar rápido — Enter para salvar"}
+            <span className="ml-auto text-muted-foreground font-normal">
+              {lang === "en" ? "press N to toggle" : "tecla N para fechar"}
+            </span>
           </p>
           <div className="flex flex-wrap gap-2 items-start">
             {/* Type toggle */}
@@ -424,9 +456,36 @@ export function TransactionsClient() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-muted-foreground">
-                      {t.category?.name ?? common.noCategory}
-                    </span>
+                    {/* Inline category editor — click to change without opening full dialog */}
+                    {inlineCatTxId === t.id ? (
+                      <Select
+                        defaultOpen
+                        value={t.category_id ?? "__none__"}
+                        onValueChange={v => handleInlineCat(t.id, v)}
+                        onOpenChange={open => { if (!open) setInlineCatTxId(null); }}
+                      >
+                        <SelectTrigger className="h-5 text-xs border-none bg-transparent p-0 w-auto gap-1 focus:ring-0 shadow-none">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__" className="text-xs">{common.noCategory}</SelectItem>
+                          {categories.filter(c => c.type === t.type || t.type === "saving").map(c => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <button
+                        onClick={() => setInlineCatTxId(t.id)}
+                        className={cn(
+                          "text-xs transition-colors hover:text-primary",
+                          t.category?.name ? "text-muted-foreground" : "text-muted-foreground/50 underline decoration-dashed underline-offset-2"
+                        )}
+                        title={lang === "en" ? "Click to change category" : "Clique para mudar categoria"}
+                      >
+                        {t.category?.name ?? common.noCategory}
+                      </button>
+                    )}
                     <span className="text-xs text-muted-foreground">·</span>
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {formatRelativeDate(t.date, t.created_at)}
@@ -472,7 +531,7 @@ export function TransactionsClient() {
         onSuccess={() => { setDialogOpen(false); load(); }} />
 
       <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
-        categories={categories} onSuccess={() => { load(); }} />
+        categories={categories} onSuccess={() => { load(); refresh(); }} />
 
       {/* ── Delete all confirmation ───────────────────────────────────── */}
       <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>

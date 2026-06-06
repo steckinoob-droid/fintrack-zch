@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Target, CalendarDays } from "lucide-react";
+import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +11,7 @@ import { GoalDialog } from "./goal-dialog";
 import { GoalDepositDialog } from "./goal-deposit-dialog";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils/currency";
+import { formatRelativeDate } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import type { SavingsGoal } from "@/lib/types";
@@ -22,12 +23,14 @@ export function GoalsClient() {
   const tx = appT[lang].goals;
   const common = appT[lang].common;
 
-  const [goals, setGoals]           = useState<SavingsGoal[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [editGoal, setEditGoal]     = useState<SavingsGoal | null>(null);
-  const [depositGoal, setDepositGoal] = useState<SavingsGoal | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [depositOpen, setDepositOpen] = useState(false);
+  const [goals, setGoals]                   = useState<SavingsGoal[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [editGoal, setEditGoal]             = useState<SavingsGoal | null>(null);
+  const [depositGoal, setDepositGoal]       = useState<SavingsGoal | null>(null);
+  const [dialogOpen, setDialogOpen]         = useState(false);
+  const [depositOpen, setDepositOpen]       = useState(false);
+  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
+  const [depositHistory, setDepositHistory] = useState<Record<string, { date: string; amount: number; created_at: string }[]>>({});
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -40,6 +43,25 @@ export function GoalsClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  async function loadHistory(goal: SavingsGoal) {
+    if (depositHistory[goal.id]) {
+      // toggle off
+      setExpandedHistory(expandedHistory === goal.id ? null : goal.id);
+      return;
+    }
+    setExpandedHistory(goal.id);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("transactions")
+      .select("date, amount, created_at")
+      .eq("user_id", goal.user_id)
+      .eq("type", "saving")
+      .ilike("title", `%${goal.name}%`)
+      .order("date", { ascending: false })
+      .limit(20);
+    setDepositHistory(prev => ({ ...prev, [goal.id]: data ?? [] }));
+  }
 
   async function handleDelete(id: string) {
     const supabase = createClient();
@@ -148,6 +170,40 @@ export function GoalsClient() {
                     <span>{completed ? tx.goalReached : `${pct}${tx.pctComplete}`}</span>
                     {!completed && <span className="tabular-nums">{tx.remaining} {formatCurrency(goal.target_amount - goal.current_amount)}</span>}
                   </div>
+
+                  {/* History toggle */}
+                  <button
+                    onClick={() => loadHistory(goal)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                  >
+                    <History size={11} />
+                    {lang === "en" ? "Deposit history" : "Histórico de aportes"}
+                    {expandedHistory === goal.id
+                      ? <ChevronUp size={11} />
+                      : <ChevronDown size={11} />}
+                  </button>
+
+                  {/* History list */}
+                  {expandedHistory === goal.id && (
+                    <div className="space-y-1 pt-1 border-t border-border/30">
+                      {!depositHistory[goal.id] ? (
+                        <p className="text-xs text-muted-foreground py-1">Carregando...</p>
+                      ) : depositHistory[goal.id].length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-1">
+                          {lang === "en" ? "No deposits yet." : "Nenhum aporte registrado ainda."}
+                        </p>
+                      ) : (
+                        depositHistory[goal.id].map((d, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                            <span className="text-muted-foreground">{formatRelativeDate(d.date, d.created_at)}</span>
+                            <span className="font-medium tabular-nums" style={{ color: goal.color }}>
+                              +{formatCurrency(d.amount)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -159,7 +215,12 @@ export function GoalsClient() {
         onSuccess={() => { setDialogOpen(false); load(); }} />
       {depositGoal && (
         <GoalDepositDialog open={depositOpen} onOpenChange={setDepositOpen} goal={depositGoal}
-          onSuccess={() => { setDepositOpen(false); load(); }} />
+          onSuccess={() => {
+            setDepositOpen(false);
+            // Clear cached history so it reloads fresh on next expand
+            if (depositGoal) setDepositHistory(prev => { const n = { ...prev }; delete n[depositGoal.id]; return n; });
+            load();
+          }} />
       )}
     </div>
   );

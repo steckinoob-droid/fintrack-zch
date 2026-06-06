@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { DashboardProviders } from "@/components/layout/dashboard-providers";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -23,7 +24,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Header user={user} profile={profile} />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="p-4 lg:p-6 max-w-[1400px] mx-auto animate-fade-in">
-            {children}
+            <DashboardProviders>{children}</DashboardProviders>
           </div>
         </main>
         <MobileNav />

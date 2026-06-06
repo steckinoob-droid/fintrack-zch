@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, PieChart, ChevronLeft, ChevronRight, Copy, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, PieChart, ChevronLeft, ChevronRight, Copy, Loader2, Bell } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -114,6 +114,14 @@ export function BudgetsClient() {
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
 
+  // Show new-month prompt when: viewing current month, no budgets yet, early in the month
+  const now = new Date();
+  const showNewMonthPrompt =
+    !loading &&
+    budgets.length === 0 &&
+    viewMonth >= getCurrentMonth() &&
+    now.getDate() <= 7;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -183,6 +191,25 @@ export function BudgetsClient() {
           </p>
         </div>
       </div>
+
+      {/* New month auto-prompt */}
+      {showNewMonthPrompt && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Bell size={16} className="text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground">Novo mês, novos orçamentos!</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Copie os orçamentos do mês passado com um clique e ajuste o que precisar.
+            </p>
+          </div>
+          <Button size="sm" onClick={handleCopyPrevMonth} disabled={copying}>
+            {copying ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
+            Copiar agora
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">

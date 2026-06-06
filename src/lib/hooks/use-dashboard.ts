@@ -6,12 +6,14 @@ import type { DashboardData, Transaction, Budget, SavingsGoal, MonthlyStats } fr
 import { getLast6Months, getMonthRange, formatShortMonth } from "@/lib/utils/date";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { seedDefaultCategories } from "@/lib/utils/seed-categories";
+import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import { generateRecurringTransactions } from "@/lib/utils/recurring";
 
 export function useDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { version } = useDashboardRefresh();
 
   useEffect(() => {
     async function load() {
@@ -120,7 +122,7 @@ export function useDashboard() {
       }
     }
     load();
-  }, []);
+  }, [version]); // re-runs whenever any component calls refresh()
 
   return { data, loading, error };
 }
