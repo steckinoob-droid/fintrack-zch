@@ -34,7 +34,10 @@ export function CategoriesClient() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase.from("categories").select("*").order("name");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data } = await supabase.from("categories").select("*")
+      .eq("user_id", user.id).order("name");
     setCategories(data ?? []);
     setLoading(false);
   }, []);

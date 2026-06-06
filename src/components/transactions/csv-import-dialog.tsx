@@ -112,6 +112,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...updates } : r));
   }
 
+  /** Fingerprint: date + rounded amount (avoids float noise) + normalized title */
+  function fingerprint(date: string, amount: number, title: string) {
+    return `${date}|${Math.round(amount * 100)}|${title.toLowerCase().trim().replace(/\s+/g, " ")}`;
+  }
+
   async function handleImport() {
     const toImport = rows.filter(r => !r.skip);
     if (!toImport.length) return;
@@ -120,7 +125,36 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setImporting(false); return; }
 
-    const payload = toImport.map(r => ({
+    // ── Duplicate detection ───────────────────────────────────────────────
+    // Fetch existing transactions in the date range covered by this CSV
+    const dates = toImport.map(r => r.date).sort();
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+
+    const { data: existing } = await supabase
+      .from("transactions")
+      .select("date, amount, title")
+      .eq("user_id", user.id)
+      .gte("date", minDate)
+      .lte("date", maxDate);
+
+    const existingSet = new Set<string>(
+      (existing ?? []).map((t: { date: string; amount: number; title: string }) =>
+        fingerprint(t.date, t.amount, t.title)
+      )
+    );
+
+    const newOnly = toImport.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
+    const skipped = toImport.length - newOnly.length;
+
+    if (!newOnly.length) {
+      setImporting(false);
+      toast.error(`Nenhuma transação nova — ${skipped} já existem.`);
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    const payload = newOnly.map(r => ({
       user_id: user.id,
       title: r.title,
       amount: r.amount,
@@ -135,7 +169,10 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const { error } = await supabase.from("transactions").insert(payload);
     setImporting(false);
     if (error) { toast.error("Erro ao importar. Tente novamente."); return; }
-    toast.success(`${toImport.length} transações importadas com sucesso!`);
+    const msg = skipped > 0
+      ? `${newOnly.length} importadas, ${skipped} duplicatas ignoradas.`
+      : `${newOnly.length} transações importadas com sucesso!`;
+    toast.success(msg);
     onSuccess();
     onOpenChange(false);
     reset();

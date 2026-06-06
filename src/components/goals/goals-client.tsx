@@ -31,7 +31,10 @@ export function GoalsClient() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase.from("savings_goals").select("*").order("created_at", { ascending: false });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data } = await supabase.from("savings_goals").select("*")
+      .eq("user_id", user.id).order("created_at", { ascending: false });
     setGoals(data ?? []);
     setLoading(false);
   }, []);

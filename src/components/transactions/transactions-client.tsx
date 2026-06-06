@@ -43,9 +43,13 @@ export function TransactionsClient() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
     const [txRes, catRes] = await Promise.all([
-      supabase.from("transactions").select("*, category:categories(*)").order("date", { ascending: false }),
-      supabase.from("categories").select("*").order("name"),
+      supabase.from("transactions").select("*, category:categories(*)")
+        .eq("user_id", user.id).order("date", { ascending: false }),
+      supabase.from("categories").select("*")
+        .eq("user_id", user.id).order("name"),
     ]);
     setTransactions(txRes.data ?? []);
     setCategories(catRes.data ?? []);

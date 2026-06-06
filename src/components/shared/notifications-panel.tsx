@@ -37,7 +37,7 @@ export function NotificationsPanel() {
       const [bRes, gRes, tRes] = await Promise.all([
         supabase.from("budgets").select("*, category:categories(*)").eq("user_id", user.id).eq("month", monthStart),
         supabase.from("savings_goals").select("*").eq("user_id", user.id),
-        supabase.from("transactions").select("amount, type").eq("user_id", user.id).gte("date", monthStart).lte("date", monthEnd),
+        supabase.from("transactions").select("amount, type, category_id").eq("user_id", user.id).gte("date", monthStart).lte("date", monthEnd),
       ]);
 
       const budgets: Budget[] = bRes.data ?? [];
@@ -48,7 +48,10 @@ export function NotificationsPanel() {
 
       // Budget alerts
       for (const b of budgets) {
-        const spent = txs.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
+        // Filter by CATEGORY — previously was summing ALL expenses regardless of category
+        const spent = txs
+          .filter((t: any) => t.type === "expense" && t.category_id === b.category_id)
+          .reduce((s: number, t: any) => s + t.amount, 0);
         const pct = (spent / b.amount) * 100;
         if (pct >= 100) {
           notes.push({
