@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
   PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check,
-  SlidersHorizontal, X, AlertTriangle, MoreVertical,
+  SlidersHorizontal, X, AlertTriangle, MoreVertical, Calendar,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -184,7 +184,8 @@ export function TransactionsClient() {
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
   }, [filtered]);
 
-  const activeFilters = (catFilter !== "__all__" ? 1 : 0) + (period !== "this_month" ? 1 : 0);
+  // Period is now always visible as pills, so only count category as a "hidden" filter
+  const activeFilters = catFilter !== "__all__" ? 1 : 0;
 
   // Auto-expand period once per page visit when data has loaded but the
   // current period filter hides all transactions.  Typical case: user imports
@@ -410,25 +411,27 @@ export function TransactionsClient() {
           </TabsList>
         </Tabs>
 
+        {/* Period pills — always visible so user always knows which time range is active */}
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+          {PERIODS.map(p => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={cn(
+                "shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors",
+                period === p.value
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
+            >
+              {lang === "en" ? p.labelEn : p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Category filter — collapsible via Filters button */}
         {showFilters && (
           <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-muted/20 border border-border/40">
-            <div className="flex flex-wrap gap-1">
-              {PERIODS.map(p => (
-                <button
-                  key={p.value}
-                  onClick={() => setPeriod(p.value)}
-                  className={cn(
-                    "px-2.5 py-1 rounded-lg text-xs font-medium transition-colors",
-                    period === p.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
-                  )}
-                >
-                  {lang === "en" ? p.labelEn : p.label}
-                </button>
-              ))}
-            </div>
-            <div className="h-5 w-px bg-border/60 hidden sm:block" />
             <Select value={catFilter} onValueChange={setCatFilter}>
               <SelectTrigger className="h-7 text-xs w-44">
                 <SelectValue placeholder={lang === "en" ? "All categories" : "Todas as categorias"} />
@@ -442,28 +445,12 @@ export function TransactionsClient() {
                 ))}
               </SelectContent>
             </Select>
-            {activeFilters > 0 && (
+            {(activeFilters > 0 || search) && (
               <button onClick={clearFilters}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <X size={11} /> {lang === "en" ? "Clear" : "Limpar"}
+                <X size={11} /> {lang === "en" ? "Clear all" : "Limpar tudo"}
               </button>
             )}
-          </div>
-        )}
-
-        {!showFilters && activeFilters > 0 && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="text-primary font-medium">
-              {PERIODS.find(p => p.value === period)
-                ? (lang === "en" ? PERIODS.find(p => p.value === period)!.labelEn : PERIODS.find(p => p.value === period)!.label)
-                : ""}
-            </span>
-            {catFilter !== "__all__" && (
-              <><span>·</span><span className="text-primary font-medium">{categories.find(c => c.id === catFilter)?.name}</span></>
-            )}
-            <button onClick={clearFilters} className="hover:text-foreground transition-colors ml-1">
-              <X size={11} />
-            </button>
           </div>
         )}
       </div>
@@ -475,20 +462,47 @@ export function TransactionsClient() {
             {Array.from({ length: 8 }).map((_, i) => <TransactionRowSkeleton key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={ArrowLeftRight}
-            title={search || activeFilters > 0 ? (lang === "en" ? "No results" : "Nenhum resultado") : tx.empty}
-            description={
-              search ? `${lang === "en" ? "No transactions matching" : "Nenhuma transação com"} "${search}"`
-              : activeFilters > 0 ? (lang === "en" ? "Try changing the filters above." : "Tente mudar os filtros acima.")
-              : tx.emptyDesc
-            }
-            action={
-              activeFilters > 0 || search
-                ? <Button size="sm" variant="outline" onClick={clearFilters}><X size={14} /> {lang === "en" ? "Clear filters" : "Limpar filtros"}</Button>
-                : <Button size="sm" onClick={() => { setEditTx(null); setDialogOpen(true); }}><Plus size={15} /> {tx.add}</Button>
-            }
-          />
+          /* ── Smart empty state ──────────────────────────────────────────
+             Case 1: user has data but it's hidden by the period filter
+             Case 2: search/category filter with no matches
+             Case 3: truly no data at all                                 */
+          transactions.length > 0 && !search && catFilter === "__all__" ? (
+            <div className="flex flex-col items-center gap-4 py-12 px-4 text-center">
+              <div className="h-12 w-12 rounded-2xl bg-muted/30 flex items-center justify-center">
+                <Calendar size={22} className="text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">
+                  {lang === "en"
+                    ? `No transactions in "${PERIODS.find(p => p.value === period)?.labelEn ?? "this period"}"`
+                    : `Nenhuma transação em "${PERIODS.find(p => p.value === period)?.label ?? "este período"}"`}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  {lang === "en"
+                    ? `You have ${transactions.length} transaction${transactions.length !== 1 ? "s" : ""} in other periods`
+                    : `Você tem ${transactions.length} transação${transactions.length !== 1 ? "ões" : ""} em outros períodos`}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setPeriod("all")}>
+                {lang === "en" ? "View all transactions" : "Ver todas as transações"}
+              </Button>
+            </div>
+          ) : (
+            <EmptyState
+              icon={search || catFilter !== "__all__" ? Search : ArrowLeftRight}
+              title={search || catFilter !== "__all__" ? (lang === "en" ? "No results" : "Nenhum resultado") : tx.empty}
+              description={
+                search ? `${lang === "en" ? "No transactions matching" : "Nenhuma transação com"} "${search}"`
+                : catFilter !== "__all__" ? (lang === "en" ? "Try changing the filters above." : "Tente mudar os filtros acima.")
+                : tx.emptyDesc
+              }
+              action={
+                search || catFilter !== "__all__"
+                  ? <Button size="sm" variant="outline" onClick={clearFilters}><X size={14} /> {lang === "en" ? "Clear filters" : "Limpar filtros"}</Button>
+                  : <Button size="sm" onClick={() => { setEditTx(null); setDialogOpen(true); }}><Plus size={15} /> {tx.add}</Button>
+              }
+            />
+          )
         ) : (
           <div>
             {grouped.map(([dateKey, rows]) => (
@@ -594,8 +608,8 @@ export function TransactionsClient() {
                         {t.type === "income" ? "+" : "−"}{formatCurrency(t.amount)}
                       </span>
 
-                      {/* Actions (hover on desktop, always visible on mobile touch) */}
-                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                      {/* Actions — card-actions: always visible on touch, hover-revealed on desktop */}
+                      <div className="card-actions shrink-0">
                         <button onClick={() => { setEditTx(t); setDialogOpen(true); }}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                           <Pencil size={13} />
