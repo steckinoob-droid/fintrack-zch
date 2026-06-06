@@ -140,7 +140,8 @@ export function InsightsPanel({ data }: { data: DashboardData }) {
           {tx.viewReports} <ArrowRight size={11} />
         </Link>
       </div>
-      <div className="space-y-2.5">
+      {/* Grid 2×2 on wide screens so it fills full width without stacking tall */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {insights.map((insight) => (
           <div key={insight.id}
             className={cn("flex items-start gap-3 rounded-xl p-3 transition-colors", insight.href && "hover:bg-muted/30 cursor-pointer")}
@@ -158,3 +159,4 @@ export function InsightsPanel({ data }: { data: DashboardData }) {
     </div>
   );
 }
+

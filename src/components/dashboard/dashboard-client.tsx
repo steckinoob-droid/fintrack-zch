@@ -67,18 +67,16 @@ export function DashboardClient() {
           <CategoryBreakdown transactions={data.recentTransactions} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           <RecentTransactions transactions={data.recentTransactions} />
           <div className="space-y-4">
+            <HealthScoreCard data={data} />
             <BudgetProgressList budgets={data.budgets} />
             <SavingsGoalsOverview goals={data.goals.slice(0, 3)} />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <HealthScoreCard data={data} />
-          <InsightsPanel data={data} />
-        </div>
+        <InsightsPanel data={data} />
       </div>
     </>
   );
