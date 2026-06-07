@@ -153,17 +153,29 @@ export function parseOFX(content: string): OFXParsedRow[] {
     if (!date) continue;
 
     // OFX spec mandates US number format (period as decimal separator).
-    // Some Brazilian exporters use comma — normalise either.
-    const amtClean = amtRaw.replace(/\s/g, "").replace(",", ".");
-    const amount   = parseFloat(amtClean);
+    // Some Brazilian exporters use comma as decimal separator instead.
+    // Normalise both cases:
+    //   "-150,50"    → "-150.50"   (comma decimal → period decimal)
+    //   "-1.234,56"  → "-1234.56"  (BR thousands.decimal → US)
+    //   "-1234.56"   → "-1234.56"  (already correct)
+    const amtClean = amtRaw.replace(/\s/g, "");
+    const hasBrComma = /,\d{1,2}$/.test(amtClean);   // ends with comma + 1-2 digits
+    const hasBrDot   = /\d\.\d{3}/.test(amtClean);   // contains dot-thousands group
+    let amtNorm: string;
+    if (hasBrComma || hasBrDot) {
+      amtNorm = amtClean.replace(/\./g, "").replace(",", ".");
+    } else {
+      amtNorm = amtClean.replace(/,/g, "");
+    }
+    const amount = parseFloat(amtNorm);
     if (isNaN(amount)) continue;
 
     // Skip zero-amount entries (interest notifications, balance lines, etc.)
     if (amount === 0) continue;
 
-    // Build a human-readable title
+    // Build a human-readable title — language-neutral fallbacks
     const title = memo.trim()
-      || (fitId ? `TX ${fitId}` : "Transação sem descrição");
+      || (fitId ? `TX ${fitId}` : trnType.trim() || "—");
 
     const type = mapTrnType(trnType, amount);
 

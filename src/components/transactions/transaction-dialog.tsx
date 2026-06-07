@@ -82,7 +82,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
       if (transaction) {
         reset({ title: transaction.title, amount: String(transaction.amount), type: transaction.type === "saving" ? "expense" : transaction.type as "income" | "expense",
           category_id: transaction.category_id ?? "", date: transaction.date,
-          notes: transaction.notes ?? "", is_recurring: transaction.is_recurring,
+          notes: (transaction.notes?.startsWith("ofx:") || transaction.notes?.startsWith("goal_id:") || transaction.notes?.startsWith("goal_withdrawal:") ? "" : transaction.notes) ?? "", is_recurring: transaction.is_recurring,
           recurrence_interval: transaction.recurrence_interval ?? undefined });
         setIsRecurring(transaction.is_recurring);
       } else {

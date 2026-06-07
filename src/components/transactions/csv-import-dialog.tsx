@@ -441,7 +441,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                   {lang === "en" ? "Click or drop your file" : "Clique ou arraste o arquivo"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {tx.import.fileTypes}
+                  {lang === "en" ? (
+                    <>Accepts <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">PDF</span> or <span className="font-medium text-foreground">OFX</span> — format auto-detected</>
+                  ) : (
+                    <>Aceita <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">PDF</span> ou <span className="font-medium text-foreground">OFX</span> — formato detectado automaticamente</>
+                  )}
                 </p>
                 <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf,application/x-ofx,text/x-ofx" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />

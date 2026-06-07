@@ -166,7 +166,6 @@ export const appT = {
       import: {
         fileTypes:   "Accepts CSV, PDF or OFX — format auto-detected",
         ofxLoading:  "Reading OFX file…",
-        ofxLoadingSub: "This may take a few seconds",
         ofxBanner:   "OFX Statement — transactions extracted automatically",
         ofxEmpty:    "No transactions found in the OFX file. Make sure the file is a valid bank statement exported from your bank's app or internet banking.",
         ofxError:    "Could not read the OFX file. Make sure you are sending a valid .ofx statement exported from your bank.",
@@ -456,7 +455,6 @@ export const appT = {
       import: {
         fileTypes:   "Aceita CSV, PDF ou OFX — formato detectado automaticamente",
         ofxLoading:  "Lendo arquivo OFX…",
-        ofxLoadingSub: "Isso pode levar alguns segundos",
         ofxBanner:   "Extrato OFX — transações extraídas automaticamente",
         ofxEmpty:    "Nenhuma transação encontrada no arquivo OFX. Verifique se o arquivo é um extrato bancário válido exportado pelo app ou internet banking do seu banco.",
         ofxError:    "Não foi possível ler o arquivo OFX. Certifique-se de enviar um extrato .ofx válido do seu banco.",
