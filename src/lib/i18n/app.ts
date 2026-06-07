@@ -154,6 +154,15 @@ export const appT = {
       emptySearch: "Try other search terms.",
       recurring: "Recurring",
       noCategory: "No category",
+      notesLabel: "Note",
+      filters: {
+        dateFrom: "From",
+        dateTo:   "To",
+        minValue: "Min",
+        maxValue: "Max",
+        clearAll: "Clear all",
+        customActive: "Custom date range active — period pills overridden",
+      },
       dialog: {
         new: "New Transaction", edit: "Edit Transaction",
         type: "Type", expense: "Expense", income: "Income",
@@ -427,6 +436,15 @@ export const appT = {
       emptySearch: "Tente outros termos de busca.",
       recurring: "Recorrente",
       noCategory: "Sem categoria",
+      notesLabel: "Nota",
+      filters: {
+        dateFrom: "De",
+        dateTo:   "Até",
+        minValue: "Mín",
+        maxValue: "Máx",
+        clearAll: "Limpar tudo",
+        customActive: "Range personalizado ativo — filtros de período desativados",
+      },
       dialog: {
         new: "Nova Transação", edit: "Editar Transação",
         type: "Tipo", expense: "Despesa", income: "Receita",

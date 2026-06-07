@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { BudgetDialog } from "./budget-dialog";
+import { BudgetAlerts } from "@/components/dashboard/budget-alerts";
 import { toast } from "@/lib/hooks/use-toast";
 import {
   getCurrentMonth, formatMonthYear, getMonthRange,
@@ -190,6 +191,9 @@ export function BudgetsClient() {
           </p>
         </div>
       </div>
+
+      {/* Budget alerts (80% / 100% threshold) — same component as dashboard */}
+      <BudgetAlerts budgets={budgets} />
 
       {/* New month auto-prompt */}
       {showNewMonthPrompt && (

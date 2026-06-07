@@ -5,21 +5,27 @@ import type { Transaction } from "@/lib/types";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 
-const RADIAN = Math.PI / 180;
-const COLORS  = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6"];
+// Fallback palette for categories without a set color
+const FALLBACK_COLORS = [
+  "#10b981", "#6366f1", "#f59e0b", "#ef4444",
+  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316",
+];
 
+const RADIAN = Math.PI / 180;
 function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
-  if (percent < 0.08) return null;
+  if (percent < 0.07) return null;
   const r = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + r * Math.cos(-midAngle * RADIAN);
   const y = cy + r * Math.sin(-midAngle * RADIAN);
   return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={600}>
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central"
+      fontSize={10} fontWeight={600}>
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   );
 }
 
+interface ChartEntry { name: string; value: number; color: string }
 interface Props { transactions: Transaction[] }
 
 export function CategoryBreakdown({ transactions }: Props) {
@@ -32,7 +38,7 @@ export function CategoryBreakdown({ transactions }: Props) {
     return (
       <div className="glass-card p-3 border border-border/60 text-xs">
         <div className="flex items-center gap-2 mb-1">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.payload.fill }} />
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.payload.color }} />
           <span className="font-semibold text-foreground">{d.name}</span>
         </div>
         <span className="text-muted-foreground">{fc(d.value)}</span>
@@ -40,14 +46,23 @@ export function CategoryBreakdown({ transactions }: Props) {
     );
   };
 
-  const expenseMap = new Map<string, { name: string; value: number }>();
+  // Build expense breakdown using real category colors
+  const expenseMap = new Map<string, ChartEntry>();
+  let fallbackIdx = 0;
   for (const t of transactions) {
     if (t.type !== "expense" || !t.category) continue;
-    const key = t.category.name;
-    const cur = expenseMap.get(key) ?? { name: key, value: 0 };
-    expenseMap.set(key, { name: key, value: cur.value + t.amount });
+    const key   = t.category.name;
+    const color = t.category.color || FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
+    const cur   = expenseMap.get(key);
+    if (cur) {
+      expenseMap.set(key, { ...cur, value: cur.value + t.amount });
+    } else {
+      expenseMap.set(key, { name: key, value: t.amount, color });
+    }
   }
-  const data = Array.from(expenseMap.values()).sort((a, b) => b.value - a.value).slice(0, 6);
+  const data = Array.from(expenseMap.values())
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 7);
 
   if (!data.length) {
     return (
@@ -57,6 +72,8 @@ export function CategoryBreakdown({ transactions }: Props) {
     );
   }
 
+  const total = data.reduce((s, d) => s + d.value, 0);
+
   return (
     <div className="glass-card p-5">
       <div className="mb-4">
@@ -65,21 +82,37 @@ export function CategoryBreakdown({ transactions }: Props) {
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
-            dataKey="value" nameKey="name" labelLine={false} label={<CustomLabel />}>
-            {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={50}
+            outerRadius={85}
+            dataKey="value"
+            nameKey="name"
+            labelLine={false}
+            label={<CustomLabel />}
+          >
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.color} stroke="transparent" />
+            ))}
           </Pie>
           <Tooltip content={<TooltipContent />} />
         </PieChart>
       </ResponsiveContainer>
       <div className="mt-3 space-y-1.5">
-        {data.slice(0, 4).map((item, i) => (
+        {data.slice(0, 5).map((item) => (
           <div key={item.name} className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
               <span className="text-muted-foreground truncate">{item.name}</span>
             </div>
-            <span className="font-medium tabular-nums text-foreground">{fc(item.value)}</span>
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <span className="text-muted-foreground/50">
+                {total > 0 ? `${Math.round((item.value / total) * 100)}%` : "—"}
+              </span>
+              <span className="font-medium tabular-nums text-foreground">{fc(item.value)}</span>
+            </div>
           </div>
         ))}
       </div>
