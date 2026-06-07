@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowUpRight, ArrowDownRight, Tag, Target, PieChart, X } from "lucide-react";
+import { Search, ArrowUpRight, ArrowDownRight, PiggyBank, Tag, Target, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils/currency";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
+import { useLang } from "@/lib/i18n/context";
 import type { Transaction, Category, SavingsGoal, TransactionType } from "@/lib/types";
 
 interface SearchResult {
@@ -26,10 +27,13 @@ interface Props {
 }
 
 export function CommandPalette({ open, onClose }: Props) {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const router      = useRouter();
+  const { lang }    = useLang();
+  const pt          = lang === "pt";
+
+  const [query,    setQuery]   = useState("");
+  const [results,  setResults] = useState<SearchResult[]>([]);
+  const [loading,  setLoading] = useState(false);
   const [selected, setSelected] = useState(0);
 
   const search = useCallback(async (q: string) => {
@@ -42,10 +46,12 @@ export function CommandPalette({ open, onClose }: Props) {
       supabase.from("savings_goals").select("*").ilike("name", `%${q}%`).limit(3),
     ]);
 
+    const noCategory = pt ? "Sem categoria" : "No category";
+
     const txResults: SearchResult[] = (txRes.data ?? []).map((t: Transaction) => ({
       id: t.id, type: "transaction",
       title: t.title,
-      subtitle: `${t.category?.name ?? "Sem categoria"} · ${formatDate(t.date)}`,
+      subtitle: `${t.category?.name ?? noCategory} · ${formatDate(t.date)}`,
       href: "/transactions",
       amount: t.amount,
       transactionType: t.type,
@@ -54,7 +60,9 @@ export function CommandPalette({ open, onClose }: Props) {
     const catResults: SearchResult[] = (catRes.data ?? []).map((c: Category) => ({
       id: c.id, type: "category",
       title: c.name,
-      subtitle: c.type === "income" ? "Receita" : "Despesa",
+      subtitle: c.type === "income"
+        ? (pt ? "Receita" : "Income")
+        : (pt ? "Despesa" : "Expense"),
       href: "/categories",
       color: c.color,
     }));
@@ -70,7 +78,7 @@ export function CommandPalette({ open, onClose }: Props) {
     setResults([...txResults, ...catResults, ...goalResults]);
     setSelected(0);
     setLoading(false);
-  }, []);
+  }, [lang, pt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 200);
@@ -94,17 +102,34 @@ export function CommandPalette({ open, onClose }: Props) {
     return () => window.removeEventListener("keydown", handler);
   }, [open, results, selected, router, onClose]);
 
-  // Global Cmd+K / Ctrl+K shortcut — handled by parent
-
   if (!open) return null;
 
-  const typeIcon = (r: SearchResult) => {
-    if (r.type === "transaction") return r.transactionType === "income"
-      ? <ArrowUpRight size={15} className="text-emerald-400" />
-      : <ArrowDownRight size={15} className="text-red-400" />;
-    if (r.type === "category") return <Tag size={15} className="text-indigo-400" />;
-    return <Target size={15} className="text-amber-400" />;
-  };
+  function typeIcon(r: SearchResult) {
+    if (r.type === "transaction") {
+      if (r.transactionType === "income")  return <ArrowUpRight  size={15} className="text-emerald-400" />;
+      if (r.transactionType === "saving")  return <PiggyBank      size={15} className="text-indigo-400" />;
+      return <ArrowDownRight size={15} className="text-red-400" />;
+    }
+    if (r.type === "category") return <Tag    size={15} className="text-indigo-400" />;
+    return                             <Target size={15} className="text-amber-400" />;
+  }
+
+  function txIconBg(r: SearchResult) {
+    if (r.type !== "transaction") return r.type === "category" ? "bg-indigo-500/10" : "bg-amber-500/10";
+    if (r.transactionType === "income")  return "bg-emerald-500/10";
+    if (r.transactionType === "saving")  return "bg-indigo-500/10";
+    return "bg-red-500/10";
+  }
+
+  function amountColor(r: SearchResult) {
+    if (r.transactionType === "income")  return "text-emerald-400";
+    if (r.transactionType === "saving")  return "text-indigo-400";
+    return "text-red-400";
+  }
+
+  function amountPrefix(r: SearchResult) {
+    return r.transactionType === "expense" ? "-" : "+";
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
@@ -121,7 +146,9 @@ export function CommandPalette({ open, onClose }: Props) {
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar transações, categorias, metas..."
+              placeholder={pt
+                ? "Buscar transações, categorias, metas..."
+                : "Search transactions, categories, goals..."}
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
             />
             {query && (
@@ -145,14 +172,26 @@ export function CommandPalette({ open, onClose }: Props) {
             {!loading && query && results.length === 0 && (
               <div className="flex flex-col items-center py-8 text-center">
                 <Search size={24} className="text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">Nenhum resultado para "<span className="text-foreground">{query}</span>"</p>
+                <p className="text-sm text-muted-foreground">
+                  {pt
+                    ? <>Nenhum resultado para &ldquo;<span className="text-foreground">{query}</span>&rdquo;</>
+                    : <>No results for &ldquo;<span className="text-foreground">{query}</span>&rdquo;</>}
+                </p>
               </div>
             )}
 
             {!loading && !query && (
               <div className="px-4 py-6 text-center">
-                <p className="text-sm text-muted-foreground">Digite para buscar em transações, categorias e metas</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Use ↑↓ para navegar, Enter para abrir</p>
+                <p className="text-sm text-muted-foreground">
+                  {pt
+                    ? "Digite para buscar em transações, categorias e metas"
+                    : "Type to search transactions, categories, and goals"}
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  {pt
+                    ? "Use ↑↓ para navegar, Enter para abrir"
+                    : "Use ↑↓ to navigate, Enter to open"}
+                </p>
               </div>
             )}
 
@@ -167,12 +206,7 @@ export function CommandPalette({ open, onClose }: Props) {
                       i === selected ? "bg-primary/10" : "hover:bg-muted/50"
                     )}
                   >
-                    <div className={cn(
-                      "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
-                      r.type === "transaction" ? (r.transactionType === "income" ? "bg-emerald-500/10" : "bg-red-500/10")
-                        : r.type === "category" ? "bg-indigo-500/10"
-                        : "bg-amber-500/10"
-                    )}>
+                    <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0", txIconBg(r))}>
                       {typeIcon(r)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -180,10 +214,8 @@ export function CommandPalette({ open, onClose }: Props) {
                       <p className="text-xs text-muted-foreground truncate">{r.subtitle}</p>
                     </div>
                     {r.amount !== undefined && (
-                      <span className={cn("text-sm font-semibold tabular-nums shrink-0",
-                        r.transactionType === "income" ? "text-emerald-400" : "text-red-400"
-                      )}>
-                        {r.transactionType === "income" ? "+" : "-"}{formatCurrency(r.amount)}
+                      <span className={cn("text-sm font-semibold tabular-nums shrink-0", amountColor(r))}>
+                        {amountPrefix(r)}{formatCurrency(r.amount)}
                       </span>
                     )}
                     {r.color && r.type !== "transaction" && (
@@ -197,9 +229,18 @@ export function CommandPalette({ open, onClose }: Props) {
 
           {/* Footer */}
           <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border/50 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><kbd className="rounded border border-border px-1 py-0.5">↑↓</kbd> navegar</span>
-            <span className="flex items-center gap-1"><kbd className="rounded border border-border px-1 py-0.5">↵</kbd> abrir</span>
-            <span className="flex items-center gap-1"><kbd className="rounded border border-border px-1 py-0.5">ESC</kbd> fechar</span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-border px-1 py-0.5">↑↓</kbd>
+              {pt ? "navegar" : "navigate"}
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-border px-1 py-0.5">↵</kbd>
+              {pt ? "abrir" : "open"}
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-border px-1 py-0.5">ESC</kbd>
+              {pt ? "fechar" : "close"}
+            </span>
           </div>
         </div>
       </div>
