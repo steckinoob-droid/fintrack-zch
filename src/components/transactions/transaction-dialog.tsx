@@ -11,7 +11,7 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, PiggyBank } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
   const tx = appT[lang].transactions.dialog;
   const common = appT[lang].common;
   const isEdit = !!transaction;
+  const isSavingTx = !!(transaction && transaction.type === "saving");
   const [isRecurring, setIsRecurring] = useState(false);
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -79,7 +80,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
   useEffect(() => {
     if (open) {
       if (transaction) {
-        reset({ title: transaction.title, amount: String(transaction.amount), type: transaction.type === "saving" ? "expense" : transaction.type,
+        reset({ title: transaction.title, amount: String(transaction.amount), type: transaction.type === "saving" ? "expense" : transaction.type as "income" | "expense",
           category_id: transaction.category_id ?? "", date: transaction.date,
           notes: transaction.notes ?? "", is_recurring: transaction.is_recurring,
           recurrence_interval: transaction.recurrence_interval ?? undefined });
@@ -98,7 +99,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
     const payload = {
       user_id: user.id, title: data.title,
       amount: parseFloat(data.amount.replace(",", ".")),
-      type: data.type, category_id: data.category_id || null,
+      type: isSavingTx ? "saving" : data.type, category_id: data.category_id || null,
       date: data.date, notes: data.notes || null,
       is_recurring: isRecurring,
       recurrence_interval: isRecurring ? (data.recurrence_interval ?? "monthly") : null,
@@ -127,15 +128,24 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
           <DialogTitle>{isEdit ? tx.edit : tx.new}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 pt-4 space-y-4">
-          <div className="space-y-2">
-            <Label>{tx.type}</Label>
-            <Tabs value={type} onValueChange={v => { setValue("type", v as "income" | "expense"); setValue("category_id", ""); }}>
-              <TabsList className="w-full">
-                <TabsTrigger value="expense" className="flex-1">{tx.expense}</TabsTrigger>
-                <TabsTrigger value="income"  className="flex-1">{tx.income}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          {isSavingTx ? (
+            <div className="flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/8 px-3 py-2.5">
+              <PiggyBank size={14} className="text-indigo-400 shrink-0" />
+              <p className="text-xs text-indigo-400 font-medium">
+                {lang === "en" ? "Goal deposit — type is locked" : "Aporte em meta — tipo não pode ser alterado"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>{tx.type}</Label>
+              <Tabs value={type} onValueChange={v => { setValue("type", v as "income" | "expense"); setValue("category_id", ""); }}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="expense" className="flex-1">{tx.expense}</TabsTrigger>
+                  <TabsTrigger value="income"  className="flex-1">{tx.income}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="tx-title">{tx.titleField} *</Label>

@@ -565,6 +565,11 @@ export function TransactionsClient() {
                               {tx.goalDepositBadge}
                             </span>
                           )}
+                          {t.type === "income" && t.notes?.startsWith("goal_withdrawal:") && (
+                            <span className="shrink-0 text-[10px] font-medium text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                              {tx.withdrawalBadge}
+                            </span>
+                          )}
                           {t.is_recurring && (
                             <span title={tx.recurring} className="shrink-0">
                               <RefreshCw size={10} className="text-primary" />
