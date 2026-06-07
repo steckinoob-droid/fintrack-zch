@@ -18,6 +18,7 @@ import { TransactionRowSkeleton } from "@/components/shared/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TransactionDialog } from "./transaction-dialog";
 import { CsvImportDialog } from "./csv-import-dialog";
+import { RecurringManagerDialog } from "./recurring-manager-dialog";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import type { Transaction, Category } from "@/lib/types";
@@ -69,8 +70,9 @@ export function TransactionsClient() {
 
   const [editTx, setEditTx]           = useState<Transaction | null>(null);
   const [dialogOpen, setDialogOpen]   = useState(false);
-  const [importOpen, setImportOpen]   = useState(false);
-  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [importOpen, setImportOpen]         = useState(false);
+  const [recurringOpen, setRecurringOpen]   = useState(false);
+  const [deleteAllOpen, setDeleteAllOpen]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting]       = useState(false);
   const [inlineCatTxId, setInlineCatTxId] = useState<string | null>(null);
@@ -304,6 +306,9 @@ export function TransactionsClient() {
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                 <Upload size={14} /> Extrato
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setRecurringOpen(true)}>
+                <RefreshCw size={14} /> {lang === "en" ? "Recurring" : "Recorrentes"}
+              </Button>
               <Button
                 variant="outline" size="sm"
                 onClick={handleExportCsv}
@@ -331,6 +336,9 @@ export function TransactionsClient() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => setImportOpen(true)}>
                     <Upload size={14} className="mr-2" /> {lang === "en" ? "Import Statement" : "Importar Extrato"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setRecurringOpen(true)}>
+                    <RefreshCw size={14} className="mr-2" /> {lang === "en" ? "Recurring" : "Recorrentes"}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setQuickOpen(v => !v)}>
                     <Zap size={14} className="mr-2" /> {lang === "en" ? "Quick add" : "Rápido"}
@@ -706,6 +714,9 @@ export function TransactionsClient() {
 
       <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
         categories={categories} onSuccess={() => { load(); refresh(); setPeriod("all"); }} />
+
+      <RecurringManagerDialog open={recurringOpen} onOpenChange={setRecurringOpen}
+        categories={categories} onSuccess={() => { load(); refresh(); }} />
 
       {/* Delete all dialog */}
       <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>

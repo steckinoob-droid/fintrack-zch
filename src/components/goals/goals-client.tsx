@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -29,7 +29,7 @@ export function GoalsClient() {
   const [dialogOpen, setDialogOpen]         = useState(false);
   const [depositOpen, setDepositOpen]       = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
-  const [depositHistory, setDepositHistory] = useState<Record<string, { date: string; amount: number; created_at: string }[]>>({});
+  const [depositHistory, setDepositHistory] = useState<Record<string, { date: string; amount: number; created_at: string; kind: "deposit" | "withdrawal" }[]>>({});
   // goalId → monthly auto-deposit amount (0 = none)
   const [autoDeposits, setAutoDeposits]     = useState<Record<string, number>>({});
 
@@ -61,21 +61,61 @@ export function GoalsClient() {
 
   async function loadHistory(goal: SavingsGoal) {
     if (depositHistory[goal.id]) {
-      // toggle off
+      // toggle off/on
       setExpandedHistory(expandedHistory === goal.id ? null : goal.id);
       return;
     }
     setExpandedHistory(goal.id);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("transactions")
-      .select("date, amount, created_at")
-      .eq("user_id", goal.user_id)
-      .eq("type", "saving")
-      .ilike("title", `%${goal.name}%`)
-      .order("date", { ascending: false })
-      .limit(20);
-    setDepositHistory(prev => ({ ...prev, [goal.id]: data ?? [] }));
+
+    // Fetch deposits (type=saving, notes starts with goal_id:<id>)
+    // AND withdrawals (type=income, notes starts with goal_withdrawal:<id>)
+    // Also include legacy deposits matched by title ilike (no notes field)
+    const [depRes, wdRes, legacyRes] = await Promise.all([
+      supabase
+        .from("transactions")
+        .select("date, amount, created_at")
+        .eq("user_id", goal.user_id)
+        .eq("type", "saving")
+        .like("notes", `goal_id:${goal.id}%`)
+        .order("date", { ascending: false })
+        .limit(20),
+      supabase
+        .from("transactions")
+        .select("date, amount, created_at")
+        .eq("user_id", goal.user_id)
+        .eq("type", "income")
+        .like("notes", `goal_withdrawal:${goal.id}%`)
+        .order("date", { ascending: false })
+        .limit(20),
+      supabase
+        .from("transactions")
+        .select("date, amount, created_at")
+        .eq("user_id", goal.user_id)
+        .eq("type", "saving")
+        .ilike("title", `%${goal.name}%`)
+        .is("notes", null)  // legacy: no notes field
+        .order("date", { ascending: false })
+        .limit(20),
+    ]);
+
+    type RawEntry = { date: string; amount: number; created_at: string };
+    const deposits: { date: string; amount: number; created_at: string; kind: "deposit" | "withdrawal" }[] = [
+      ...(depRes.data ?? []).map((r: RawEntry) => ({ ...r, kind: "deposit" as const })),
+      ...(legacyRes.data ?? []).map((r: RawEntry) => ({ ...r, kind: "deposit" as const })),
+      ...(wdRes.data ?? []).map((r: RawEntry) => ({ ...r, kind: "withdrawal" as const })),
+    ];
+
+    // Deduplicate by (date+amount+created_at) and sort newest first
+    const seen = new Set<string>();
+    const deduped = deposits.filter(d => {
+      const key = `${d.date}|${d.amount}|${d.created_at}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at));
+
+    setDepositHistory(prev => ({ ...prev, [goal.id]: deduped.slice(0, 30) }));
   }
 
   async function handleDelete(id: string) {
@@ -131,12 +171,26 @@ export function GoalsClient() {
             const completed  = pct >= 100;
             const daysLeft   = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
             return (
-              <div key={goal.id} className="glass-card-hover p-5 group">
+              <div key={goal.id} className={cn(
+                "glass-card-hover p-5 group",
+                pct >= 100 && "ring-2 ring-emerald-500/30"
+              )}>
+                {/* Completion banner */}
+                {pct >= 100 && (
+                  <div className="flex items-center gap-2 mb-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                    <PartyPopper size={14} className="text-emerald-400 shrink-0" />
+                    <p className="text-xs font-semibold text-emerald-400">
+                      {lang === "en" ? "🎉 Goal reached! Amazing work!" : "🎉 Meta atingida! Excelente trabalho!"}
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
                       style={{ backgroundColor: goal.color + "20" }}>
-                      <Target size={18} style={{ color: goal.color }} />
+                      {pct >= 100
+                        ? <PartyPopper size={18} className="text-emerald-400" />
+                        : <Target size={18} style={{ color: goal.color }} />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -202,7 +256,7 @@ export function GoalsClient() {
                     className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
                   >
                     <History size={11} />
-                    {lang === "en" ? "Deposit history" : "Histórico de aportes"}
+                    {lang === "en" ? "Movement history" : "Histórico de movimentos"}
                     {expandedHistory === goal.id
                       ? <ChevronUp size={11} />
                       : <ChevronDown size={11} />}
@@ -210,19 +264,25 @@ export function GoalsClient() {
 
                   {/* History list */}
                   {expandedHistory === goal.id && (
-                    <div className="space-y-1 pt-1 border-t border-border/30">
+                    <div className="space-y-1 pt-1.5 border-t border-border/30">
                       {!depositHistory[goal.id] ? (
                         <p className="text-xs text-muted-foreground py-1">{lang === "en" ? "Loading..." : "Carregando..."}</p>
                       ) : depositHistory[goal.id].length === 0 ? (
                         <p className="text-xs text-muted-foreground py-1">
-                          {lang === "en" ? "No deposits yet." : "Nenhum aporte registrado ainda."}
+                          {lang === "en" ? "No movements yet." : "Nenhum movimento registrado ainda."}
                         </p>
                       ) : (
                         depositHistory[goal.id].map((d, i) => (
-                          <div key={i} className="flex items-center justify-between text-xs py-0.5">
-                            <span className="text-muted-foreground">{formatRelativeDate(d.date, d.created_at, lang)}</span>
-                            <span className="font-medium tabular-nums" style={{ color: goal.color }}>
-                              +{fc(d.amount)}
+                          <div key={i} className="flex items-center gap-2 text-xs py-0.5">
+                            {d.kind === "deposit"
+                              ? <ArrowDownLeft size={10} className="shrink-0 text-emerald-400" />
+                              : <ArrowUpRight  size={10} className="shrink-0 text-amber-400"   />}
+                            <span className="text-muted-foreground flex-1">{formatRelativeDate(d.date, d.created_at, lang)}</span>
+                            <span className={cn(
+                              "font-medium tabular-nums shrink-0",
+                              d.kind === "deposit" ? "text-emerald-400" : "text-amber-400"
+                            )}>
+                              {d.kind === "deposit" ? "+" : "−"}{fc(d.amount)}
                             </span>
                           </div>
                         ))

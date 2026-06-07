@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff, DollarSign, AlertTriangle } from "lucide-react";
+import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff, DollarSign, AlertTriangle, Moon, Sun, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ const CURRENCIES = [
 
 export function SettingsClient() {
   const router = useRouter();
-  const { lang, setLang, currency, setCurrency } = useLang();
+  const { lang, setLang, currency, setCurrency, theme, setTheme } = useLang();
   const tx = appT[lang].settings;
 
   const [email, setEmail]         = useState("");
@@ -104,24 +104,66 @@ export function SettingsClient() {
     router.push("/login");
   }
 
+  async function handleExportData() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const [txRes, budgetsRes, goalsRes, catsRes, profileRes] = await Promise.all([
+      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+      supabase.from("budgets").select("*").eq("user_id", user.id),
+      supabase.from("savings_goals").select("*").eq("user_id", user.id),
+      supabase.from("categories").select("*").eq("user_id", user.id),
+      supabase.from("profiles").select("name, currency").eq("id", user.id).single(),
+    ]);
+
+    const backup = {
+      exported_at: new Date().toISOString(),
+      profile: profileRes.data,
+      transactions: txRes.data ?? [],
+      budgets: budgetsRes.data ?? [],
+      goals: goalsRes.data ?? [],
+      categories: catsRes.data ?? [],
+    };
+
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `fintrack-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast.success(
+      lang === "en" ? "Backup downloaded!" : "Backup baixado!",
+      lang === "en"
+        ? `${(txRes.data ?? []).length} transactions exported.`
+        : `${(txRes.data ?? []).length} transações exportadas.`
+    );
+  }
+
   async function handleDeleteAccount() {
     if (deleteConfirm.toUpperCase() !== CONFIRM_WORD) return;
     setDeleting(true);
+
+    try {
+      // Call the server-side route which:
+      // 1. Deletes all user data
+      // 2. Deletes the Supabase Auth record via service-role key
+      const res = await fetch("/api/delete-account", { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.error("[delete-account]", err);
+      toast.error(
+        lang === "en" ? "Error deleting account. Please try again." : "Erro ao apagar conta. Tente novamente."
+      );
+      setDeleting(false);
+      return;
+    }
+
+    // Sign out locally — the auth record is already gone server-side
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setDeleting(false); return; }
-
-    // Delete all user data in order (respecting FK constraints)
-    await Promise.all([
-      supabase.from("transactions").delete().eq("user_id", user.id),
-      supabase.from("budgets").delete().eq("user_id", user.id),
-      supabase.from("savings_goals").delete().eq("user_id", user.id),
-    ]);
-    await supabase.from("categories").delete().eq("user_id", user.id);
-    await supabase.from("profiles").delete().eq("id", user.id);
-
-    // Sign out — account deletion from Auth side requires server-side admin API,
-    // so we sign out and the orphaned auth record is harmless (no data remains).
     await supabase.auth.signOut();
     toast.success(lang === "en" ? "Account deleted." : "Conta apagada.");
     router.push("/login");
@@ -200,6 +242,53 @@ export function SettingsClient() {
             ))}
           </SelectContent>
         </Select>
+      </section>
+
+      {/* ── Theme ────────────────────────────────────────────────────── */}
+      <section className="glass-card p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          {theme === "dark" ? <Moon size={16} className="text-primary" /> : <Sun size={16} className="text-primary" />}
+          <h2 className="font-display font-semibold text-foreground">
+            {lang === "en" ? "Appearance" : "Aparência"}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {([["dark", lang === "en" ? "Dark" : "Escuro", Moon], ["light", lang === "en" ? "Light" : "Claro", Sun]] as const).map(([t, label, Icon]) => (
+            <button key={t} onClick={() => setTheme(t as "dark" | "light")}
+              className={cn(
+                "flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
+                theme === t
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-border/80"
+              )}>
+              <Icon size={14} />
+              {label}
+              {theme === t && <span className="ml-1 text-xs">✓</span>}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Data export ───────────────────────────────────────────────── */}
+      <section className="glass-card p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Download size={16} className="text-primary" />
+          <h2 className="font-display font-semibold text-foreground">
+            {lang === "en" ? "Export Data" : "Exportar Dados"}
+          </h2>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          {lang === "en"
+            ? "Download a full backup of your account data as JSON."
+            : "Baixe um backup completo dos seus dados em JSON."}
+        </p>
+        <button
+          onClick={handleExportData}
+          className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
+        >
+          <Download size={14} />
+          {lang === "en" ? "Download backup (JSON)" : "Baixar backup (JSON)"}
+        </button>
       </section>
 
       {/* ── Security ──────────────────────────────────────────────────── */}

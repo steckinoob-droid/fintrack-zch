@@ -61,6 +61,34 @@
     --chart-5: 280 65% 60%;
   }
 
+  /* ── Light mode overrides ─────────────────────────────────────────────────── */
+  .light {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 160 84% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 20% 92%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 210 20% 92%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 160 84% 32%;
+    --chart-1: 160 84% 32%;
+    --chart-2: 240 75% 58%;
+    --chart-3: 38 92% 45%;
+    --chart-4: 340 75% 52%;
+    --chart-5: 280 65% 55%;
+  }
+
   * {
     @apply border-border;
   }
@@ -71,6 +99,13 @@
       radial-gradient(ellipse 80% 50% at 20% -20%, rgba(16, 185, 129, 0.08) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 80% 120%, rgba(99, 102, 241, 0.06) 0%, transparent 60%);
     background-attachment: fixed;
+  }
+
+  /* Light mode body adjustments */
+  .light body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -20%, rgba(16, 185, 129, 0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 120%, rgba(99, 102, 241, 0.04) 0%, transparent 60%);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -91,9 +126,19 @@
     background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
   }
 
+  .light .glass-card {
+    @apply border-border/60 bg-card shadow-sm backdrop-blur-none;
+    background: hsl(var(--card));
+  }
+
   .glass-card-hover {
     @apply glass-card transition-all duration-200
            hover:border-white/[0.12] hover:bg-white/[0.05] hover:shadow-lg hover:shadow-black/20;
+  }
+
+  .light .glass-card-hover {
+    @apply border-border/60 bg-card hover:bg-muted/20 hover:shadow-md hover:shadow-black/5;
+    background: hsl(var(--card));
   }
 
   .stat-card {

@@ -23,14 +23,15 @@ import { cn } from "@/lib/utils/cn";
 
 const COLORS = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 
-type ReportPeriod = "3m" | "6m" | "12m" | "ytd" | "all";
+type ReportPeriod = "3m" | "6m" | "12m" | "ytd" | "all" | "custom";
 
 const PERIOD_OPTIONS: { value: ReportPeriod; labelEn: string; labelPt: string }[] = [
-  { value: "3m",  labelEn: "3 months",  labelPt: "3 meses"        },
-  { value: "6m",  labelEn: "6 months",  labelPt: "6 meses"        },
-  { value: "12m", labelEn: "12 months", labelPt: "12 meses"       },
-  { value: "ytd", labelEn: "This year", labelPt: "Este ano"       },
-  { value: "all", labelEn: "All time",  labelPt: "Todo histórico" },
+  { value: "3m",     labelEn: "3 months",  labelPt: "3 meses"        },
+  { value: "6m",     labelEn: "6 months",  labelPt: "6 meses"        },
+  { value: "12m",    labelEn: "12 months", labelPt: "12 meses"       },
+  { value: "ytd",    labelEn: "This year", labelPt: "Este ano"       },
+  { value: "all",    labelEn: "All time",  labelPt: "Todo histórico" },
+  { value: "custom", labelEn: "Custom",    labelPt: "Personalizado"  },
 ];
 
 function ChartTooltip({ active, payload, label, formatter }: any) {
@@ -62,6 +63,13 @@ export function ReportsClient() {
   const [goals,        setGoals]        = useState<SavingsGoal[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("6m");
+  const [customFrom,   setCustomFrom]   = useState<string>(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 7); // YYYY-MM
+  });
+  const [customTo, setCustomTo] = useState<string>(
+    new Date().toISOString().slice(0, 7) // current YYYY-MM
+  );
 
   useEffect(() => {
     async function load() {
@@ -94,8 +102,14 @@ export function ReportsClient() {
       const oldest = transactions[0]; // already sorted ascending
       return getMonthsBetween(parseISO(oldest.date), new Date());
     }
+    if (reportPeriod === "custom") {
+      const from = parseISO(`${customFrom}-01`);
+      const to   = parseISO(`${customTo}-01`);
+      if (from <= to) return getMonthsBetween(from, to);
+      return getLastNMonths(1);
+    }
     return getLastNMonths(6);
-  }, [reportPeriod, transactions]);
+  }, [reportPeriod, transactions, customFrom, customTo]);
 
   // Transactions within the current period window
   const periodTx = useMemo(() => {
@@ -140,7 +154,9 @@ export function ReportsClient() {
   const yAxisWidth = 48;
 
   const periodLabel = PERIOD_OPTIONS.find(p => p.value === reportPeriod)!;
-  const periodText  = lang === "en" ? periodLabel.labelEn : periodLabel.labelPt;
+  const periodText  = reportPeriod === "custom"
+    ? (lang === "en" ? `${customFrom} → ${customTo}` : `${customFrom} → ${customTo}`)
+    : (lang === "en" ? periodLabel.labelEn : periodLabel.labelPt);
   const dynamicDesc = lang === "en"
     ? `Detailed analysis · ${periodText}`
     : `Análise detalhada · ${periodText}`;
@@ -161,21 +177,53 @@ export function ReportsClient() {
       <PageHeader title={tx.title} description={dynamicDesc} />
 
       {/* ── Period selector ───────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none -mt-2">
-        {PERIOD_OPTIONS.map(p => (
-          <button
-            key={p.value}
-            onClick={() => setReportPeriod(p.value)}
-            className={cn(
-              "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-              reportPeriod === p.value
-                ? "bg-primary/15 text-primary border border-primary/30"
-                : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            )}
-          >
-            {lang === "en" ? p.labelEn : p.labelPt}
-          </button>
-        ))}
+      <div className="space-y-2 -mt-2">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+          {PERIOD_OPTIONS.map(p => (
+            <button
+              key={p.value}
+              onClick={() => setReportPeriod(p.value)}
+              className={cn(
+                "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                reportPeriod === p.value
+                  ? "bg-primary/15 text-primary border border-primary/30"
+                  : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
+            >
+              {lang === "en" ? p.labelEn : p.labelPt}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom date range pickers */}
+        {reportPeriod === "custom" && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/20 border border-border/40 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{lang === "en" ? "From" : "De"}</span>
+              <input
+                type="month"
+                value={customFrom}
+                max={customTo}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="h-7 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{lang === "en" ? "to" : "até"}</span>
+              <input
+                type="month"
+                value={customTo}
+                min={customFrom}
+                max={new Date().toISOString().slice(0, 7)}
+                onChange={e => setCustomTo(e.target.value)}
+                className="h-7 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              · {reportMonths.length} {lang === "en" ? "months" : "meses"}
+            </span>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="overview">

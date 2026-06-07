@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Upload, Check, Loader2, AlertCircle, Settings2,
   RefreshCw, CheckCircle2, ChevronDown, ChevronUp, Info, FileText,
@@ -23,8 +23,10 @@ interface Props {
   onSuccess: () => void;
 }
 
-interface ImportRow extends ParsedRow {
+interface ImportRow extends Omit<ParsedRow, "type"> {
+  type: "income" | "expense" | "saving";
   categoryId: string;
+  goalId: string;          // "__none__" or a savings goal id (when type=saving)
   skip: boolean;
   autoTyped: boolean;
   autoCat: boolean;
@@ -38,6 +40,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
 
   const [step, setStep]             = useState<Step>("upload");
   const [fileMode, setFileMode]     = useState<FileMode>("csv");
+  const [goals, setGoals]           = useState<{ id: string; name: string }[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [headers, setHeaders]       = useState<string[]>([]);
   const [rawRows, setRawRows]       = useState<string[][]>([]);
@@ -55,6 +58,18 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Load goals once (for saving type picker)
+  useEffect(() => {
+    async function loadGoals() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("savings_goals").select("id, name").eq("user_id", user.id).order("name");
+      setGoals(data ?? []);
+    }
+    if (open) loadGoals();
+  }, [open]);
+
   function reset() {
     setStep("upload"); setRows([]); setHeaders([]); setRawRows([]);
     setColMap({}); setError(null); setAutoMapped(false); setShowMapping(false);
@@ -65,6 +80,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const parsed = buildParsedRows(raw, map);
     const withCats: ImportRow[] = parsed.map(r => {
       const titleType = suggestType(r.title);
+      // suggestType only returns "income" | "expense" — "saving" is user-selected in preview UI
       const type: "income" | "expense" = titleType ?? r.type;
       const autoTyped = !!titleType && titleType !== r.type;
 
@@ -77,6 +93,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         ...r,
         type,
         categoryId: suggested?.id ?? "__none__",
+        goalId: "__none__",
         skip: isInternalRow,   // internal = pre-unchecked
         autoTyped,
         autoCat: !!suggested,
@@ -118,6 +135,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         return {
           ...r,
           categoryId: suggested?.id ?? "__none__",
+          goalId: "__none__",
           skip: r.isInternal === true,
           autoTyped: false,
           autoCat: !!suggested,
@@ -250,7 +268,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       type: r.type,
       date: r.date,
       category_id: (r.categoryId && r.categoryId !== "__none__") ? r.categoryId : null,
-      notes: null,
+      // For saving type linked to a goal, store goal_id in notes for history tracking
+      notes: (r.type === "saving" && r.goalId && r.goalId !== "__none__") ? `goal_id:${r.goalId}` : null,
       is_recurring: false,
       recurrence_interval: null,
     }));
@@ -471,7 +490,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               <div className="space-y-1.5 max-h-[36vh] overflow-y-auto pr-1">
                 {normalRows.map((row) => {
                   const idx = rows.indexOf(row);
-                  const typedCats = categories.filter(c => c.type === row.type);
+                  const catType = row.type === "saving" ? "expense" : row.type;
+                  const typedCats = categories.filter(c => c.type === catType);
                   return (
                     <div key={idx} className={cn(
                       "rounded-lg border p-2.5 transition-opacity",
@@ -495,37 +515,65 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                           </span>
                         )}
                         <span className={cn("text-xs font-bold tabular-nums shrink-0",
-                          row.type === "income" ? "text-emerald-400" : "text-red-400")}>
-                          {row.type === "income" ? "+" : "-"}{fc(row.amount)}
+                          row.type === "income"  ? "text-emerald-400" :
+                          row.type === "saving"  ? "text-indigo-400"  : "text-red-400")}>
+                          {row.type === "income" ? "+" : row.type === "saving" ? "↓" : "-"}{fc(row.amount)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 pl-6">
+                      <div className="flex items-center gap-2 pl-6 flex-wrap">
                         <Select
                           value={row.type}
-                          onValueChange={v => updateRow(idx, { type: v as "income" | "expense", categoryId: "__none__", autoTyped: false, autoCat: false })}
+                          onValueChange={v => updateRow(idx, {
+                            type: v as "income" | "expense" | "saving",
+                            categoryId: "__none__",
+                            goalId: "__none__",
+                            autoTyped: false,
+                            autoCat: false,
+                          })}
                         >
-                          <SelectTrigger className="h-6 text-xs w-[100px]"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-6 text-xs w-[110px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="expense" className="text-xs">{lang === "en" ? "Expense" : "Despesa"}</SelectItem>
                             <SelectItem value="income"  className="text-xs">{lang === "en" ? "Income" : "Receita"}</SelectItem>
+                            <SelectItem value="saving"  className="text-xs">{lang === "en" ? "Goal deposit" : "Aporte"}</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Select
-                          value={row.categoryId}
-                          onValueChange={v => updateRow(idx, { categoryId: v, autoCat: false })}
-                        >
-                          <SelectTrigger className="h-6 text-xs flex-1">
-                            <SelectValue placeholder={lang === "en" ? "No category" : "Sem categoria"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__" className="text-xs">
-                              {lang === "en" ? "No category" : "Sem categoria"}
-                            </SelectItem>
-                            {typedCats.map(c => (
-                              <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {row.type === "saving" ? (
+                          /* Goal picker for saving type */
+                          <Select
+                            value={row.goalId ?? "__none__"}
+                            onValueChange={v => updateRow(idx, { goalId: v })}
+                          >
+                            <SelectTrigger className="h-6 text-xs flex-1">
+                              <SelectValue placeholder={lang === "en" ? "Select goal" : "Selecionar meta"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__" className="text-xs">
+                                {lang === "en" ? "No goal" : "Sem meta"}
+                              </SelectItem>
+                              {goals.map(g => (
+                                <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Select
+                            value={row.categoryId}
+                            onValueChange={v => updateRow(idx, { categoryId: v, autoCat: false })}
+                          >
+                            <SelectTrigger className="h-6 text-xs flex-1">
+                              <SelectValue placeholder={lang === "en" ? "No category" : "Sem categoria"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__" className="text-xs">
+                                {lang === "en" ? "No category" : "Sem categoria"}
+                              </SelectItem>
+                              {typedCats.map(c => (
+                                <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
                   );
