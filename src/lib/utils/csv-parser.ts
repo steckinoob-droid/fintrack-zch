@@ -258,20 +258,39 @@ export function detectColumns(headers: string[]): Partial<ColumnMap> {
 
 /**
  * Returns true for rows that represent internal fund movements with no net
- * financial impact: savings-jar deposits (PicPay cofrinho), CDB investment
- * applications/redemptions (Inter), transaction reversals against investments.
+ * financial impact: savings-jar deposits (PicPay cofrinho/porquinho, C6 cofre),
+ * CDB investment applications/redemptions (Inter and similar), and transaction
+ * reversals against investments.
+ *
+ * Used by both the CSV and OFX parsers — for OFX call with rawType = "".
  */
-function isInternalTransfer(rawType: string, title: string): boolean {
+export function isInternalTransfer(rawType: string, title: string): boolean {
   const t = norm(rawType);
   const d = norm(title);
 
   return (
-    // PicPay: cofrinho
+    // ── Savings-jar patterns (title-based — work for CSV and OFX MEMO) ────────
+    // PicPay cofrinho / C6 cofre / generic "cofre"
     d.includes("cofrinho") ||
+    d.includes("cofre")    ||
+
+    // Inter porquinho / CDB porquinho
+    d.includes("porquinho") ||
+    d.includes("cdb porq")  ||
+
+    // ── CDB investment movements in title/MEMO ────────────────────────────────
+    // e.g. OFX MEMO "Aplicação CDB", "Resgate CDB", "Aplicação Automática CDB"
+    (d.includes("aplicacao") && d.includes("cdb"))        ||
+    (d.includes("resgate")   && d.includes("cdb"))        ||
+    (d.includes("aplicacao") && d.includes("automatica")) ||
+    (d.includes("resgate")   && d.includes("automatico")) ||
+    d.includes("reserva automatica")                      ||
+
+    // ── CSV "Histórico / Tipo" column patterns (Inter, PicPay) ───────────────
     t === norm("Dinheiro guardado") ||
     t === norm("Dinheiro resgatado") ||
 
-    // Banco Inter: CDB investment movements
+    // Banco Inter: CDB investment movements in the type column
     t === norm("Aplicação") ||
     t === norm("Aplicacao")  ||
     t === norm("Resgate")    ||
@@ -280,10 +299,7 @@ function isInternalTransfer(rawType: string, title: string): boolean {
     (t === norm("Estorno") && (d === norm("Aplicação") || d === norm("Aplicacao") || d.includes("cdb"))) ||
 
     // Any row where the description is literally "Aplicação" (Inter estorno pattern)
-    d === norm("Aplicacao") ||
-
-    // CDB porquinho (Inter savings account) — description contains "cdb porq"
-    (d.includes("cdb porq") || d.includes("porquinho"))
+    d === norm("Aplicacao")
   );
 }
 

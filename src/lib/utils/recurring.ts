@@ -124,6 +124,7 @@ export async function generateRecurringTransactions(
         await supabase.from("transactions").insert({
           user_id:             parent.user_id,
           category_id:         parent.category_id,
+          goal_id:             parent.goal_id ?? null,
           title:               parent.title,
           amount:              parent.amount,
           type:                parent.type,

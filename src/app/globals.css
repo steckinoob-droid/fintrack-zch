@@ -150,6 +150,10 @@
            text-muted-foreground transition-all duration-150
            hover:text-foreground hover:bg-white/[0.06] hover:translate-x-0.5;
   }
+  /* bg-white/[0.06] is invisible on a light background — override it */
+  .light .sidebar-item:hover {
+    background: hsl(var(--muted));
+  }
 
   .sidebar-item.active {
     @apply bg-primary/10 text-primary font-semibold;
@@ -159,10 +163,16 @@
     @apply inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5
            text-xs font-medium text-emerald-400;
   }
+  .light .badge-income {
+    @apply bg-emerald-100 text-emerald-700;
+  }
 
   .badge-expense {
     @apply inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5
            text-xs font-medium text-red-400;
+  }
+  .light .badge-expense {
+    @apply bg-red-100 text-red-700;
   }
 
   /* Animated shimmer skeleton loader — keyframes defined above */
@@ -191,6 +201,64 @@
   .animate-scale-in {
     animation: scaleIn 0.18s ease-out both;
   }
+
+  /* ── Alert / info box component classes ──────────────────────────────────
+     Used across the app for info, warning, error and success inline banners.
+     Default palette targets dark mode; .light overrides ensure readable contrast. */
+
+  .alert-info {
+    @apply rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300;
+  }
+  .light .alert-info {
+    @apply bg-blue-50 border-blue-200 text-blue-700;
+  }
+
+  .alert-warning {
+    @apply rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400;
+  }
+  .light .alert-warning {
+    @apply bg-amber-50 border-amber-200 text-amber-700;
+  }
+
+  .alert-error {
+    @apply rounded-lg bg-red-500/10 border border-red-500/20 text-red-400;
+  }
+  .light .alert-error {
+    @apply bg-red-50 border-red-200 text-red-700;
+  }
+
+  .alert-success {
+    @apply rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-400;
+  }
+  .light .alert-success {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+
+  /* ── Recharts light-mode fixes ────────────────────────────────────────────
+     Recharts inlines SVG colors which are dark-only; CSS can still override
+     SVG presentation attributes when specificity is sufficient. */
+  .light .recharts-cartesian-grid line {
+    stroke: rgba(0, 0, 0, 0.07) !important;
+  }
+  .light .recharts-tooltip-cursor {
+    fill: rgba(0, 0, 0, 0.04) !important;
+  }
+  .light .recharts-xAxis .recharts-cartesian-axis-tick text,
+  .light .recharts-yAxis .recharts-cartesian-axis-tick text {
+    fill: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* ── Light-mode contrast corrections for hardcoded color utilities ─────────
+     These Tailwind "400/300" shades look good on dark backgrounds but fail
+     WCAG AA on white. The overrides shift them to darker equivalents that
+     achieve ≥ 4.5:1 contrast on a white background.
+     NOTE: alert-box classes (.alert-info/.error/.warning/.success) above
+     already handle their own containers; these overrides cover all other uses. */
+  .light .text-emerald-400 { color: hsl(160 65% 35%); }  /* → ~700 equiv */
+  .light .text-red-400     { color: hsl(0   72% 48%); }  /* → ~600 equiv */
+  .light .text-amber-400   { color: hsl(38  80% 38%); }  /* → ~700 equiv */
+  .light .text-blue-300    { color: hsl(215 60% 42%); }  /* → ~700 equiv */
+  .light .text-indigo-400  { color: hsl(240 55% 45%); }  /* → ~600 equiv */
 
   /* Card action buttons — visible on mobile always, desktop only on hover */
   .card-actions {

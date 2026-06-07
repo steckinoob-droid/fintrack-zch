@@ -38,6 +38,8 @@ const PERIODS: { value: Period; label: string; labelEn: string }[] = [
   { value: "all",         label: "Tudo",         labelEn: "All time"     },
 ];
 
+const PAGE_SIZE = 200;
+
 export function TransactionsClient() {
   const { lang, fc, fck } = useLang();
   const tx     = appT[lang].transactions;
@@ -45,8 +47,11 @@ export function TransactionsClient() {
   const { refresh } = useDashboardRefresh();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalCount, setTotalCount]     = useState(0);
   const [categories, setCategories]     = useState<Category[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadingMore, setLoadingMore]   = useState(false);
+  const [dbOffset, setDbOffset]         = useState(PAGE_SIZE);
 
   const [search, setSearch]       = useState("");
   const [tab, setTab]             = useState<"all" | "income" | "expense" | "saving">("all");
@@ -96,14 +101,37 @@ export function TransactionsClient() {
     // Generate any recurring transactions for the current month before loading
     await generateRecurringTransactions(supabase, user.id);
     const [txRes, catRes] = await Promise.all([
-      supabase.from("transactions").select("*, category:categories(*)")
-        .eq("user_id", user.id).order("date", { ascending: false }),
+      supabase.from("transactions")
+        .select("*, category:categories(*)", { count: "exact" })
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+        .limit(PAGE_SIZE),
       supabase.from("categories").select("*").eq("user_id", user.id).order("name"),
     ]);
     setTransactions(txRes.data ?? []);
+    setTotalCount(txRes.count ?? 0);
+    setDbOffset(PAGE_SIZE);
     setCategories(catRes.data ?? []);
     setLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoadingMore(false); return; }
+    const { data } = await supabase
+      .from("transactions")
+      .select("*, category:categories(*)")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false })
+      .range(dbOffset, dbOffset + PAGE_SIZE - 1);
+    setTransactions(prev => [...prev, ...(data ?? [])]);
+    setDbOffset(prev => prev + PAGE_SIZE);
+    setLoadingMore(false);
+  }, [loadingMore, dbOffset]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -136,11 +164,13 @@ export function TransactionsClient() {
     const deleted = transactions.find(t => t.id === id);
     if (!deleted) return;
     setTransactions(prev => prev.filter(t => t.id !== id));
+    setTotalCount(prev => Math.max(0, prev - 1));
     const timeoutId = setTimeout(async () => {
       const supabase = createClient();
       const { error } = await supabase.from("transactions").delete().eq("id", id);
       if (error) {
         setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
+        setTotalCount(prev => prev + 1);
         toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir");
       } else { refresh(); }
     }, 4000);
@@ -152,6 +182,7 @@ export function TransactionsClient() {
         onClick: () => {
           clearTimeout(timeoutId);
           setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
+          setTotalCount(prev => prev + 1);
         },
       },
     });
@@ -168,9 +199,11 @@ export function TransactionsClient() {
     setDeleting(false);
     if (error) { toast.error(lang === "en" ? "Error deleting. Try again." : "Erro ao apagar. Tente novamente."); return; }
     toast.success(lang === "en"
-      ? `${transactions.length} transaction${transactions.length !== 1 ? "s" : ""} deleted.`
-      : `${transactions.length} transações apagadas.`);
+      ? `${totalCount} transaction${totalCount !== 1 ? "s" : ""} deleted.`
+      : `${totalCount} transações apagadas.`);
     setTransactions([]);
+    setTotalCount(0);
+    setDbOffset(PAGE_SIZE);
     setDeleteAllOpen(false);
     setDeleteConfirm("");
     refresh();
@@ -609,8 +642,8 @@ export function TransactionsClient() {
                 </p>
                 <p className="text-sm text-muted-foreground mt-1.5">
                   {lang === "en"
-                    ? `You have ${transactions.length} transaction${transactions.length !== 1 ? "s" : ""} in other periods`
-                    : `Você tem ${transactions.length} transação${transactions.length !== 1 ? "ões" : ""} em outros períodos`}
+                    ? `You have ${totalCount} transaction${totalCount !== 1 ? "s" : ""} in other periods`
+                    : `Você tem ${totalCount} transação${totalCount !== 1 ? "ões" : ""} em outros períodos`}
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={() => setPeriod("all")}>
@@ -781,10 +814,36 @@ export function TransactionsClient() {
         )}
       </div>
 
+      {/* ── Load more / partial load banner ──────────────────────────── */}
+      {!loading && transactions.length < totalCount && (
+        <div className="glass-card p-4 flex flex-col items-center gap-3 text-center">
+          <p className="text-xs text-muted-foreground">
+            {tx.partialLoad
+              .replace("{n}", String(transactions.length))
+              .replace("{total}", String(totalCount))}
+          </p>
+          <Button
+            variant="outline" size="sm"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="min-w-32"
+          >
+            {loadingMore
+              ? <><RefreshCw size={13} className="animate-spin" /> {lang === "en" ? "Loading..." : "Carregando..."}</>
+              : <>{tx.loadMore} ({totalCount - transactions.length} {tx.loadMoreCount})</>}
+          </Button>
+        </div>
+      )}
+
       {!loading && filtered.length > 0 && (
         <p className="text-xs text-muted-foreground text-center">
           {filtered.length} {lang === "en" ? "transactions" : "transações"}
           {activeFilters > 0 || search ? (lang === "en" ? " matching filters" : " com filtros ativos") : ""}
+          {transactions.length < totalCount && (
+            <span className="ml-1 text-amber-400/70">
+              {lang === "en" ? `(of ${transactions.length} loaded)` : `(de ${transactions.length} carregadas)`}
+            </span>
+          )}
         </p>
       )}
 
@@ -813,8 +872,8 @@ export function TransactionsClient() {
               </p>
               <p className="text-xs text-muted-foreground">
                 {lang === "en"
-                  ? `All ${transactions.length} transactions will be permanently deleted.`
-                  : `Todas as ${transactions.length} transações serão apagadas permanentemente.`}
+                  ? `All ${totalCount} transactions will be permanently deleted.`
+                  : `Todas as ${totalCount} transações serão apagadas permanentemente.`}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -844,7 +903,7 @@ export function TransactionsClient() {
             >
               {deleting
                 ? <><RefreshCw size={13} className="animate-spin" /> {lang === "en" ? "Deleting..." : "Apagando..."}</>
-                : <><Trash2 size={14} /> {lang === "en" ? `Delete ${transactions.length}` : `Apagar ${transactions.length}`}</>}
+                : <><Trash2 size={14} /> {lang === "en" ? `Delete ${totalCount}` : `Apagar ${totalCount}`}</>}
             </Button>
           </DialogFooter>
         </DialogContent>

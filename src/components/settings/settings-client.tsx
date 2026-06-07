@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff, DollarSign, AlertTriangle, Moon, Sun, Download } from "lucide-react";
+import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff, DollarSign, AlertTriangle, Moon, Sun, Download, Upload, Info } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { getCurrencySymbol } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils/cn";
+import { BackupImportDialog } from "./backup-import-dialog";
 
 const CURRENCIES = [
   { code: "BRL", label: "Real Brasileiro",     flag: "🇧🇷" },
@@ -38,11 +39,13 @@ export function SettingsClient() {
   const { lang, setLang, currency, setCurrency, theme, setTheme } = useLang();
   const tx = appT[lang].settings;
 
-  const [email, setEmail]         = useState("");
-  const [showPwd, setShowPwd]     = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [email, setEmail]               = useState("");
+  const [showPwd, setShowPwd]           = useState(false);
+  const [showConfirm, setShowConfirm]   = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [deleting, setDeleting]   = useState(false);
+  const [deleting, setDeleting]         = useState(false);
+  const [importOpen, setImportOpen]     = useState(false);
+  const [initialBalance, setInitialBalance] = useState("");
 
   const CONFIRM_WORD = lang === "en" ? "DELETE" : "APAGAR";
 
@@ -66,6 +69,10 @@ export function SettingsClient() {
       setEmail(user.email ?? "");
       const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       if (data?.name)     profileForm.setValue("name", data.name);
+      if (data?.initial_balance !== undefined && data.initial_balance !== null) {
+        const val = Number(data.initial_balance);
+        setInitialBalance(val === 0 ? "" : String(val));
+      }
       // Sync currency from DB → context (cross-device persistence)
       if (data?.currency) setCurrency(data.currency);
     }
@@ -76,7 +83,12 @@ export function SettingsClient() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { error } = await supabase.from("profiles").update({ name: data.name, currency }).eq("id", user.id);
+    const parsedBalance = parseFloat(initialBalance.replace(",", "."));
+    const balanceVal = isNaN(parsedBalance) || initialBalance.trim() === "" ? 0 : parsedBalance;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ name: data.name, currency, initial_balance: balanceVal })
+      .eq("id", user.id);
     if (error) { toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil"); return; }
     toast.success(tx.profileUpdated);
   }
@@ -110,7 +122,9 @@ export function SettingsClient() {
     if (!user) return;
 
     const [txRes, budgetsRes, goalsRes, catsRes, profileRes] = await Promise.all([
-      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+      // 100 k is a safe ceiling for a personal finance app; without an explicit
+      // limit PostgREST would silently truncate at the project's row-limit setting (default 1 000).
+      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(100_000),
       supabase.from("budgets").select("*").eq("user_id", user.id),
       supabase.from("savings_goals").select("*").eq("user_id", user.id),
       supabase.from("categories").select("*").eq("user_id", user.id),
@@ -189,6 +203,20 @@ export function SettingsClient() {
             <Label htmlFor="settings-name">{tx.name}</Label>
             <Input id="settings-name" {...profileForm.register("name")} aria-invalid={!!profileForm.formState.errors.name} />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-initial-balance">{tx.initialBalance}</Label>
+            <Input
+              id="settings-initial-balance"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={initialBalance}
+              onChange={e => setInitialBalance(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">{tx.initialBalanceHelper}</p>
+          </div>
           <Button type="submit" disabled={profileForm.formState.isSubmitting}>
             {profileForm.formState.isSubmitting ? <><Loader2 size={14} className="animate-spin" /> {tx.saving}</> : tx.saveProfile}
           </Button>
@@ -242,6 +270,10 @@ export function SettingsClient() {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex items-start gap-2 rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5 text-xs text-amber-300/80">
+          <Info size={13} className="shrink-0 mt-0.5" />
+          {tx.currencyDisplayOnly}
+        </div>
       </section>
 
       {/* ── Theme ────────────────────────────────────────────────────── */}
@@ -269,27 +301,43 @@ export function SettingsClient() {
         </div>
       </section>
 
-      {/* ── Data export ───────────────────────────────────────────────── */}
+      {/* ── Data export & import ──────────────────────────────────────── */}
       <section className="glass-card p-6 space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <Download size={16} className="text-primary" />
           <h2 className="font-display font-semibold text-foreground">
-            {lang === "en" ? "Export Data" : "Exportar Dados"}
+            {lang === "en" ? "Backup" : "Backup"}
           </h2>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">
           {lang === "en"
-            ? "Download a full backup of your account data as JSON."
-            : "Baixe um backup completo dos seus dados em JSON."}
+            ? "Export or restore all your account data as JSON."
+            : "Exporte ou restaure todos os seus dados em JSON."}
         </p>
-        <button
-          onClick={handleExportData}
-          className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
-        >
-          <Download size={14} />
-          {lang === "en" ? "Download backup (JSON)" : "Baixar backup (JSON)"}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleExportData}
+            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
+          >
+            <Download size={14} />
+            {lang === "en" ? "Export backup (JSON)" : "Exportar backup (JSON)"}
+          </button>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
+          >
+            <Upload size={14} />
+            {tx.importBackup}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">{tx.importBackupHelper}</p>
       </section>
+
+      <BackupImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => {}}
+      />
 
       {/* ── Security ──────────────────────────────────────────────────── */}
       <section className="glass-card p-6 space-y-4">

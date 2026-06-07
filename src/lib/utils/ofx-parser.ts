@@ -10,6 +10,7 @@
  */
 
 import type { ParsedRow } from "./csv-parser";
+import { isInternalTransfer } from "./csv-parser";
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -179,11 +180,16 @@ export function parseOFX(content: string): OFXParsedRow[] {
 
     const type = mapTrnType(trnType, amount);
 
+    // For OFX there is no separate "type/histórico" column, so pass ""
+    // as rawType; detection relies entirely on the MEMO/NAME title.
+    const internal = isInternalTransfer("", title);
+
     const row: OFXParsedRow = {
       date,
       title,
-      amount: Math.abs(amount),
+      amount:     Math.abs(amount),
       type,
+      isInternal: internal || undefined,  // omit when false to keep the shape clean
     };
 
     if (fitId) row.fitId = fitId;

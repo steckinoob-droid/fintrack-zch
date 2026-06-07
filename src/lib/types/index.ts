@@ -5,6 +5,7 @@ export interface Profile {
   name: string | null;
   avatar_url: string | null;
   currency: string;
+  initial_balance: number;
   created_at: string;
 }
 
@@ -30,6 +31,7 @@ export interface Transaction {
   is_recurring: boolean;
   recurrence_interval: "daily" | "weekly" | "monthly" | "yearly" | null;
   recurrence_parent_id: string | null;
+  goal_id: string | null;
   created_at: string;
   category?: Category;
 }

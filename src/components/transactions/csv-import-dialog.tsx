@@ -135,14 +135,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         }
 
         const withCats: ImportRow[] = parsed.map(r => {
+          const isInternalRow = r.isInternal === true;
           const typedCats = categories.filter(c => c.type === r.type);
-          const suggested = suggestCategory(r.title, typedCats);
+          // Skip category suggestion for internal rows (cofrinho, CDB, etc.)
+          const suggested = isInternalRow ? null : suggestCategory(r.title, typedCats);
           return {
             ...r,
             type: r.type as "income" | "expense",
             categoryId: suggested?.id ?? "__none__",
             goalId: "__none__",
-            skip: false,
+            skip: isInternalRow,   // pre-unchecked, same behaviour as CSV/PDF
             autoTyped: false,
             autoCat: !!suggested,
           };
@@ -708,8 +710,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       {lang === "en"
-                        ? "(CDB investments/redemptions — don't affect balance)"
-                        : "(CDB aplicação/resgate, cofrinho — não afetam saldo)"}
+                        ? "(cofrinho, porquinho, cofre, CDB — hidden to avoid duplicate entries)"
+                        : "(cofrinho, porquinho, cofre, CDB — ocultados para evitar duplicidade de saldo)"}
                     </span>
                   </div>
                   {showInternal ? <ChevronUp size={13} className="text-muted-foreground" /> : <ChevronDown size={13} className="text-muted-foreground" />}

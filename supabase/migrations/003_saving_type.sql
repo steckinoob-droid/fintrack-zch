@@ -6,14 +6,14 @@ ALTER TABLE public.transactions
   DROP CONSTRAINT IF EXISTS transactions_type_check;
 ALTER TABLE public.transactions
   ADD CONSTRAINT transactions_type_check
-  CHECK (type IN (''income'', ''expense'', ''saving''));
+  CHECK (type IN ('income', 'expense', 'saving'));
 
 -- 2. Allow "saving" as a valid category type (for future use)
 ALTER TABLE public.categories
   DROP CONSTRAINT IF EXISTS categories_type_check;
 ALTER TABLE public.categories
   ADD CONSTRAINT categories_type_check
-  CHECK (type IN (''income'', ''expense'', ''saving''));
+  CHECK (type IN ('income', 'expense', 'saving'));
 
 -- 3. Link saving transactions back to their goal (optional but useful)
 ALTER TABLE public.transactions
