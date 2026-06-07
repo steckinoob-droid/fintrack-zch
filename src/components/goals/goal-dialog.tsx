@@ -79,11 +79,11 @@ export function GoalDialog({ open, onOpenChange, goal, onSuccess }:
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="target">{tx.target} *</Label>
-              <Input id="target" placeholder="0,00" inputMode="decimal" {...register("target_amount")} />
+              <Input id="target" placeholder={lang === "en" ? "0.00" : "0,00"} inputMode="decimal" {...register("target_amount")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="current">{tx.current}</Label>
-              <Input id="current" placeholder="0,00" inputMode="decimal" {...register("current_amount")} />
+              <Input id="current" placeholder={lang === "en" ? "0.00" : "0,00"} inputMode="decimal" {...register("current_amount")} />
             </div>
           </div>
           <div className="space-y-1.5">

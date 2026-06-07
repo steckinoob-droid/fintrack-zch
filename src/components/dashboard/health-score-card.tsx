@@ -36,8 +36,8 @@ const R = 44;
 const CIRC = 2 * Math.PI * R;
 
 export function HealthScoreCard({ data }: { data: DashboardData }) {
-  const { lang } = useLang();
-  const score = useMemo(() => calculateHealthScore(data), [data]);
+  const { lang, fc } = useLang();
+  const score = useMemo(() => calculateHealthScore(data, fc), [data, fc]);
 
   if (!score.hasData) {
     return (
@@ -46,7 +46,9 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
           <span className="text-2xl font-display font-black text-muted-foreground">?</span>
         </div>
         <div>
-          <p className="text-sm font-semibold text-foreground">Score de saúde financeira</p>
+          <p className="text-sm font-semibold text-foreground">
+            {lang === "en" ? "Financial Health Score" : "Score de saúde financeira"}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {lang === "en" ? score.tipsEn[0]?.text : score.tips[0]?.text}
           </p>

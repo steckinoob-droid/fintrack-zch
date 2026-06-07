@@ -150,9 +150,9 @@ export function NotificationsPanel() {
       setNotifications(notes);
     }
     load();
-  // Re-build notifications when language changes
+  // Re-build notifications when language or currency changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  }, [lang, fc]);
 
   // Close on outside click
   useEffect(() => {

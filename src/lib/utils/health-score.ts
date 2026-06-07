@@ -249,7 +249,9 @@ function generateTips(
   income: number, expenses: number,
   budgets: DashboardData["budgets"],
   goals: DashboardData["goals"],
+  fc?: (n: number) => string,
 ): { pt: string; en: string; href?: string }[] {
+  const fmt = fc ?? ((n: number) => n.toFixed(2));
   const tips: { pt: string; en: string; href?: string }[] = [];
   const savComp  = components.find(c => c.key === "savings")!;
   const budComp  = components.find(c => c.key === "budget")!;
@@ -273,8 +275,8 @@ function generateTips(
     } else if (gap > 0) {
       // Rate is positive but below 20% target
       tips.push({
-        pt: `Você poupa ${rate}% da renda. Para chegar a 20%, reserve mais R$ ${gap}/mês.`,
-        en: `You save ${rate}% of income. To reach 20%, set aside R$ ${gap} more per month.`,
+        pt: `Você poupa ${rate}% da renda. Para chegar a 20%, reserve mais ${fmt(gap)}/mês.`,
+        en: `You save ${rate}% of income. To reach 20%, set aside ${fmt(gap)} more per month.`,
       });
     }
     // gap <= 0 means user already saves ≥ 20% — savComp.status would be "good"/"great",
@@ -355,7 +357,7 @@ function generateTips(
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function calculateHealthScore(data: DashboardData): HealthScore {
+export function calculateHealthScore(data: DashboardData, fc?: (n: number) => string): HealthScore {
   const { monthIncome, monthExpenses, monthSavings, budgets, goals } = data;
 
   // Insufficient data guard
@@ -382,7 +384,7 @@ export function calculateHealthScore(data: DashboardData): HealthScore {
   const grade = toGrade(total);
   const { label, labelEn, color } = GRADE_META[grade];
 
-  const rawTips = generateTips(components, monthIncome, monthExpenses, budgets, goals);
+  const rawTips = generateTips(components, monthIncome, monthExpenses, budgets, goals, fc);
 
   return {
     total,

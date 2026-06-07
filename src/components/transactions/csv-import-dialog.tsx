@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/hooks/use-toast";
-import { formatCurrency } from "@/lib/utils/currency";
 import { parseCSV, buildParsedRows, type ParsedRow, type ColumnMap } from "@/lib/utils/csv-parser";
 import { suggestCategory, suggestType } from "@/lib/utils/auto-categorize";
 import { useLang } from "@/lib/i18n/context";
@@ -35,7 +34,7 @@ type Step = "upload" | "preview" | "result";
 type FileMode = "csv" | "pdf";
 
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
 
   const [step, setStep]             = useState<Step>("upload");
   const [fileMode, setFileMode]     = useState<FileMode>("csv");
@@ -497,7 +496,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         )}
                         <span className={cn("text-xs font-bold tabular-nums shrink-0",
                           row.type === "income" ? "text-emerald-400" : "text-red-400")}>
-                          {row.type === "income" ? "+" : "-"}{formatCurrency(row.amount)}
+                          {row.type === "income" ? "+" : "-"}{fc(row.amount)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 pl-6">
@@ -580,7 +579,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                           <span className="text-xs text-foreground flex-1 truncate">{row.title}</span>
                           <span className={cn("text-xs tabular-nums font-medium shrink-0",
                             row.type === "income" ? "text-emerald-400" : "text-red-400")}>
-                            {row.type === "income" ? "+" : "-"}{formatCurrency(row.amount)}
+                            {row.type === "income" ? "+" : "-"}{fc(row.amount)}
                           </span>
                         </div>
                       );
@@ -625,7 +624,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
                         <span className="text-foreground flex-1 truncate">{ex.title}</span>
-                        <span className="tabular-nums font-medium text-red-400 shrink-0">{formatCurrency(ex.amount)}</span>
+                        <span className="tabular-nums font-medium text-red-400 shrink-0">{fc(ex.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -702,7 +701,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground w-20 shrink-0 tabular-nums">{ex.date}</span>
                         <span className="text-foreground flex-1 truncate">{ex.title}</span>
-                        <span className="tabular-nums font-medium text-red-400 shrink-0">{formatCurrency(ex.amount)}</span>
+                        <span className="tabular-nums font-medium text-red-400 shrink-0">{fc(ex.amount)}</span>
                       </div>
                     ))}
                     <Button

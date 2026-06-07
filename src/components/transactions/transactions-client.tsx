@@ -384,7 +384,7 @@ export function TransactionsClient() {
               placeholder={lang === "en" ? "Description" : "Descrição"}
               value={quickTitle} onChange={e => setQuickTitle(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleQuickAdd()} autoFocus />
-            <Input className="w-28 h-8 text-sm" placeholder="R$ 0,00" inputMode="decimal"
+            <Input className="w-28 h-8 text-sm" placeholder={lang === "en" ? "0.00" : "0,00"} inputMode="decimal"
               value={quickAmount} onChange={e => setQuickAmount(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleQuickAdd()} />
             <div className="flex flex-col gap-0.5">
