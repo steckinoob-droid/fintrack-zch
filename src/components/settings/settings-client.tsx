@@ -65,10 +65,12 @@ export function SettingsClient() {
       if (!user) return;
       setEmail(user.email ?? "");
       const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (data?.name) profileForm.setValue("name", data.name);
+      if (data?.name)     profileForm.setValue("name", data.name);
+      // Sync currency from DB → context (cross-device persistence)
+      if (data?.currency) setCurrency(data.currency);
     }
     load();
-  }, [profileForm]);
+  }, [profileForm, setCurrency]);
 
   async function onUpdateProfile(data: ProfileData) {
     const supabase = createClient();
@@ -85,6 +87,15 @@ export function SettingsClient() {
     if (error) { toast.error(lang === "en" ? "Error changing password" : "Erro ao alterar senha"); return; }
     toast.success(tx.passwordChanged);
     passwordForm.reset();
+  }
+
+  /** Immediately persists currency to DB + localStorage (no need to click Save). */
+  async function handleCurrencyChange(c: string) {
+    setCurrency(c); // updates context + localStorage right away
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("profiles").update({ currency: c }).eq("id", user.id);
   }
 
   async function handleLogout() {
@@ -172,7 +183,7 @@ export function SettingsClient() {
           <h2 className="font-display font-semibold text-foreground">{tx.currency}</h2>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">{tx.currencyHelper}</p>
-        <Select value={currency} onValueChange={setCurrency}>
+        <Select value={currency} onValueChange={handleCurrencyChange}>
           <SelectTrigger className="w-full max-w-xs">
             <SelectValue />
           </SelectTrigger>

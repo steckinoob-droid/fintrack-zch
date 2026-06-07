@@ -77,7 +77,7 @@ export function CommandPalette({ open, onClose }: Props) {
     setResults([...txResults, ...catResults, ...goalResults]);
     setSelected(0);
     setLoading(false);
-  }, [lang, pt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lang, pt, fc]); // fc must be in deps — it changes when currency changes
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 200);

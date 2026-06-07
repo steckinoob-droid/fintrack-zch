@@ -8,12 +8,14 @@ import { differenceInCalendarDays, parseISO } from "date-fns";
 import { seedDefaultCategories } from "@/lib/utils/seed-categories";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import { generateRecurringTransactions } from "@/lib/utils/recurring";
+import { useLang } from "@/lib/i18n/context";
 
 export function useDashboard(monthOffset = 0) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { version } = useDashboardRefresh();
+  const { lang }    = useLang();
 
   useEffect(() => {
     setLoading(true);
@@ -97,7 +99,7 @@ export function useDashboard(monthOffset = 0) {
             ? differenceInCalendarDays(parseISO(sortedDates[sortedDates.length - 1]), parseISO(sortedDates[0])) + 1
             : sortedDates.length === 1 ? 1 : 0;
 
-          return { month: formatShortMonth(m), income, expenses, balance: income - expenses, daysOfData };
+          return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses, daysOfData };
         });
 
         const budgetsWithSpent = budgets.map((b) => {
@@ -126,7 +128,7 @@ export function useDashboard(monthOffset = 0) {
       }
     }
     load();
-  }, [version, monthOffset]); // re-runs when month changes or any component calls refresh()
+  }, [version, monthOffset, lang]); // re-runs when month, lang, or any component calls refresh()
 
   return { data, loading, error };
 }

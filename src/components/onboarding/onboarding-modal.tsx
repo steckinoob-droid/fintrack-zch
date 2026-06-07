@@ -119,8 +119,8 @@ export function OnboardingModal() {
             </h2>
             <p className="text-sm text-muted-foreground">
               {pt
-                ? "Siga esses 4 passos para configurar tudo rapidinho."
-                : "Follow these 4 steps to get everything set up quickly."}
+                ? `Siga esses ${STEPS.length} passos para configurar tudo rapidinho.`
+                : `Follow these ${STEPS.length} steps to get everything set up quickly.`}
             </p>
           </div>
 
