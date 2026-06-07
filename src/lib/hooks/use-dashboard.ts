@@ -49,8 +49,7 @@ export function useDashboard(monthOffset = 0) {
         const currentMonthEnd = new Date(target.getFullYear(), target.getMonth() + 1, 0)
           .toISOString().slice(0, 10);
 
-        // Parallel fetch: RPC aggregates + scoped queries replace the former
-        // full-table load that loaded every transaction into the browser.
+        // Parallel fetch: scoped queries + optional RPC aggregates
         const [
           totalsResult,
           monthlyStatsResult,
@@ -60,11 +59,8 @@ export function useDashboard(monthOffset = 0) {
           profileResult,
           recentTxResult,
         ] = await Promise.all([
-          // All-time aggregates via DB function — O(1) data transfer regardless of row count
           supabase.rpc("get_all_time_totals", { p_user_id: user.id }),
-          // 6-month chart data via DB function — only ~6 rows returned
           supabase.rpc("get_monthly_stats", { p_user_id: user.id }),
-          // Current-month transactions for category breakdown + budget calculations
           supabase
             .from("transactions")
             .select("*, category:categories(*)")
@@ -87,7 +83,6 @@ export function useDashboard(monthOffset = 0) {
             .select("initial_balance")
             .eq("id", user.id)
             .single(),
-          // 8 most-recent transactions (any month) for the activity list
           supabase
             .from("transactions")
             .select("*, category:categories(*)")
@@ -102,38 +97,78 @@ export function useDashboard(monthOffset = 0) {
         const recentTransactions: Transaction[] = recentTxResult.data   ?? [];
         const initialBalance: number            = profileResult.data?.initial_balance ?? 0;
 
-        // All-time totals come from a single DB aggregate — no JS loops over all rows.
-        // If the RPC doesn't exist yet (migration 005 not applied), fall back to 0
-        // so the dashboard renders without crashing. Run 005_rpc_functions.sql to fix.
-        if (totalsResult.error) {
-          console.error("[FinTrack] get_all_time_totals RPC failed — run migration 005_rpc_functions.sql:", totalsResult.error.message);
-        }
-        const totalsRow = (totalsResult.data as AllTimeTotals[] | null)?.[0];
-        const allIncome   = Number(totalsRow?.total_income   ?? 0);
-        const allExpenses = Number(totalsRow?.total_expenses ?? 0);
-        const allSavings  = Number(totalsRow?.total_savings  ?? 0);
-        const totalBalance = initialBalance + allIncome - allExpenses - allSavings;
-
-        // Month-level aggregates (from the already-fetched current-month slice)
+        // Month-level aggregates
         const monthIncome   = currentMonthTx.filter(t => t.type === "income") .reduce((s, t) => s + t.amount, 0);
         const monthExpenses = currentMonthTx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
         const monthSavings  = currentMonthTx.filter(t => t.type === "saving") .reduce((s, t) => s + t.amount, 0);
 
-        // Build 6-month chart stats from the RPC rows (~6 items) instead of
-        // filtering all transactions client-side
-        const rpcRows = (monthlyStatsResult.data as MonthlyStatRow[] | null) ?? [];
-        const months  = getLast6Months();
-        const monthlyStats: MonthlyStats[] = months.map((m) => {
-          const { start } = getMonthRange(m);
-          const row      = rpcRows.find(r => r.month_start === start);
-          const income   = Number(row?.income   ?? 0);
-          const expenses = Number(row?.expenses ?? 0);
-          const daysOfData =
-            row?.first_tx_date && row?.last_tx_date
-              ? differenceInCalendarDays(parseISO(row.last_tx_date), parseISO(row.first_tx_date)) + 1
-              : row ? 1 : 0;
-          return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses, daysOfData };
-        });
+        // All-time totals — use RPC when available, otherwise fall back to a
+        // direct query so the dashboard works before migration 005 is applied.
+        let allIncome = 0, allExpenses = 0, allSavings = 0;
+        if (!totalsResult.error && totalsResult.data) {
+          const row = (totalsResult.data as AllTimeTotals[])[0];
+          allIncome   = Number(row?.total_income   ?? 0);
+          allExpenses = Number(row?.total_expenses ?? 0);
+          allSavings  = Number(row?.total_savings  ?? 0);
+        } else {
+          // RPC not available — load all transactions for totals
+          const { data: allTx } = await supabase
+            .from("transactions")
+            .select("type, amount")
+            .eq("user_id", user.id)
+            .limit(100_000);
+          for (const t of allTx ?? []) {
+            if (t.type === "income")  allIncome   += Number(t.amount);
+            if (t.type === "expense") allExpenses += Number(t.amount);
+            if (t.type === "saving")  allSavings  += Number(t.amount);
+          }
+        }
+        const totalBalance = initialBalance + allIncome - allExpenses - allSavings;
+
+        // 6-month chart — use RPC rows when available, otherwise compute from a
+        // direct query so the chart renders before migration 005 is applied.
+        const months = getLast6Months();
+        let monthlyStats: MonthlyStats[];
+
+        const rpcRows = (!monthlyStatsResult.error && monthlyStatsResult.data)
+          ? (monthlyStatsResult.data as MonthlyStatRow[])
+          : null;
+
+        if (rpcRows) {
+          monthlyStats = months.map((m) => {
+            const { start } = getMonthRange(m);
+            const row      = rpcRows.find(r => r.month_start === start);
+            const income   = Number(row?.income   ?? 0);
+            const expenses = Number(row?.expenses ?? 0);
+            const daysOfData =
+              row?.first_tx_date && row?.last_tx_date
+                ? differenceInCalendarDays(parseISO(row.last_tx_date), parseISO(row.first_tx_date)) + 1
+                : row ? 1 : 0;
+            return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses, daysOfData };
+          });
+        } else {
+          // RPC not available — load 6-month window of transactions client-side
+          const sixMonthsAgo = months[0];
+          const { start: chartStart } = getMonthRange(sixMonthsAgo);
+          const { data: chartTx } = await supabase
+            .from("transactions")
+            .select("type, amount, date")
+            .eq("user_id", user.id)
+            .gte("date", chartStart)
+            .limit(100_000);
+
+          monthlyStats = months.map((m) => {
+            const { start, end } = getMonthRange(m);
+            const slice = (chartTx ?? []).filter(t => t.date >= start && t.date <= end);
+            const income   = slice.filter(t => t.type === "income") .reduce((s, t) => s + Number(t.amount), 0);
+            const expenses = slice.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+            const dates = slice.map(t => t.date).sort();
+            const daysOfData = dates.length > 1
+              ? differenceInCalendarDays(parseISO(dates[dates.length - 1]), parseISO(dates[0])) + 1
+              : dates.length;
+            return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses, daysOfData };
+          });
+        }
 
         const budgetsWithSpent = budgets.map((b) => {
           const spent = currentMonthTx
