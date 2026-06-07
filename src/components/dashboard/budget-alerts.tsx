@@ -4,7 +4,6 @@ import { AlertTriangle, XCircle, X } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import type { Budget } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
@@ -13,7 +12,7 @@ interface Props { budgets: Budget[] }
 
 export function BudgetAlerts({ budgets }: Props) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].dashboard.alerts;
 
   const alerts = budgets
@@ -46,8 +45,8 @@ export function BudgetAlerts({ budgets }: Props) {
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {alert.over
-                ? `${tx.over} ${formatCurrency(alert.spent - alert.amount)} ${tx.overSuffix} ${formatCurrency(alert.amount)}`
-                : `${formatCurrency(alert.spent)} ${tx.used} ${formatCurrency(alert.amount)} ${tx.used2} (${alert.pct}%)`
+                ? `${tx.over} ${fc(alert.spent - alert.amount)} ${tx.overSuffix} ${fc(alert.amount)}`
+                : `${fc(alert.spent)} ${tx.used} ${fc(alert.amount)} ${tx.used2} (${alert.pct}%)`
               }
               {" · "}
               <Link href="/budgets" className="text-primary hover:underline">{tx.viewBudgets}</Link>

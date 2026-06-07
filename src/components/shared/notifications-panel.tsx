@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Bell, AlertTriangle, XCircle, Target, TrendingUp, CheckCircle, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils/cn";
 import Link from "next/link";
@@ -20,7 +19,7 @@ interface Notification {
 }
 
 export function NotificationsPanel() {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [read, setRead] = useState<Set<string>>(new Set());
@@ -63,8 +62,8 @@ export function NotificationsPanel() {
               ? `Limite excedido — ${b.category?.name}`
               : `Over budget — ${b.category?.name}`,
             description: pt
-              ? `Você gastou ${formatCurrency(spent - b.amount)} acima do orçado de ${formatCurrency(b.amount)}.`
-              : `Spent ${formatCurrency(spent - b.amount)} over the ${formatCurrency(b.amount)} budget.`,
+              ? `Você gastou ${fc(spent - b.amount)} acima do orçado de ${fc(b.amount)}.`
+              : `Spent ${fc(spent - b.amount)} over the ${fc(b.amount)} budget.`,
             href: "/budgets",
             urgency: "danger",
             read: false,
@@ -77,8 +76,8 @@ export function NotificationsPanel() {
               ? `Quase no limite — ${b.category?.name}`
               : `Approaching limit — ${b.category?.name}`,
             description: pt
-              ? `${Math.round(pct)}% do orçamento de ${formatCurrency(b.amount)} utilizado.`
-              : `${Math.round(pct)}% of the ${formatCurrency(b.amount)} budget used.`,
+              ? `${Math.round(pct)}% do orçamento de ${fc(b.amount)} utilizado.`
+              : `${Math.round(pct)}% of the ${fc(b.amount)} budget used.`,
             href: "/budgets",
             urgency: "warning",
             read: false,
@@ -95,8 +94,8 @@ export function NotificationsPanel() {
             icon: <CheckCircle size={15} className="text-emerald-400" />,
             title: pt ? `Meta atingida! — ${g.name}` : `Goal reached! — ${g.name}`,
             description: pt
-              ? `Parabéns! Você alcançou ${formatCurrency(g.target_amount)}.`
-              : `Congratulations! You reached ${formatCurrency(g.target_amount)}.`,
+              ? `Parabéns! Você alcançou ${fc(g.target_amount)}.`
+              : `Congratulations! You reached ${fc(g.target_amount)}.`,
             href: "/goals",
             urgency: "success",
             read: false,
@@ -107,8 +106,8 @@ export function NotificationsPanel() {
             icon: <Target size={15} className="text-indigo-400" />,
             title: pt ? `Quase lá! — ${g.name}` : `Almost there! — ${g.name}`,
             description: pt
-              ? `${Math.round(pct)}% da meta concluída. Faltam ${formatCurrency(g.target_amount - g.current_amount)}.`
-              : `${Math.round(pct)}% of goal reached. ${formatCurrency(g.target_amount - g.current_amount)} to go.`,
+              ? `${Math.round(pct)}% da meta concluída. Faltam ${fc(g.target_amount - g.current_amount)}.`
+              : `${Math.round(pct)}% of goal reached. ${fc(g.target_amount - g.current_amount)} to go.`,
             href: "/goals",
             urgency: "info",
             read: false,

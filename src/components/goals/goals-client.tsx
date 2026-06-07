@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { GoalDialog } from "./goal-dialog";
 import { GoalDepositDialog } from "./goal-deposit-dialog";
 import { toast } from "@/lib/hooks/use-toast";
-import { formatCurrency } from "@/lib/utils/currency";
 import { formatRelativeDate } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -19,7 +18,7 @@ import { cn } from "@/lib/utils/cn";
 import { differenceInDays, parseISO } from "date-fns";
 
 export function GoalsClient() {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].goals;
   const common = appT[lang].common;
 
@@ -104,11 +103,11 @@ export function GoalsClient() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="glass-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground mb-1 truncate">{tx.totalSaved}</p>
-          <p className="font-display font-bold text-sm sm:text-lg tabular-nums text-primary truncate">{formatCurrency(totalSaved)}</p>
+          <p className="font-display font-bold text-sm sm:text-lg tabular-nums text-primary truncate">{fc(totalSaved)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground mb-1 truncate">{tx.totalTarget}</p>
-          <p className="font-display font-bold text-sm sm:text-lg tabular-nums truncate">{formatCurrency(totalTarget)}</p>
+          <p className="font-display font-bold text-sm sm:text-lg tabular-nums truncate">{fc(totalTarget)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground mb-1 truncate">{tx.completed}</p>
@@ -145,7 +144,7 @@ export function GoalsClient() {
                         {autoDeposits[goal.id] && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
                             <RefreshCw size={9} />
-                            {formatCurrency(autoDeposits[goal.id])}{lang === "en" ? "/mo" : "/mês"}
+                            {fc(autoDeposits[goal.id])}{lang === "en" ? "/mo" : "/mês"}
                           </span>
                         )}
                       </div>
@@ -182,9 +181,9 @@ export function GoalsClient() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold tabular-nums" style={{ color: goal.color }}>
-                      {formatCurrency(goal.current_amount)}
+                      {fc(goal.current_amount)}
                     </span>
-                    <span className="text-muted-foreground tabular-nums">{formatCurrency(goal.target_amount)}</span>
+                    <span className="text-muted-foreground tabular-nums">{fc(goal.target_amount)}</span>
                   </div>
                   <Progress
                     value={pct}
@@ -194,7 +193,7 @@ export function GoalsClient() {
                   />
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{completed ? tx.goalReached : `${pct}${tx.pctComplete}`}</span>
-                    {!completed && <span className="tabular-nums">{tx.remaining} {formatCurrency(goal.target_amount - goal.current_amount)}</span>}
+                    {!completed && <span className="tabular-nums">{tx.remaining} {fc(goal.target_amount - goal.current_amount)}</span>}
                   </div>
 
                   {/* History toggle */}
@@ -223,7 +222,7 @@ export function GoalsClient() {
                           <div key={i} className="flex items-center justify-between text-xs py-0.5">
                             <span className="text-muted-foreground">{formatRelativeDate(d.date, d.created_at, lang)}</span>
                             <span className="font-medium tabular-nums" style={{ color: goal.color }}>
-                              +{formatCurrency(d.amount)}
+                              +{fc(d.amount)}
                             </span>
                           </div>
                         ))

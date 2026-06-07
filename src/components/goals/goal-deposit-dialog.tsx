@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/hooks/use-toast";
-import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
@@ -26,7 +25,7 @@ type Mode = "deposit" | "withdraw";
 
 export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
   { open: boolean; onOpenChange: (v: boolean) => void; goal: SavingsGoal; onSuccess: () => void }) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].goals.deposit;
   const common = appT[lang].common;
   const [mode, setMode] = useState<Mode>("deposit");
@@ -79,7 +78,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
 
       toast.success(
         lang === "en" ? "Withdrawal made!" : "Retirada realizada!",
-        `${formatCurrency(actualRemoved)} ${lang === "en" ? "returned to your balance." : "devolvidos ao seu saldo."}`
+        `${fc(actualRemoved)} ${lang === "en" ? "returned to your balance." : "devolvidos ao seu saldo."}`
       );
       reset();
       setMode("deposit");
@@ -126,13 +125,13 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
         : tx.success,
       wasCappped
         ? (lang === "en"
-            ? `${formatCurrency(actualAdded)} deposited — goal completed! 🎉`
-            : `${formatCurrency(actualAdded)} depositados — meta concluída! 🎉`)
+            ? `${fc(actualAdded)} deposited — goal completed! 🎉`
+            : `${fc(actualAdded)} depositados — meta concluída! 🎉`)
         : isAutomatic
           ? (lang === "en"
-              ? `${formatCurrency(actualAdded)} will be deposited every month.`
-              : `${formatCurrency(actualAdded)} será depositado todo mês automaticamente.`)
-          : `${formatCurrency(actualAdded)} ${tx.successDesc}`
+              ? `${fc(actualAdded)} will be deposited every month.`
+              : `${fc(actualAdded)} será depositado todo mês automaticamente.`)
+          : `${fc(actualAdded)} ${tx.successDesc}`
     );
     reset();
     setIsAutomatic(false);
@@ -160,7 +159,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground text-sm truncate">{goal.name}</p>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(goal.current_amount)} / {formatCurrency(goal.target_amount)}
+                {fc(goal.current_amount)} / {fc(goal.target_amount)}
               </p>
             </div>
             {goalComplete && (
@@ -203,7 +202,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
           <form id="deposit-form" onSubmit={handleSubmit(onSubmit)} className="space-y-1.5">
             <Label htmlFor="deposit-amount">
               {mode === "withdraw"
-                ? (lang === "en" ? `Amount (max ${formatCurrency(goal.current_amount)})` : `Valor (máx. ${formatCurrency(goal.current_amount)})`)
+                ? (lang === "en" ? `Amount (max ${fc(goal.current_amount)})` : `Valor (máx. ${fc(goal.current_amount)})`)
                 : `${tx.amount} *`}
             </Label>
             <Input

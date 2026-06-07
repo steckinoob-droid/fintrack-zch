@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
   PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check,
-  SlidersHorizontal, X, AlertTriangle, MoreVertical, Calendar,
+  SlidersHorizontal, X, AlertTriangle, MoreVertical, Calendar, Download,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,9 @@ import { CsvImportDialog } from "./csv-import-dialog";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import type { Transaction, Category } from "@/lib/types";
-import { formatCurrency, formatCompact } from "@/lib/utils/currency";
 import { formatRelativeDate, formatGroupDate, getDateRange, type Period } from "@/lib/utils/date";
 import { cleanTitle } from "@/lib/utils/parse-santander-pdf";
+import { generateRecurringTransactions } from "@/lib/utils/recurring";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -38,7 +38,7 @@ const PERIODS: { value: Period; label: string; labelEn: string }[] = [
 ];
 
 export function TransactionsClient() {
-  const { lang } = useLang();
+  const { lang, fc, fck } = useLang();
   const tx     = appT[lang].transactions;
   const common = appT[lang].common;
   const { refresh } = useDashboardRefresh();
@@ -86,6 +86,8 @@ export function TransactionsClient() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
+    // Generate any recurring transactions for the current month before loading
+    await generateRecurringTransactions(supabase, user.id);
     const [txRes, catRes] = await Promise.all([
       supabase.from("transactions").select("*, category:categories(*)")
         .eq("user_id", user.id).order("date", { ascending: false }),
@@ -250,6 +252,39 @@ export function TransactionsClient() {
     setSearch(""); setTab("all"); setPeriod("this_month"); setCatFilter("__all__");
   }
 
+  function handleExportCsv() {
+    const header = lang === "en"
+      ? ["Date", "Title", "Type", "Amount", "Category"]
+      : ["Data", "Título", "Tipo", "Valor", "Categoria"];
+    const typeLabel = (t: typeof filtered[0]) =>
+      lang === "en"
+        ? (t.type === "income" ? "Income" : t.type === "saving" ? "Savings" : "Expense")
+        : (t.type === "income" ? "Receita" : t.type === "saving" ? "Poupança" : "Despesa");
+    const rows = [
+      header,
+      ...filtered.map(t => [
+        t.date,
+        `"${t.title.replace(/"/g, '""')}"`,
+        typeLabel(t),
+        t.amount.toFixed(2),
+        `"${(t.category?.name ?? "").replace(/"/g, '""')}"`,
+      ]),
+    ];
+    const csv  = rows.map(r => r.join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `fintrack-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(
+      lang === "en"
+        ? `Exported ${filtered.length} transactions`
+        : `${filtered.length} transações exportadas`
+    );
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -268,6 +303,14 @@ export function TransactionsClient() {
               </Button>
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                 <Upload size={14} /> Extrato
+              </Button>
+              <Button
+                variant="outline" size="sm"
+                onClick={handleExportCsv}
+                disabled={filtered.length === 0}
+                title={lang === "en" ? `Export ${filtered.length} transactions as CSV` : `Exportar ${filtered.length} transações em CSV`}
+              >
+                <Download size={14} /> CSV
               </Button>
               <Button
                 variant={quickOpen ? "default" : "outline"} size="sm"
@@ -291,6 +334,9 @@ export function TransactionsClient() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setQuickOpen(v => !v)}>
                     <Zap size={14} className="mr-2" /> {lang === "en" ? "Quick add" : "Rápido"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCsv} disabled={filtered.length === 0}>
+                    <Download size={14} className="mr-2" /> {lang === "en" ? `Export CSV (${filtered.length})` : `Exportar CSV (${filtered.length})`}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -370,18 +416,18 @@ export function TransactionsClient() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="glass-card p-3 sm:p-4">
           <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.incomeFiltered}</p>
-          <p className="font-display font-bold text-sm sm:text-lg text-emerald-400 tabular-nums truncate">{formatCompact(totalIncome)}</p>
+          <p className="font-display font-bold text-sm sm:text-lg text-emerald-400 tabular-nums truncate">{fck(totalIncome)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">
             {tab === "saving" ? tx.savingsTab : tx.expensesFiltered}
           </p>
-          <p className="font-display font-bold text-sm sm:text-lg text-red-400 tabular-nums truncate">{formatCompact(totalExpense)}</p>
+          <p className="font-display font-bold text-sm sm:text-lg text-red-400 tabular-nums truncate">{fck(totalExpense)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.balanceFilter}</p>
           <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate", netBalance >= 0 ? "text-primary" : "text-red-400")}>
-            {formatCompact(netBalance)}
+            {fck(netBalance)}
           </p>
         </div>
       </div>
@@ -533,7 +579,7 @@ export function TransactionsClient() {
                         <span className={cn("ml-auto text-xs font-semibold tabular-nums",
                           net >= 0 ? "text-emerald-400" : "text-red-400"
                         )}>
-                          {(net >= 0 ? "+" : "−") + formatCompact(Math.abs(net))}
+                          {(net >= 0 ? "+" : "−") + fck(Math.abs(net))}
                         </span>
                       )}
                     </div>
@@ -624,7 +670,7 @@ export function TransactionsClient() {
                         t.type === "income" ? "text-emerald-400"
                         : t.type === "saving" ? "text-indigo-400"
                         : "text-red-400")}>
-                        {t.type === "income" ? "+" : "−"}{formatCurrency(t.amount)}
+                        {t.type === "income" ? "+" : "−"}{fc(t.amount)}
                       </span>
 
                       {/* Actions — card-actions: always visible on touch, hover-revealed on desktop */}

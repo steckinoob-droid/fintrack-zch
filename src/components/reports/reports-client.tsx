@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ReferenceLine } from "recharts";
+import { useState, useEffect, useMemo } from "react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, PieChart, Pie, Cell, ReferenceLine,
+} from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { formatCurrency, formatCompact } from "@/lib/utils/currency";
-import { getLast6Months, getMonthRange, formatShortMonth } from "@/lib/utils/date";
+import {
+  getLastNMonths, getMonthsBetween, getMonthRange,
+  formatShortMonth,
+} from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import type { Transaction, SavingsGoal } from "@/lib/types";
@@ -18,8 +23,19 @@ import { cn } from "@/lib/utils/cn";
 
 const COLORS = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 
-function ChartTooltip({ active, payload, label }: any) {
+type ReportPeriod = "3m" | "6m" | "12m" | "ytd" | "all";
+
+const PERIOD_OPTIONS: { value: ReportPeriod; labelEn: string; labelPt: string }[] = [
+  { value: "3m",  labelEn: "3 months",  labelPt: "3 meses"        },
+  { value: "6m",  labelEn: "6 months",  labelPt: "6 meses"        },
+  { value: "12m", labelEn: "12 months", labelPt: "12 meses"       },
+  { value: "ytd", labelEn: "This year", labelPt: "Este ano"       },
+  { value: "all", labelEn: "All time",  labelPt: "Todo histórico" },
+];
+
+function ChartTooltip({ active, payload, label, formatter }: any) {
   if (!active || !payload?.length) return null;
+  const fmt = formatter ?? ((n: number) => n.toFixed(2));
   return (
     <div className="glass-card p-3 border border-border/60 text-xs space-y-1.5 min-w-[160px]">
       <p className="font-semibold text-foreground capitalize">{label}</p>
@@ -30,7 +46,7 @@ function ChartTooltip({ active, payload, label }: any) {
             <span className="text-muted-foreground">{p.name}</span>
           </div>
           <span className="font-medium tabular-nums" style={{ color: p.color }}>
-            {typeof p.value === "number" ? formatCurrency(p.value) : p.value}
+            {typeof p.value === "number" ? fmt(p.value) : p.value}
           </span>
         </div>
       ))}
@@ -39,12 +55,13 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 export function ReportsClient() {
-  const { lang } = useLang();
+  const { lang, fc, fck } = useLang();
   const tx = appT[lang].reports;
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [goals, setGoals] = useState<SavingsGoal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [goals,        setGoals]        = useState<SavingsGoal[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("6m");
 
   useEffect(() => {
     async function load() {
@@ -53,7 +70,7 @@ export function ReportsClient() {
       if (!user) { setLoading(false); return; }
       const [txRes, goalsRes] = await Promise.all([
         supabase.from("transactions").select("*, category:categories(*)")
-          .eq("user_id", user.id).order("date", { ascending: false }),
+          .eq("user_id", user.id).order("date", { ascending: true }),
         supabase.from("savings_goals").select("*")
           .eq("user_id", user.id).order("created_at", { ascending: false }),
       ]);
@@ -64,34 +81,69 @@ export function ReportsClient() {
     load();
   }, []);
 
-  const months = getLast6Months();
-  const monthlyData = months.map(m => {
+  // ── Compute months to display based on selected period ───────────────────
+  const reportMonths = useMemo(() => {
+    if (reportPeriod === "3m")  return getLastNMonths(3);
+    if (reportPeriod === "12m") return getLastNMonths(12);
+    if (reportPeriod === "ytd") {
+      const n = new Date().getMonth() + 1; // Jan = 1, Dec = 12
+      return getLastNMonths(Math.max(n, 1));
+    }
+    if (reportPeriod === "all") {
+      if (!transactions.length) return getLastNMonths(6);
+      const oldest = transactions[0]; // already sorted ascending
+      return getMonthsBetween(parseISO(oldest.date), new Date());
+    }
+    return getLastNMonths(6);
+  }, [reportPeriod, transactions]);
+
+  // Transactions within the current period window
+  const periodTx = useMemo(() => {
+    if (!reportMonths.length) return transactions;
+    const first = getMonthRange(reportMonths[0]);
+    const last  = getMonthRange(reportMonths[reportMonths.length - 1]);
+    return transactions.filter(t => t.date >= first.start && t.date <= last.end);
+  }, [transactions, reportMonths]);
+
+  // ── Monthly bar data ─────────────────────────────────────────────────────
+  const monthlyData = useMemo(() => reportMonths.map(m => {
     const { start, end } = getMonthRange(m);
     const mTx = transactions.filter(t => t.date >= start && t.date <= end);
     const income   = mTx.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
     const expenses = mTx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    return { month: formatShortMonth(m), income, expenses, balance: income - expenses };
-  });
+    return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses };
+  }), [reportMonths, transactions, lang]);
 
-  const expenseCatMap = new Map<string, number>();
-  transactions.filter(t => t.type === "expense" && t.category).forEach(t => {
-    expenseCatMap.set(t.category!.name, (expenseCatMap.get(t.category!.name) ?? 0) + t.amount);
-  });
-  const categoryData = Array.from(expenseCatMap.entries()).map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value).slice(0, 8);
+  // ── Category breakdowns (scoped to period) ───────────────────────────────
+  const categoryData = useMemo(() => {
+    const map = new Map<string, number>();
+    periodTx.filter(t => t.type === "expense" && t.category).forEach(t => {
+      map.set(t.category!.name, (map.get(t.category!.name) ?? 0) + t.amount);
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value).slice(0, 8);
+  }, [periodTx]);
 
-  const incomeCatMap = new Map<string, number>();
-  transactions.filter(t => t.type === "income" && t.category).forEach(t => {
-    incomeCatMap.set(t.category!.name, (incomeCatMap.get(t.category!.name) ?? 0) + t.amount);
-  });
-  const incomeData = Array.from(incomeCatMap.entries()).map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
+  const incomeData = useMemo(() => {
+    const map = new Map<string, number>();
+    periodTx.filter(t => t.type === "income" && t.category).forEach(t => {
+      map.set(t.category!.name, (map.get(t.category!.name) ?? 0) + t.amount);
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [periodTx]);
 
   const totalSaved  = goals.reduce((s, g) => s + g.current_amount, 0);
   const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
 
-  const axisStyle    = { fill: "hsl(215 16% 60%)", fontSize: 11 };
-  const yAxisWidth   = 48; // compact on mobile — formatCompact keeps values short
+  const axisStyle  = { fill: "hsl(215 16% 60%)", fontSize: 11 };
+  const yAxisWidth = 48;
+
+  const periodLabel = PERIOD_OPTIONS.find(p => p.value === reportPeriod)!;
+  const periodText  = lang === "en" ? periodLabel.labelEn : periodLabel.labelPt;
+  const dynamicDesc = lang === "en"
+    ? `Detailed analysis · ${periodText}`
+    : `Análise detalhada · ${periodText}`;
 
   if (loading) {
     return (
@@ -106,10 +158,27 @@ export function ReportsClient() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={tx.title} description={tx.description} />
+      <PageHeader title={tx.title} description={dynamicDesc} />
+
+      {/* ── Period selector ───────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none -mt-2">
+        {PERIOD_OPTIONS.map(p => (
+          <button
+            key={p.value}
+            onClick={() => setReportPeriod(p.value)}
+            className={cn(
+              "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              reportPeriod === p.value
+                ? "bg-primary/15 text-primary border border-primary/30"
+                : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            )}
+          >
+            {lang === "en" ? p.labelEn : p.labelPt}
+          </button>
+        ))}
+      </div>
 
       <Tabs defaultValue="overview">
-        {/* Full-bleed horizontal scroll: negate parent p-4 padding so tabs go edge-to-edge */}
         <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
           <TabsList className="w-max">
             <TabsTrigger value="overview">{tx.overview}</TabsTrigger>
@@ -121,29 +190,29 @@ export function ReportsClient() {
 
         <TabsContent value="overview" className="space-y-4">
           <div className="glass-card p-5">
-            <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.incomeVsExpenses}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{tx.incomeVsExpensesDesc}</p>
+            <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.incomeVsExpenses}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{tx.incomeVsExpensesDesc} · {periodText}</p>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={yAxisWidth} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
+                <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                 <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 12 }}>{v}</span>} />
-                <Bar dataKey="income" name={tx.incomeLabel} fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" name={tx.expenses_label} fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="income"   name={tx.incomeLabel}     fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expenses" name={tx.expenses_label}  fill="#ef4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div className="glass-card p-5">
-            <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.monthlyBalance}</h3>
+            <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.monthlyBalance}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tx.monthlyBalanceDesc}</p>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={yAxisWidth} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
+                <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeDasharray="4 3" />
                 <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]}>
                   {monthlyData.map((d, i) => <Cell key={i} fill={d.balance >= 0 ? "#10b981" : "#ef4444"} />)}
@@ -156,62 +225,79 @@ export function ReportsClient() {
         <TabsContent value="expenses" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="glass-card p-5">
-              <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.byCategory}</h3>
-              <p className="text-xs text-muted-foreground mb-4">{tx.byCategoryDesc}</p>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={categoryData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" nameKey="name">
-                    {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 11 }}>{v}</span>} />
-                </PieChart>
-              </ResponsiveContainer>
+              <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.byCategory}</h3>
+              <p className="text-xs text-muted-foreground mb-4">{tx.byCategoryDesc} · {periodText}</p>
+              {categoryData.length === 0 ? (
+                <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
+                  {lang === "en" ? "No expense data for this period" : "Sem despesas neste período"}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={categoryData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" nameKey="name">
+                      {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip formatter={fc} />} />
+                    <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 11 }}>{v}</span>} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="glass-card p-5">
-              <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.ranking}</h3>
-              <p className="text-xs text-muted-foreground mb-4">{tx.rankingDesc}</p>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={categoryData} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                  <XAxis type="number" tick={{ ...axisStyle, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={formatCompact} />
-                  <YAxis type="category" dataKey="name" tick={{ ...axisStyle, fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  <Bar dataKey="value" name={tx.total} radius={[0, 4, 4, 0]}>
-                    {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.ranking}</h3>
+              <p className="text-xs text-muted-foreground mb-4">{tx.rankingDesc} · {periodText}</p>
+              {categoryData.length === 0 ? (
+                <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
+                  {lang === "en" ? "No expense data for this period" : "Sem despesas neste período"}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={categoryData} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                    <XAxis type="number" tick={{ ...axisStyle, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fck} />
+                    <YAxis type="category" dataKey="name" tick={{ ...axisStyle, fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
+                    <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <Bar dataKey="value" name={tx.total} radius={[0, 4, 4, 0]}>
+                      {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="income" className="space-y-4">
           <div className="glass-card p-5">
-            <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.incomeSources}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{tx.incomeSourcesDesc}</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={incomeData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatCompact} width={yAxisWidth} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                <Bar dataKey="value" name={tx.incomeLabel} fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.incomeSources}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{tx.incomeSourcesDesc} · {periodText}</p>
+            {incomeData.length === 0 ? (
+              <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
+                {lang === "en" ? "No income data for this period" : "Sem receitas neste período"}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={incomeData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
+                  <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
+                  <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Bar dataKey="value" name={tx.incomeLabel} fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="savings" className="space-y-4">
-          {/* Summary row */}
           {goals.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="glass-card p-4">
                 <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Total saved" : "Total poupado"}</p>
-                <p className="font-display font-bold text-lg tabular-nums text-primary">{formatCurrency(totalSaved)}</p>
+                <p className="font-display font-bold text-lg tabular-nums text-primary">{fc(totalSaved)}</p>
               </div>
               <div className="glass-card p-4">
                 <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Total target" : "Meta total"}</p>
-                <p className="font-display font-bold text-lg tabular-nums">{formatCurrency(totalTarget)}</p>
+                <p className="font-display font-bold text-lg tabular-nums">{fc(totalTarget)}</p>
               </div>
               <div className="glass-card p-4 col-span-2 sm:col-span-1">
                 <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Overall progress" : "Progresso geral"}</p>
@@ -222,9 +308,8 @@ export function ReportsClient() {
             </div>
           )}
 
-          {/* Goals list */}
           <div className="glass-card p-5">
-            <h3 className="font-display font-semibold text-sm text-foreground mb-1">{tx.savingsRate}</h3>
+            <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.savingsRate}</h3>
             <p className="text-xs text-muted-foreground mb-5">{tx.savingsRateDesc}</p>
 
             {goals.length === 0 ? (
@@ -232,17 +317,21 @@ export function ReportsClient() {
                 <div className="h-12 w-12 rounded-xl bg-indigo-500/10 flex items-center justify-center">
                   <Target size={22} className="text-indigo-400" />
                 </div>
-                <p className="text-sm font-medium text-foreground">{lang === "en" ? "No savings goals yet" : "Nenhuma meta criada ainda"}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {lang === "en" ? "No savings goals yet" : "Nenhuma meta criada ainda"}
+                </p>
                 <p className="text-xs text-muted-foreground max-w-xs">
-                  {lang === "en" ? "Create a goal in the Goals section to track your savings progress here." : "Crie uma meta na seção Metas para acompanhar seu progresso aqui."}
+                  {lang === "en"
+                    ? "Create a goal in the Goals section to track your savings progress here."
+                    : "Crie uma meta na seção Metas para acompanhar seu progresso aqui."}
                 </p>
               </div>
             ) : (
               <div className="space-y-5">
                 {goals.map((goal) => {
                   const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
-                  const completed = pct >= 100;
-                  const daysLeft = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
+                  const completed  = pct >= 100;
+                  const daysLeft   = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
                   return (
                     <div key={goal.id}>
                       <div className="flex items-center justify-between mb-2">
@@ -257,7 +346,11 @@ export function ReportsClient() {
                               <div className="flex items-center gap-1 mt-0.5">
                                 <CalendarDays size={10} className="text-muted-foreground" />
                                 <p className="text-xs text-muted-foreground">
-                                  {daysLeft > 0 ? `${daysLeft} ${lang === "en" ? "days left" : "dias restantes"}` : daysLeft === 0 ? (lang === "en" ? "Due today" : "Vence hoje") : (lang === "en" ? "Overdue" : "Prazo expirado")}
+                                  {daysLeft > 0
+                                    ? `${daysLeft} ${lang === "en" ? "days left" : "dias restantes"}`
+                                    : daysLeft === 0
+                                    ? (lang === "en" ? "Due today" : "Vence hoje")
+                                    : (lang === "en" ? "Overdue" : "Prazo expirado")}
                                 </p>
                               </div>
                             )}
@@ -267,13 +360,15 @@ export function ReportsClient() {
                           {pct}%
                         </span>
                       </div>
-                      <Progress value={pct} className="h-2 mb-1.5"
+                      <Progress
+                        value={pct}
+                        className="h-2 mb-1.5"
                         indicatorClassName={cn("transition-all duration-700", completed ? "bg-emerald-500" : "")}
                         style={{ "--progress-color": completed ? "#10b981" : goal.color } as React.CSSProperties}
                       />
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="tabular-nums" style={{ color: goal.color }}>{formatCurrency(goal.current_amount)}</span>
-                        <span className="tabular-nums">{formatCurrency(goal.target_amount)}</span>
+                        <span className="tabular-nums" style={{ color: goal.color }}>{fc(goal.current_amount)}</span>
+                        <span className="tabular-nums">{fc(goal.target_amount)}</span>
                       </div>
                     </div>
                   );

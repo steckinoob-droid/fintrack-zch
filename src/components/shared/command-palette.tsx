@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowUpRight, ArrowDownRight, PiggyBank, Tag, Target, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { formatCurrency } from "@/lib/utils/currency";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 import { useLang } from "@/lib/i18n/context";
@@ -28,7 +27,7 @@ interface Props {
 
 export function CommandPalette({ open, onClose }: Props) {
   const router      = useRouter();
-  const { lang }    = useLang();
+  const { lang, fc } = useLang();
   const pt          = lang === "pt";
 
   const [query,    setQuery]   = useState("");
@@ -70,7 +69,7 @@ export function CommandPalette({ open, onClose }: Props) {
     const goalResults: SearchResult[] = (goalRes.data ?? []).map((g: SavingsGoal) => ({
       id: g.id, type: "goal",
       title: g.name,
-      subtitle: `${formatCurrency(g.current_amount)} / ${formatCurrency(g.target_amount)}`,
+      subtitle: `${fc(g.current_amount)} / ${fc(g.target_amount)}`,
       href: "/goals",
       color: g.color,
     }));
@@ -215,7 +214,7 @@ export function CommandPalette({ open, onClose }: Props) {
                     </div>
                     {r.amount !== undefined && (
                       <span className={cn("text-sm font-semibold tabular-nums shrink-0", amountColor(r))}>
-                        {amountPrefix(r)}{formatCurrency(r.amount)}
+                        {amountPrefix(r)}{fc(r.amount)}
                       </span>
                     )}
                     {r.color && r.type !== "transaction" && (

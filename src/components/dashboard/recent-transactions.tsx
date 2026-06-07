@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ArrowUpRight, ArrowDownRight, ArrowLeftRight } from "lucide-react";
 import type { Transaction } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/currency";
 import { formatDate } from "@/lib/utils/date";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useLang } from "@/lib/i18n/context";
@@ -14,7 +13,7 @@ import { cleanTitle } from "@/lib/utils/parse-santander-pdf";
 interface Props { transactions: Transaction[] }
 
 export function RecentTransactions({ transactions }: Props) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
 
   return (
@@ -62,7 +61,7 @@ export function RecentTransactions({ transactions }: Props) {
               <span className={cn("text-sm font-semibold tabular-nums shrink-0",
                 t.type === "income" ? "text-emerald-400" : "text-red-400"
               )}>
-                {t.type === "income" ? "+" : "−"}{formatCurrency(t.amount)}
+                {t.type === "income" ? "+" : "−"}{fc(t.amount)}
               </span>
             </div>
           ))}

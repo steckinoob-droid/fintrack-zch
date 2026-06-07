@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { TrendingUp, TrendingDown, Wallet, PieChart } from "lucide-react";
-import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import type { DashboardData } from "@/lib/types";
@@ -11,7 +10,7 @@ import { cn } from "@/lib/utils/cn";
 interface StatsCardsProps { data: DashboardData }
 
 export function StatsCards({ data }: StatsCardsProps) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
   const { monthIncome, monthExpenses, monthSavings, budgets } = data;
 
@@ -31,7 +30,7 @@ export function StatsCards({ data }: StatsCardsProps) {
   const cards = [
     {
       label: lang === "en" ? "Month Balance" : "Saldo do Mês",
-      value: formatCurrency(monthBalance),
+      value: fc(monthBalance),
       subtext: lang === "en" ? "income minus expenses" : "receitas menos despesas",
       icon: Wallet,
       iconBg: "bg-primary/10", iconColor: "text-primary",
@@ -40,7 +39,7 @@ export function StatsCards({ data }: StatsCardsProps) {
     },
     {
       label: tx.monthIncome,
-      value: formatCurrency(monthIncome),
+      value: fc(monthIncome),
       subtext: tx.incomeInMonth,
       icon: TrendingUp,
       iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400",
@@ -49,7 +48,7 @@ export function StatsCards({ data }: StatsCardsProps) {
     },
     {
       label: tx.monthExpenses,
-      value: formatCurrency(monthExpenses),
+      value: fc(monthExpenses),
       subtext: tx.expensesInMonth,
       icon: TrendingDown,
       iconBg: "bg-red-500/10", iconColor: "text-red-400",
@@ -60,7 +59,7 @@ export function StatsCards({ data }: StatsCardsProps) {
       label: tx.budgetUsage,
       value: budgetPct !== null ? `${budgetPct}%` : "—",
       subtext: totalBudgeted > 0
-        ? `${formatCurrency(totalSpent)} ${lang === "en" ? "of" : "de"} ${formatCurrency(totalBudgeted)}`
+        ? `${fc(totalSpent)} ${lang === "en" ? "of" : "de"} ${fc(totalBudgeted)}`
         : tx.noBudgetsShort,
       icon: PieChart,
       iconBg: budgetPct === null ? "bg-muted/30" : budgetIconBg,

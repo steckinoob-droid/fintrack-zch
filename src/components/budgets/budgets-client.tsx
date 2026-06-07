@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { BudgetDialog } from "./budget-dialog";
 import { toast } from "@/lib/hooks/use-toast";
-import { formatCurrency } from "@/lib/utils/currency";
 import {
   getCurrentMonth, formatMonthYear, getMonthRange,
   getPrevMonth, getNextMonth,
@@ -20,7 +19,7 @@ import type { Budget, Category } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 
 export function BudgetsClient() {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx     = appT[lang].budgets;
   const common = appT[lang].common;
 
@@ -173,21 +172,21 @@ export function BudgetsClient() {
         <div className="glass-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground mb-1 truncate">{tx.budgeted}</p>
           <p className="font-display font-bold text-sm sm:text-lg tabular-nums truncate">
-            {formatCurrency(totalBudgeted)}
+            {fc(totalBudgeted)}
           </p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground mb-1 truncate">{tx.spent}</p>
           <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate",
             totalSpent > totalBudgeted ? "text-red-400" : "text-foreground")}>
-            {formatCurrency(totalSpent)}
+            {fc(totalSpent)}
           </p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-xs text-muted-foreground mb-1 truncate">{tx.available}</p>
           <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate",
             totalBudgeted - totalSpent >= 0 ? "text-emerald-400" : "text-red-400")}>
-            {formatCurrency(totalBudgeted - totalSpent)}
+            {fc(totalBudgeted - totalSpent)}
           </p>
         </div>
       </div>
@@ -252,7 +251,7 @@ export function BudgetsClient() {
                     <div>
                       <p className="font-medium text-foreground text-sm">{b.category?.name ?? common.noCategory}</p>
                       <p className={cn("text-xs", over ? "text-red-400" : warn ? "text-amber-400" : "text-muted-foreground")}>
-                        {over ? tx.overLimit : warn ? tx.almostLimit : `${formatCurrency(b.amount - spent)} ${tx.remaining}`}
+                        {over ? tx.overLimit : warn ? tx.almostLimit : `${fc(b.amount - spent)} ${tx.remaining}`}
                       </p>
                     </div>
                   </div>
@@ -272,8 +271,8 @@ export function BudgetsClient() {
                 <Progress value={pct} className="h-2 mb-2"
                   indicatorClassName={over ? "bg-red-500" : warn ? "bg-amber-500" : "bg-primary"} />
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="tabular-nums">{formatCurrency(spent)} {tx.spent.toLowerCase()}</span>
-                  <span className="font-medium tabular-nums">{pct}{tx.pctUsed}{formatCurrency(b.amount)}</span>
+                  <span className="tabular-nums">{fc(spent)} {tx.spent.toLowerCase()}</span>
+                  <span className="font-medium tabular-nums">{pct}{tx.pctUsed}{fc(b.amount)}</span>
                 </div>
               </div>
             );

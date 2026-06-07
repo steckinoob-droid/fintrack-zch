@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { TrendingUp, TrendingDown, AlertTriangle, Lightbulb, Target, Flame, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
-import { formatCurrency } from "@/lib/utils/currency";
 import type { DashboardData } from "@/lib/types";
 import { getDaysInMonth } from "date-fns";
 import { useLang } from "@/lib/i18n/context";
@@ -18,7 +17,7 @@ interface Insight {
   href?: string; priority: number;
 }
 
-function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
+function buildInsights(data: DashboardData, lang: "en" | "pt", fc: (n: number) => string): Insight[] {
   const tx = appT[lang].dashboard.insights;
   const { monthIncome, monthExpenses, monthlyStats, budgets, goals } = data;
   const current  = monthlyStats[monthlyStats.length - 1];
@@ -48,7 +47,7 @@ function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
   if (monthExpenses > monthIncome && monthIncome > 0) {
     list.push({ id: "spending-over", icon: AlertTriangle, iconColor: "text-red-400", iconBg: "bg-red-500/10",
       title: tx.spendingOver,
-      description: `${tx.spendingOverDesc} ${formatCurrency(monthExpenses - monthIncome)}.`,
+      description: `${tx.spendingOverDesc} ${fc(monthExpenses - monthIncome)}.`,
       href: "/budgets", priority: 1 });
   }
 
@@ -60,8 +59,8 @@ function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
     list.push({ id: "budget-warn-total", icon: AlertTriangle, iconColor: "text-amber-400", iconBg: "bg-amber-500/10",
       title: lang === "en" ? `${budgetPct}% of monthly budget used` : `${budgetPct}% do orçamento mensal usado`,
       description: lang === "en"
-        ? `R$ ${formatCurrency(totalBudgeted - totalSpent)} remaining across all budgets.`
-        : `${formatCurrency(totalBudgeted - totalSpent)} restantes em todos os orçamentos.`,
+        ? `${fc(totalBudgeted - totalSpent)} remaining across all budgets.`
+        : `${fc(totalBudgeted - totalSpent)} restantes em todos os orçamentos.`,
       href: "/budgets", priority: 2 });
   }
 
@@ -70,20 +69,20 @@ function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
     if (delta > 20) {
       list.push({ id: "expenses-spike", icon: Flame, iconColor: "text-red-400", iconBg: "bg-red-500/10",
         title: `${delta.toFixed(0)}% ${tx.expensesSpike}`,
-        description: `${formatCurrency(current.expenses - previous.expenses)} ${lang === "en" ? "more than" : "a mais que"} ${previous.month}.`,
+        description: `${fc(current.expenses - previous.expenses)} ${lang === "en" ? "more than" : "a mais que"} ${previous.month}.`,
         href: "/reports", priority: 2 });
     } else if (delta < -10) {
       list.push({ id: "expenses-down", icon: TrendingDown, iconColor: "text-emerald-400", iconBg: "bg-emerald-500/10",
         title: `${Math.abs(delta).toFixed(0)}% ${tx.expensesDown}`,
-        description: `${formatCurrency(previous.expenses - current.expenses)} ${lang === "en" ? "saved vs last month." : "economizados vs mês passado."}`,
+        description: `${fc(previous.expenses - current.expenses)} ${lang === "en" ? "saved vs last month." : "economizados vs mês passado."}`,
         href: "/reports", priority: 5 });
     }
   }
 
   if (forecast > 0 && previous?.expenses > 0 && forecast > previous.expenses * 1.15) {
     list.push({ id: "forecast-high", icon: TrendingUp, iconColor: "text-amber-400", iconBg: "bg-amber-500/10",
-      title: `${tx.forecastHigh} ${formatCurrency(forecast)} ${tx.forecastSuffix}`,
-      description: `${tx.forecastDesc} ${formatCurrency(dailyAvg)}${tx.perDay} ${tx.forecastDesc2} ${formatCurrency(Math.abs(forecast - previous.expenses))} ${tx.forecastDesc3}`,
+      title: `${tx.forecastHigh} ${fc(forecast)} ${tx.forecastSuffix}`,
+      description: `${tx.forecastDesc} ${fc(dailyAvg)}${tx.perDay} ${tx.forecastDesc2} ${fc(Math.abs(forecast - previous.expenses))} ${tx.forecastDesc3}`,
       href: "/transactions", priority: 3 });
   }
 
@@ -106,8 +105,8 @@ function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
     list.push({ id: "goal-closest", icon: Target, iconColor: "text-indigo-400", iconBg: "bg-indigo-500/10",
       title: `${tx.goalClosest} "${closest.name}" — ${pct}${tx.goalPct}`,
       description: monthsToGo
-        ? `${lang === "en" ? "Need" : "Faltam"} ${formatCurrency(remaining)}. ${tx.goalDesc}${monthsToGo} ${tx.goalMonths}`
-        : `${lang === "en" ? "Need" : "Faltam"} ${formatCurrency(remaining)} ${tx.goalDescAlt}`,
+        ? `${lang === "en" ? "Need" : "Faltam"} ${fc(remaining)}. ${tx.goalDesc}${monthsToGo} ${tx.goalMonths}`
+        : `${lang === "en" ? "Need" : "Faltam"} ${fc(remaining)} ${tx.goalDescAlt}`,
       href: "/goals", priority: 4 });
   }
 
@@ -121,10 +120,10 @@ function buildInsights(data: DashboardData, lang: "en" | "pt"): Insight[] {
 }
 
 export function InsightsPanel({ data }: { data: DashboardData }) {
-  const { lang } = useLang();
-  const router   = useRouter();
-  const tx       = appT[lang].dashboard.insights;
-  const insights = useMemo(() => buildInsights(data, lang), [data, lang]);
+  const { lang, fc } = useLang();
+  const router       = useRouter();
+  const tx           = appT[lang].dashboard.insights;
+  const insights     = useMemo(() => buildInsights(data, lang, fc), [data, lang, fc]);
 
   return (
     <div className="glass-card p-5">

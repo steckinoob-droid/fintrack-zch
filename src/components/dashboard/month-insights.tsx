@@ -1,7 +1,6 @@
 "use client";
 
 import { TrendingUp, TrendingDown, Minus, CalendarClock } from "lucide-react";
-import { formatCurrency } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils/cn";
 import type { MonthlyStats } from "@/lib/types";
 import { getDaysInMonth, subMonths } from "date-fns";
@@ -37,7 +36,7 @@ function DeltaBadge({ current, previous, label, invert = false }: {
 }
 
 export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Props) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx       = appT[lang].dashboard.comparison;
 
   const current  = monthlyStats[monthlyStats.length - 1];
@@ -110,11 +109,11 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
       <div className="glass-card p-4 space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tx.incomeTitle}</p>
         <p className="font-display font-bold text-xl text-emerald-400 tabular-nums">
-          {formatCurrency(current.income)}
+          {fc(current.income)}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <DeltaBadge current={current.income} previous={previous.income} label={tx.equal} invert />
-          <span className="text-xs text-muted-foreground">{tx.vs} {formatCurrency(previous.income)}</span>
+          <span className="text-xs text-muted-foreground">{tx.vs} {fc(previous.income)}</span>
         </div>
       </div>
 
@@ -122,11 +121,11 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
       <div className="glass-card p-4 space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tx.expenseTitle}</p>
         <p className="font-display font-bold text-xl text-red-400 tabular-nums">
-          {formatCurrency(current.expenses)}
+          {fc(current.expenses)}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <DeltaBadge current={current.expenses} previous={previous.expenses} label={tx.equal} />
-          <span className="text-xs text-muted-foreground">{tx.vs} {formatCurrency(previous.expenses)}</span>
+          <span className="text-xs text-muted-foreground">{tx.vs} {fc(previous.expenses)}</span>
         </div>
       </div>
 
@@ -158,7 +157,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                   {lang === "en" ? "Total forecast" : "Previsão total"}
                 </p>
                 <p className={cn("font-display font-bold text-xl tabular-nums", forecastColor)}>
-                  {formatCurrency(forecast)}
+                  {fc(forecast)}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -167,7 +166,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                     {lang === "en" ? "Spent" : "Gasto"}
                   </p>
                   <p className="font-display font-semibold text-sm tabular-nums text-foreground">
-                    {formatCurrency(monthExpenses)}
+                    {fc(monthExpenses)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-black/10 px-2.5 py-2">
@@ -175,7 +174,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                     {lang === "en" ? "Projected" : "Projetado"}
                   </p>
                   <p className="font-display font-semibold text-sm tabular-nums text-muted-foreground">
-                    {formatCurrency(projectedRemainder)}
+                    {fc(projectedRemainder)}
                   </p>
                 </div>
               </div>
@@ -187,7 +186,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                   {lang === "en" ? "Spent so far" : "Gasto até agora"}
                 </p>
                 <p className="font-display font-bold text-base tabular-nums text-foreground">
-                  {formatCurrency(monthExpenses)}
+                  {fc(monthExpenses)}
                 </p>
               </div>
               <div>
@@ -195,7 +194,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                   {lang === "en" ? "Projected rest" : "Projetado restante"}
                 </p>
                 <p className="font-display font-bold text-base tabular-nums text-muted-foreground">
-                  {formatCurrency(projectedRemainder)}
+                  {fc(projectedRemainder)}
                 </p>
               </div>
               <div>
@@ -203,7 +202,7 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
                   {lang === "en" ? "Total forecast" : "Previsão total"}
                 </p>
                 <p className={cn("font-display font-bold text-base tabular-nums", forecastColor)}>
-                  {formatCurrency(forecast)}
+                  {fc(forecast)}
                 </p>
               </div>
             </div>
@@ -212,9 +211,9 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>
                 {lang === "en" ? "Daily avg:" : "Média/dia:"}{" "}
-                <span className="font-medium text-foreground tabular-nums">{formatCurrency(currentDailyRate)}</span>
+                <span className="font-medium text-foreground tabular-nums">{fc(currentDailyRate)}</span>
                 {" vs "}
-                <span className="tabular-nums">{formatCurrency(previousDailyRate)}</span>
+                <span className="tabular-nums">{fc(previousDailyRate)}</span>
                 {" "}<span className="hidden sm:inline">{lang === "en" ? "last month" : "mês passado"}</span>
               </span>
               <span>{daysLeft} {tx.daysLeft}</span>

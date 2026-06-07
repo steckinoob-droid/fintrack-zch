@@ -2,7 +2,6 @@
 
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { Transaction } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 
@@ -21,25 +20,25 @@ function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: an
   );
 }
 
-function CustomTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0];
-  return (
-    <div className="glass-card p-3 border border-border/60 text-xs">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.payload.fill }} />
-        <span className="font-semibold text-foreground">{d.name}</span>
-      </div>
-      <span className="text-muted-foreground">{formatCurrency(d.value)}</span>
-    </div>
-  );
-}
-
 interface Props { transactions: Transaction[] }
 
 export function CategoryBreakdown({ transactions }: Props) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
+
+  const TooltipContent = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0];
+    return (
+      <div className="glass-card p-3 border border-border/60 text-xs">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.payload.fill }} />
+          <span className="font-semibold text-foreground">{d.name}</span>
+        </div>
+        <span className="text-muted-foreground">{fc(d.value)}</span>
+      </div>
+    );
+  };
 
   const expenseMap = new Map<string, { name: string; value: number }>();
   for (const t of transactions) {
@@ -70,7 +69,7 @@ export function CategoryBreakdown({ transactions }: Props) {
             dataKey="value" nameKey="name" labelLine={false} label={<CustomLabel />}>
             {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<TooltipContent />} />
         </PieChart>
       </ResponsiveContainer>
       <div className="mt-3 space-y-1.5">
@@ -80,7 +79,7 @@ export function CategoryBreakdown({ transactions }: Props) {
               <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
               <span className="text-muted-foreground truncate">{item.name}</span>
             </div>
-            <span className="font-medium tabular-nums text-foreground">{formatCurrency(item.value)}</span>
+            <span className="font-medium tabular-nums text-foreground">{fc(item.value)}</span>
           </div>
         ))}
       </div>

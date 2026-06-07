@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Plus, PiggyBank } from "lucide-react";
 import type { SavingsGoal } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/currency";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -11,7 +10,7 @@ import { appT } from "@/lib/i18n/app";
 interface Props { goals: SavingsGoal[]; monthSavings?: number }
 
 export function SavingsGoalsOverview({ goals, monthSavings }: Props) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
 
   if (!goals.length) {
@@ -64,7 +63,7 @@ export function SavingsGoalsOverview({ goals, monthSavings }: Props) {
       {monthSavings !== undefined && monthSavings > 0 && (
         <div className="flex items-center justify-between text-xs mb-3 pb-3 border-b border-border/30">
           <span className="text-muted-foreground">{tx.depositedInGoals}</span>
-          <span className="text-indigo-400 font-semibold tabular-nums">{formatCurrency(monthSavings)}</span>
+          <span className="text-indigo-400 font-semibold tabular-nums">{fc(monthSavings)}</span>
         </div>
       )}
       <div className="space-y-3.5">
@@ -88,8 +87,8 @@ export function SavingsGoalsOverview({ goals, monthSavings }: Props) {
                 style={{ "--progress-color": completed ? "#10b981" : goal.color } as React.CSSProperties}
               />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="tabular-nums" style={{ color: goal.color }}>{formatCurrency(goal.current_amount)}</span>
-                <span className="tabular-nums">{formatCurrency(goal.target_amount)}</span>
+                <span className="tabular-nums" style={{ color: goal.color }}>{fc(goal.current_amount)}</span>
+                <span className="tabular-nums">{fc(goal.target_amount)}</span>
               </div>
             </div>
           );

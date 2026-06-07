@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import type { Budget } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils/currency";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PieChart } from "lucide-react";
@@ -13,7 +12,7 @@ import { cn } from "@/lib/utils/cn";
 interface Props { budgets: Budget[] }
 
 export function BudgetProgressList({ budgets }: Props) {
-  const { lang } = useLang();
+  const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
 
   if (!budgets.length) {
@@ -45,13 +44,13 @@ export function BudgetProgressList({ budgets }: Props) {
                   <span className="text-foreground font-medium">{budget.category?.name}</span>
                 </div>
                 <span className={cn("tabular-nums", over ? "text-red-400" : warn ? "text-amber-400" : "text-muted-foreground")}>
-                  {formatCurrency(spent)} / {formatCurrency(budget.amount)}
+                  {fc(spent)} / {fc(budget.amount)}
                 </span>
               </div>
               <Progress value={pct} className="h-1.5"
                 indicatorClassName={over ? "bg-red-500" : warn ? "bg-amber-500" : "bg-primary"} />
               <p className="text-xs text-muted-foreground">
-                {over ? tx.over : warn ? tx.warning : `${formatCurrency(budget.amount - spent)} ${tx.remainingBudget}`}
+                {over ? tx.over : warn ? tx.warning : `${fc(budget.amount - spent)} ${tx.remainingBudget}`}
               </p>
             </div>
           );

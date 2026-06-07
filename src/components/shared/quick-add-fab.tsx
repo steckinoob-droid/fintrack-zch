@@ -6,13 +6,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
 import { toast } from "@/lib/hooks/use-toast";
+import { getCurrencySymbol } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils/cn";
 import type { Category } from "@/lib/types";
 import { usePathname } from "next/navigation";
 
 export function QuickAddFab() {
-  const { lang } = useLang();
+  const { lang, currency } = useLang();
   const { refresh } = useDashboardRefresh();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -121,7 +122,7 @@ export function QuickAddFab() {
 
             {/* Amount */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">R$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">{getCurrencySymbol(currency)}</span>
               <input
                 type="text"
                 inputMode="decimal"

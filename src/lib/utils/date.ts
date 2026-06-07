@@ -12,9 +12,32 @@ export function formatMonthYear(date: string | Date, lang?: string): string {
   return format(d, "MMMM yyyy", { locale: lang === "en" ? enUS : ptBR });
 }
 
-export function formatShortMonth(date: string | Date): string {
+export function formatShortMonth(date: string | Date, lang?: string): string {
   const d = typeof date === "string" ? parseISO(date) : date;
-  return format(d, "MMM", { locale: ptBR });
+  return format(d, "MMM", { locale: lang === "en" ? enUS : ptBR });
+}
+
+/** Last N calendar months ending this month, ascending. */
+export function getLastNMonths(n: number): string[] {
+  const months: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    months.push(format(subMonths(new Date(), i), "yyyy-MM-01"));
+  }
+  return months;
+}
+
+/** All months from `from` to `to` (inclusive), ascending. Capped at 48. */
+export function getMonthsBetween(from: Date, to: Date): string[] {
+  const months: string[] = [];
+  let current = startOfMonth(from);
+  const end   = startOfMonth(to);
+  let cap = 0;
+  while (current <= end && cap < 48) {
+    months.push(format(current, "yyyy-MM-01"));
+    current = addMonths(current, 1);
+    cap++;
+  }
+  return months;
 }
 
 export function getCurrentMonth(): string {
