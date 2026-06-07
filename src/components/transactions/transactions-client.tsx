@@ -745,7 +745,8 @@ export function TransactionsClient() {
                         {/* User notes — shown only when non-empty and not a system note */}
                         {t.notes &&
                           !t.notes.startsWith("goal_id:") &&
-                          !t.notes.startsWith("goal_withdrawal:") && (
+                          !t.notes.startsWith("goal_withdrawal:") &&
+                          !t.notes.startsWith("ofx:") && (
                           <p className="text-[10px] text-muted-foreground/60 truncate italic leading-tight mt-0.5 max-w-[200px] sm:max-w-xs">
                             {t.notes}
                           </p>

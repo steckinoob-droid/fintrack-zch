@@ -13,6 +13,7 @@ import { toast } from "@/lib/hooks/use-toast";
 import { parseCSV, buildParsedRows, type ParsedRow, type ColumnMap } from "@/lib/utils/csv-parser";
 import { suggestCategory, suggestType } from "@/lib/utils/auto-categorize";
 import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 import type { Category } from "@/lib/types";
 
@@ -30,13 +31,15 @@ interface ImportRow extends Omit<ParsedRow, "type"> {
   skip: boolean;
   autoTyped: boolean;
   autoCat: boolean;
+  fitId?: string;          // OFX FITID — used for deduplication
 }
 
-type Step = "upload" | "preview" | "result";
-type FileMode = "csv" | "pdf";
+type Step     = "upload" | "preview" | "result";
+type FileMode = "csv" | "pdf" | "ofx";
 
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
   const { lang, fc } = useLang();
+  const tx = appT[lang].transactions;
 
   const [step, setStep]             = useState<Step>("upload");
   const [fileMode, setFileMode]     = useState<FileMode>("csv");
@@ -112,6 +115,58 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     }
   }
 
+  // ── OFX handler ─────────────────────────────────────────────────────────────
+  function handleOFX(file: File) {
+    setError(null);
+    setFileMode("ofx");
+    setPdfLoading(true);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const { parseOFX } = await import("@/lib/utils/ofx-parser");
+        const parsed = parseOFX(content);
+
+        if (!parsed.length) {
+          setError(tx.import.ofxEmpty);
+          setPdfLoading(false);
+          return;
+        }
+
+        const withCats: ImportRow[] = parsed.map(r => {
+          const typedCats = categories.filter(c => c.type === r.type);
+          const suggested = suggestCategory(r.title, typedCats);
+          return {
+            ...r,
+            type: r.type as "income" | "expense",
+            categoryId: suggested?.id ?? "__none__",
+            goalId: "__none__",
+            skip: false,
+            autoTyped: false,
+            autoCat: !!suggested,
+          };
+        });
+
+        setRows(withCats);
+        setAutoMapped(true);
+        setShowMapping(false);
+        setStep("preview");
+      } catch (err) {
+        console.error("OFX parse error:", err);
+        setError(tx.import.ofxError);
+      }
+      setPdfLoading(false);
+    };
+    reader.onerror = () => {
+      setError(tx.import.ofxError);
+      setPdfLoading(false);
+    };
+    // Most Brazilian bank OFX exports use Windows-1252 encoding.
+    reader.readAsText(file, "windows-1252");
+  }
+
+  // ── PDF handler ─────────────────────────────────────────────────────────────
   async function handlePDF(file: File) {
     setError(null);
     setPdfLoading(true);
@@ -156,11 +211,20 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     setPdfLoading(false);
   }
 
+  // ── File router ─────────────────────────────────────────────────────────────
   function handleFile(file: File) {
-    // Route by file type
-    const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const name = file.name.toLowerCase();
+
+    const isPDF = file.type === "application/pdf" || name.endsWith(".pdf");
     if (isPDF) { handlePDF(file); return; }
 
+    const isOFX = name.endsWith(".ofx")
+      || file.type === "application/x-ofx"
+      || file.type === "text/x-ofx"
+      || file.type === "application/ofx";
+    if (isOFX) { handleOFX(file); return; }
+
+    // Default: CSV / plain text
     setError(null);
     setFileMode("csv");
     const reader = new FileReader();
@@ -200,19 +264,15 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
 
   function fingerprint(date: string, amount: number, title: string) {
     // Normalize aggressively: remove accents, lowercase, strip ALL spaces.
-    // This makes "LIQUIDODEVENCIMENTO" match "LIQUIDO DE VENCIMENTO" so
-    // previously-imported garbled text is correctly detected as a duplicate
-    // of the same transaction parsed with spaces.
     const norm = title
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "") // strip combining accent marks
-      .replace(/[^a-z0-9]/g, "");      // strip spaces & punctuation
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]/g, "");
     return `${date}|${Math.round(amount * 100)}|${norm}`;
   }
 
   async function handleImport(force = false) {
-    // Only import rows the user has checked (skip=false)
     const toImportRows = rows.filter(r => !r.skip);
     if (!toImportRows.length) return;
     setImporting(true);
@@ -225,40 +285,72 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     let examples: { date: string; title: string; amount: number }[] = [];
 
     if (!force) {
-      // ── Duplicate detection ───────────────────────────────────────────────
-      const dates   = toImportRows.map(r => r.date).sort();
-      const minDate = dates[0];
-      const maxDate = dates[dates.length - 1];
+      // ── OFX FITID deduplication ─────────────────────────────────────────
+      // Runs first for OFX imports. The bank guarantees FITID uniqueness
+      // within an account, making this more reliable than fingerprinting.
+      if (fileMode === "ofx") {
+        const fitIdNotes = newOnly
+          .filter(r => r.fitId)
+          .map(r => `ofx:${r.fitId!}`);
 
-      const { data: existing } = await supabase
-        .from("transactions")
-        .select("date, amount, title")
-        .eq("user_id", user.id)
-        .gte("date", minDate)
-        .lte("date", maxDate);
+        if (fitIdNotes.length > 0) {
+          const { data: existingOFX } = await supabase
+            .from("transactions")
+            .select("notes")
+            .eq("user_id", user.id)
+            .in("notes", fitIdNotes);
 
-      const existingSet = new Set<string>(
-        (existing ?? []).map((t: { date: string; amount: number; title: string }) =>
-          fingerprint(t.date, t.amount, t.title)
-        )
-      );
+          const foundNotes = new Set<string>(
+            (existingOFX ?? []).map((t: { notes: string | null }) => t.notes ?? "")
+          );
 
-      const blocked = toImportRows.filter(r => existingSet.has(fingerprint(r.date, r.amount, r.title)));
-      newOnly  = toImportRows.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
-      skipped  = blocked.length;
-      examples = blocked.slice(0, 6).map(r => ({ date: r.date, title: r.title, amount: r.amount }));
+          const fitBlocked = newOnly.filter(r => r.fitId && foundNotes.has(`ofx:${r.fitId}`));
+          newOnly  = newOnly.filter(r => !r.fitId || !foundNotes.has(`ofx:${r.fitId}`));
+          skipped += fitBlocked.length;
+          examples.push(
+            ...fitBlocked.slice(0, 6).map(r => ({ date: r.date, title: r.title, amount: r.amount }))
+          );
+        }
+      }
+
+      // ── Fingerprint deduplication (all file types) ──────────────────────
+      // Catches duplicates imported before OFX support, or OFX rows without
+      // a FITID.  Runs on `newOnly` so FITID-blocked rows aren't re-counted.
+      if (newOnly.length > 0) {
+        const dates   = newOnly.map(r => r.date).sort();
+        const minDate = dates[0];
+        const maxDate = dates[dates.length - 1];
+
+        const { data: existing } = await supabase
+          .from("transactions")
+          .select("date, amount, title")
+          .eq("user_id", user.id)
+          .gte("date", minDate)
+          .lte("date", maxDate);
+
+        const existingSet = new Set<string>(
+          (existing ?? []).map((t: { date: string; amount: number; title: string }) =>
+            fingerprint(t.date, t.amount, t.title)
+          )
+        );
+
+        const fpBlocked = newOnly.filter(r => existingSet.has(fingerprint(r.date, r.amount, r.title)));
+        newOnly  = newOnly.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
+        skipped += fpBlocked.length;
+        examples.push(
+          ...fpBlocked
+            .slice(0, Math.max(0, 6 - examples.length))
+            .map(r => ({ date: r.date, title: r.title, amount: r.amount }))
+        );
+      }
 
       if (!newOnly.length) {
         setImporting(false);
         setImportResult({ imported: 0, skipped, examples });
         setStep("result");
-        // Still call onSuccess so the transactions list reloads and resets
-        // its period filter — this reveals existing transactions even when
-        // all rows were detected as duplicates.
         onSuccess();
         return;
       }
-      // ─────────────────────────────────────────────────────────────────────
     }
 
     const payload = newOnly.map(r => ({
@@ -268,8 +360,12 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       type: r.type,
       date: r.date,
       category_id: (r.categoryId && r.categoryId !== "__none__") ? r.categoryId : null,
-      // For saving type linked to a goal, store goal_id in notes for history tracking
-      notes: (r.type === "saving" && r.goalId && r.goalId !== "__none__") ? `goal_id:${r.goalId}` : null,
+      // Priority: saving goal link > OFX FITID (for deduplication on re-import)
+      notes: (r.type === "saving" && r.goalId && r.goalId !== "__none__")
+        ? `goal_id:${r.goalId}`
+        : r.fitId
+        ? `ofx:${r.fitId}`
+        : null,
       is_recurring: false,
       recurrence_interval: null,
     }));
@@ -292,6 +388,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   const internalRows   = rows.filter(r => r.isInternal);
   const toImport       = rows.filter(r => !r.skip).length;
   const autoTagged     = normalRows.filter(r => !r.skip && r.autoCat).length;
+  const fileModeLabel  = fileMode === "pdf" ? "PDF" : fileMode === "ofx" ? "OFX" : "CSV";
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -310,14 +407,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               </div>
             )}
 
-            {/* Loading overlay while parsing PDF */}
+            {/* Loading overlay while parsing PDF / OFX */}
             {pdfLoading ? (
               <div className="border-2 border-dashed border-primary/40 rounded-2xl py-14 px-6 text-center">
                 <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Loader2 size={26} className="text-primary animate-spin" />
                 </div>
                 <p className="text-base font-semibold text-foreground mb-1">
-                  {lang === "en" ? "Reading PDF statement…" : "Lendo extrato PDF…"}
+                  {fileMode === "ofx"
+                    ? tx.import.ofxLoading
+                    : (lang === "en" ? "Reading PDF statement…" : "Lendo extrato PDF…")}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {lang === "en" ? "This may take a few seconds" : "Isso pode levar alguns segundos"}
@@ -342,11 +441,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                   {lang === "en" ? "Click or drop your file" : "Clique ou arraste o arquivo"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {lang === "en"
-                    ? <>Accepts <span className="font-medium text-foreground">CSV</span> or{" "}<span className="font-medium text-foreground">PDF</span> — format auto-detected</>
-                    : <>Aceita <span className="font-medium text-foreground">CSV</span> ou{" "}<span className="font-medium text-foreground">PDF</span> — formato detectado automaticamente</>}
+                  {tx.import.fileTypes}
                 </p>
-                <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf" className="hidden"
+                <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf,application/x-ofx,text/x-ofx" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               </div>
             )}
@@ -361,15 +458,17 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                   { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",      tag: "CSV" },
                   { bank: "Inter",     steps: "Extrato → Exportar → CSV",              tag: "CSV" },
                   { bank: "Itaú",      steps: "Extrato → Baixar → Planilha",           tag: "CSV" },
+                  { bank: "BB / CEF",  steps: "Internet Banking → Extrato → OFX",      tag: "OFX" },
                   { bank: "Bradesco",  steps: "Extrato → Gerar CSV",                   tag: "CSV" },
-                  { bank: "C6",        steps: "Extrato → Exportar → Excel/CSV",        tag: "CSV" },
                 ].map(({ bank, steps, tag }) => (
                   <div key={bank} className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2">
                     <span className="text-xs font-semibold text-foreground shrink-0 w-16">{bank}</span>
                     <span className="text-xs text-muted-foreground leading-relaxed flex-1">{steps}</span>
                     <span className={cn(
                       "text-[10px] font-bold shrink-0 mt-0.5",
-                      tag === "PDF" ? "text-red-400" : "text-muted-foreground/60"
+                      tag === "PDF" ? "text-red-400"
+                        : tag === "OFX" ? "text-blue-400"
+                        : "text-muted-foreground/60"
                     )}>{tag}</span>
                   </div>
                 ))}
@@ -388,6 +487,16 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                 <FileText size={13} className="text-emerald-400 shrink-0" />
                 <span className="text-xs text-emerald-400 font-medium">
                   {lang === "en" ? "PDF Statement — transactions extracted automatically" : "Extrato PDF — transações extraídas automaticamente"}
+                </span>
+              </div>
+            )}
+
+            {/* Auto-mapped banner — OFX variant */}
+            {fileMode === "ofx" && rows.length > 0 && (
+              <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+                <FileText size={13} className="text-blue-400 shrink-0" />
+                <span className="text-xs text-blue-400 font-medium">
+                  {tx.import.ofxBanner}
                 </span>
               </div>
             )}
@@ -658,8 +767,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                         {importResult.skipped} {lang === "en" ? "transactions" : "transações"}
                       </span>{" "}
                       {lang === "en"
-                        ? `from this ${fileMode === "pdf" ? "PDF" : "CSV"} already exist in the history.`
-                        : `deste ${fileMode === "pdf" ? "PDF" : "CSV"} já existem no histórico.`}
+                        ? `from this ${fileModeLabel} already exist in the history.`
+                        : `deste ${fileModeLabel} já existem no histórico.`}
                     </p>
                   </div>
                 </div>
