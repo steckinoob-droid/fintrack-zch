@@ -92,14 +92,9 @@ export async function POST() {
       notification_url?: string;
     };
 
-    // In sandbox, sending a real payer_email causes MP to associate it with
-    // a real (production) account, triggering the "test environment" error.
-    // Omit it in sandbox so MP lets the buyer identify themselves at checkout.
-    const payerEmail = mpEnv === "sandbox" ? undefined : user.email!;
-
     const result = (await preApproval.create({
       body: {
-        ...(payerEmail ? { payer_email: payerEmail } : {}),
+        payer_email:      user.email!,
         back_url:         `${appUrl}/settings?billing=callback`,
         reason:           "FinTrack Pro — Assinatura Mensal",
         auto_recurring: {
