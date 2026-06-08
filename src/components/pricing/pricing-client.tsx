@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Check, Star, ArrowLeft, Loader2,
-  Shield, RefreshCw, Zap, Unlock, Sparkles, Minus, CreditCard,
+  Check, Star, ArrowLeft, Loader2, Shield, RefreshCw, Zap,
+  Unlock, Sparkles, CreditCard, UploadCloud, BarChart2, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/hooks/use-toast";
@@ -25,11 +25,11 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
   const tx        = appT[lang].pricing;
   const billingTx = appT[lang].billing;
 
-  const [upgrading,   setUpgrading]   = useState(false);
-  const [payMethod,   setPayMethod]   = useState<PayMethod>("card");
-  const [pixLoading,  setPixLoading]  = useState(false);
-  const [pixData,     setPixData]     = useState<PixPaymentData | null>(null);
-  const [pixOpen,     setPixOpen]     = useState(false);
+  const [upgrading,  setUpgrading]  = useState(false);
+  const [payMethod,  setPayMethod]  = useState<PayMethod>("card");
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixData,    setPixData]    = useState<PixPaymentData | null>(null);
+  const [pixOpen,    setPixOpen]    = useState(false);
 
   async function handleCardUpgrade() {
     if (!isLoggedIn) { window.location.href = `/login?next=/pricing`; return; }
@@ -70,299 +70,369 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
 
   const isPro = currentPlan === "pro";
 
+  const unlockCards = [
+    { icon: UploadCloud, title: tx.unlock1Title, desc: tx.unlock1Desc },
+    { icon: BarChart2,   title: tx.unlock2Title, desc: tx.unlock2Desc },
+    { icon: Database,    title: tx.unlock3Title, desc: tx.unlock3Desc },
+  ] as const;
+
+  const trustItems = [
+    { icon: Shield,    label: tx.trustSecure   },
+    { icon: RefreshCw, label: tx.trustCancel   },
+    { icon: Database,  label: tx.trustDataSafe },
+    { icon: Zap,       label: tx.trustCurrency },
+  ] as const;
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <>
+      {/* ── Keyframe animations ─────────────────────────────────────────── */}
+      <style>{`
+        @keyframes pricing-blob-float {
+          0%, 100% { transform: translateY(0px) scale(1); opacity: 0.7; }
+          50%       { transform: translateY(-28px) scale(1.04); opacity: 1; }
+        }
+        @keyframes pricing-btn-glow {
+          0%, 100% { box-shadow: 0 0 22px -4px rgba(16,185,129,0.45), 0 4px 16px -4px rgba(0,0,0,0.3); }
+          50%       { box-shadow: 0 0 42px -4px rgba(16,185,129,0.70), 0 4px 16px -4px rgba(0,0,0,0.3); }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .pb1 { animation: pricing-blob-float 16s ease-in-out infinite; }
+          .pb2 { animation: pricing-blob-float 22s ease-in-out infinite reverse; }
+          .pb3 { animation: pricing-blob-float 19s ease-in-out infinite 4s; }
+          .pbtn:not(:disabled) { animation: pricing-btn-glow 3s ease-in-out infinite; }
+        }
+        .pro-card { transition: box-shadow 0.5s ease, border-color 0.5s ease, transform 0.3s ease; }
+        .pro-card:hover { box-shadow: 0 0 110px -10px rgba(16,185,129,0.42); border-color: rgba(16,185,129,0.65); transform: translateY(-2px); }
+        .unlock-card { transition: transform 0.25s ease, border-color 0.25s ease, background-color 0.25s ease; }
+        .unlock-card:hover { transform: translateY(-3px); border-color: rgba(16,185,129,0.30); }
+        .trust-badge { transition: opacity 0.2s ease; }
+        .trust-badge:hover { opacity: 1 !important; }
+      `}</style>
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-10 border-b border-border/40 px-6 py-4 flex items-center gap-3 bg-background/80 backdrop-blur-sm">
-        <Link
-          href={isLoggedIn ? "/dashboard" : "/"}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={15} />
-          {tx.backToApp}
-        </Link>
-        <span className="text-border/60 select-none">|</span>
-        <span className="font-display font-bold text-primary text-sm">FinTrack</span>
-      </header>
+      {/* ── Wrapper ─────────────────────────────────────────────────────── */}
+      <div className="relative min-h-screen bg-background text-foreground flex flex-col">
 
-      {/* ── Main ────────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col items-center px-4 py-14 sm:py-20 gap-14">
-
-        {/* Hero */}
-        <div className="text-center space-y-3 max-w-xl animate-fade-in">
-          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight">
-            {tx.title}
-          </h1>
-          <p className="text-base sm:text-lg text-muted-foreground">{tx.subtitle}</p>
+        {/* ── Background decoration ───────────────────────────────────── */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10" aria-hidden>
+          {/* Main glow — top center */}
+          <div className="pb1 absolute left-1/2 -top-56 h-[750px] w-[750px] -translate-x-1/2 rounded-full bg-primary/7 blur-[130px]" />
+          {/* Secondary — right mid */}
+          <div className="pb2 absolute -right-28 top-[28%] h-[550px] w-[550px] rounded-full bg-emerald-600/5 blur-[110px]" />
+          {/* Accent — bottom left */}
+          <div className="pb3 absolute -left-36 bottom-[15%] h-[420px] w-[420px] rounded-full bg-sky-900/8 blur-[100px]" />
+          {/* Subtle dot grid */}
+          <div
+            className="absolute inset-0 opacity-[0.35]"
+            style={{
+              backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+              backgroundSize: "28px 28px",
+            }}
+          />
+          {/* Horizontal gradient fade at bottom */}
+          <div className="absolute bottom-0 inset-x-0 h-64 bg-gradient-to-t from-background to-transparent" />
         </div>
 
-        {/* ── Cards ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-3xl">
-
-          {/* ── Free card ─────────────────────────────────────────────── */}
-          <div
-            className="glass-card p-7 sm:p-8 flex flex-col gap-6 animate-slide-up"
-            style={{ animationDelay: "0.05s", animationFillMode: "both" }}
+        {/* ── Top bar ─────────────────────────────────────────────────── */}
+        <header className="sticky top-0 z-20 border-b border-border/25 px-5 py-3.5 flex items-center gap-3 bg-background/60 backdrop-blur-md">
+          <Link
+            href={isLoggedIn ? "/dashboard" : "/"}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-                {tx.freeName}
-              </p>
-              <div className="flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold text-foreground">{tx.freePrice}</span>
-                <span className="text-sm text-muted-foreground">{tx.perMonth}</span>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{tx.freeDesc}</p>
+            <ArrowLeft size={14} />
+            {tx.backToApp}
+          </Link>
+          <span className="text-border/40 select-none">|</span>
+          <span className="font-display font-bold text-primary text-sm tracking-tight">FinTrack</span>
+        </header>
+
+        {/* ── Main ────────────────────────────────────────────────────── */}
+        <main className="flex-1 flex flex-col items-center px-4 py-16 sm:py-24 gap-16 sm:gap-20">
+
+          {/* ── Hero ────────────────────────────────────────────────── */}
+          <div
+            className="text-center space-y-5 max-w-2xl w-full animate-fade-in"
+            style={{ animationFillMode: "both" }}
+          >
+            {/* Eyebrow badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-4 py-1.5 text-[11px] font-bold text-primary tracking-widest uppercase">
+              <Star size={9} className="fill-current" />
+              Pro · {lang === "pt" ? "R$9,99/mês" : "R$9.99/mo"}
             </div>
 
-            <div className="flex-1 space-y-1.5">
-              <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3">
-                {tx.freeLimitsLabel}
+            {/* Headline */}
+            <h1 className="font-display text-[2.25rem] sm:text-5xl lg:text-[3.25rem] font-bold tracking-tight leading-[1.1] text-foreground">
+              {tx.title}
+            </h1>
+
+            {/* Subtitle */}
+            <p className="text-base sm:text-[1.05rem] text-muted-foreground leading-relaxed max-w-lg mx-auto">
+              {tx.subtitle}
+            </p>
+          </div>
+
+          {/* ── Plan cards ──────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 w-full max-w-3xl">
+
+            {/* ── FREE card ─────────────────────────────────────────── */}
+            <div
+              className="glass-card p-7 sm:p-8 flex flex-col gap-6 animate-slide-up"
+              style={{ animationDelay: "0.06s", animationFillMode: "both" }}
+            >
+              {/* Header */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-muted-foreground/55 uppercase tracking-[0.15em]">
+                  {tx.freeName}
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-display text-[2.6rem] font-bold leading-none text-foreground">
+                    {tx.freePrice}
+                  </span>
+                  <span className="text-sm text-muted-foreground">{tx.perMonth}</span>
+                </div>
+                <p className="text-sm text-muted-foreground font-medium">{tx.freeDesc}</p>
+              </div>
+
+              {/* Features */}
+              <div className="flex-1 space-y-2 pt-1">
+                <p className="text-[10px] font-bold text-muted-foreground/45 uppercase tracking-[0.12em] mb-3">
+                  {tx.freeLimitsLabel}
+                </p>
+                {(tx.features.freeList as readonly string[]).map((f, i) => (
+                  <div key={f} className="flex items-start gap-2.5 text-sm">
+                    <span className={cn(
+                      "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full mt-px",
+                      i < 2
+                        ? "bg-primary/14 ring-1 ring-primary/20"
+                        : "bg-amber-500/10 ring-1 ring-amber-500/20",
+                    )}>
+                      <Check size={9} className={i < 2 ? "text-primary/75" : "text-amber-400/90"} />
+                    </span>
+                    <span className={cn(
+                      "leading-snug",
+                      i < 2 ? "text-foreground/75" : "text-muted-foreground",
+                    )}>
+                      {f}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                disabled
+                className="w-full opacity-55 cursor-default text-sm h-10"
+              >
+                {!isPro ? tx.currentPlan : tx.ctaFree}
+              </Button>
+            </div>
+
+            {/* ── PRO card ──────────────────────────────────────────── */}
+            <div
+              className={cn(
+                "pro-card relative flex flex-col gap-5 rounded-2xl p-7 sm:p-8",
+                "bg-gradient-to-b from-primary/9 via-card/75 to-card",
+                "border border-primary/38",
+                "shadow-[0_0_60px_-12px_rgba(16,185,129,0.28)]",
+                "animate-slide-up",
+              )}
+              style={{ animationDelay: "0.11s", animationFillMode: "both" }}
+            >
+              {/* Top accent line */}
+              <div className="absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-primary/65 to-transparent" />
+
+              {/* Most popular chip */}
+              <div className="absolute -top-[15px] left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-[5px] text-[10px] font-bold text-primary-foreground shadow-[0_4px_16px_-4px_rgba(16,185,129,0.6)] whitespace-nowrap">
+                <Star size={8} className="fill-current" />
+                {tx.mostPopular}
+              </div>
+
+              {/* Header */}
+              <div className="space-y-1.5 pt-3">
+                <div className="flex items-center gap-1.5">
+                  <Star size={10} className="text-primary fill-primary" />
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-[0.15em]">
+                    {tx.proName}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-display text-[2.6rem] font-bold leading-none text-foreground">
+                    {tx.proPrice}
+                  </span>
+                  <span className="text-sm text-muted-foreground">{tx.perMonth}</span>
+                </div>
+                <p className="text-sm font-semibold text-foreground/80">{tx.proDesc}</p>
+              </div>
+
+              {/* ── Feature lists ────────────────────────────────────── */}
+              <div className="flex-1 space-y-4">
+                {/* Unlocks (limits removed) */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-bold text-primary/50 uppercase tracking-[0.14em] flex items-center gap-1">
+                    <Unlock size={7} strokeWidth={2.5} />
+                    {tx.proUnlocksLabel}
+                  </p>
+                  {(tx.features.proUnlocks as readonly string[]).map((f) => (
+                    <div key={f} className="flex items-start gap-2.5 text-[13px]">
+                      <span className="flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full bg-primary/18 mt-px ring-1 ring-primary/25">
+                        <Unlock size={7} className="text-primary" strokeWidth={2.5} />
+                      </span>
+                      <span className="text-foreground/90 leading-snug">{f}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-primary/10" />
+
+                {/* Exclusive features (2-col grid for compactness) */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-bold text-primary/50 uppercase tracking-[0.14em] flex items-center gap-1">
+                    <Sparkles size={7} strokeWidth={2.5} />
+                    {tx.proExclusiveLabel}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {(tx.features.proExclusive as readonly string[]).map((f) => (
+                      <div key={f} className="flex items-center gap-1.5 text-[12px] text-foreground/85">
+                        <Sparkles size={7} className="text-primary/70 shrink-0" strokeWidth={2.5} />
+                        <span className="leading-snug">{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── CTA area ─────────────────────────────────────────── */}
+              {isPro ? (
+                <Button
+                  disabled
+                  className="w-full bg-primary/18 text-primary border border-primary/28 gap-2 text-sm h-10"
+                >
+                  <Star size={12} className="fill-current" />
+                  {tx.currentPlan}
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  {/* Payment method toggle — logged-in users only */}
+                  {isLoggedIn && (
+                    <div className="relative flex rounded-xl border border-border/35 bg-muted/12 p-[3px]">
+                      {/* Sliding indicator pill */}
+                      <div
+                        className="absolute top-[3px] bottom-[3px] rounded-[9px] bg-card/95 border border-border/25 shadow-sm transition-all duration-200 ease-out"
+                        style={{
+                          left:  payMethod === "card" ? "3px" : "calc(50%)",
+                          right: payMethod === "card" ? "calc(50%)" : "3px",
+                        }}
+                      />
+                      <button
+                        onClick={() => setPayMethod("card")}
+                        className={cn(
+                          "relative z-10 flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors duration-150",
+                          payMethod === "card" ? "text-foreground" : "text-muted-foreground hover:text-foreground/75",
+                        )}
+                      >
+                        <CreditCard size={11} strokeWidth={2} />
+                        {tx.payCard}
+                      </button>
+                      <button
+                        onClick={() => setPayMethod("pix")}
+                        className={cn(
+                          "relative z-10 flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors duration-150",
+                          payMethod === "pix" ? "text-foreground" : "text-muted-foreground hover:text-foreground/75",
+                        )}
+                      >
+                        <Zap size={11} strokeWidth={2} />
+                        {tx.payPix}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Method sub-description */}
+                  {isLoggedIn && (
+                    <p className="text-center text-[11px] text-muted-foreground/55 leading-relaxed">
+                      {payMethod === "card" ? tx.payCardDesc : tx.payPixDesc}
+                    </p>
+                  )}
+
+                  {/* Main CTA */}
+                  {(payMethod === "card" || !isLoggedIn) ? (
+                    <Button
+                      onClick={handleCardUpgrade}
+                      disabled={upgrading}
+                      className="pbtn w-full gap-2 font-bold text-sm h-10 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                    >
+                      {upgrading
+                        ? <><Loader2 size={14} className="animate-spin" />{billingTx.upgrading}</>
+                        : <><Unlock size={14} strokeWidth={2.5} />{isLoggedIn ? tx.upgrade : tx.loginToUpgrade}</>}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handlePixUpgrade}
+                      disabled={pixLoading}
+                      className="pbtn w-full gap-2 font-bold text-sm h-10 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                    >
+                      {pixLoading
+                        ? <><Loader2 size={14} className="animate-spin" />{tx.pixDialog.generatingQr}</>
+                        : <><Zap size={14} strokeWidth={2.5} />{tx.pixCta}</>}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Guarantee microcopy */}
+              <p className="text-[11px] text-muted-foreground/45 text-center -mt-1 leading-relaxed">
+                {tx.guarantee}
               </p>
-              {tx.features.freeList.map((f, i) => (
-                <div key={f} className="flex items-center gap-3 text-sm">
-                  <span className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
-                    i < 2 ? "bg-primary/15" : "bg-amber-500/12",
-                  )}>
-                    <Check size={10} className={i < 2 ? "text-primary/70" : "text-amber-400/80"} />
-                  </span>
-                  <span className={i < 2 ? "text-foreground/75" : "text-muted-foreground"}>
-                    {f}
-                  </span>
+            </div>
+          </div>
+
+          {/* ── "What Pro unlocks in practice" ──────────────────────── */}
+          <section
+            className="w-full max-w-3xl space-y-6 animate-fade-in"
+            style={{ animationDelay: "0.28s", animationFillMode: "both" }}
+          >
+            <p className="text-center text-[10px] font-bold text-muted-foreground/45 uppercase tracking-[0.18em]">
+              {tx.unlocksTitle}
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {unlockCards.map(({ icon: Icon, title, desc }) => (
+                <div
+                  key={title}
+                  className="unlock-card glass-card p-5 sm:p-6 flex flex-col gap-3.5"
+                >
+                  {/* Icon badge */}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20 transition-colors duration-200 group-hover:bg-primary/20">
+                    <Icon size={18} className="text-primary" strokeWidth={1.75} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-foreground leading-snug">{title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                  </div>
                 </div>
               ))}
             </div>
+          </section>
 
-            <Button variant="outline" disabled className="w-full opacity-60 cursor-default">
-              {!isPro ? tx.currentPlan : tx.ctaFree}
-            </Button>
-          </div>
-
-          {/* ── Pro card ──────────────────────────────────────────────── */}
+          {/* ── Trust badges ────────────────────────────────────────── */}
           <div
-            className={cn(
-              "relative flex flex-col gap-6 rounded-2xl p-7 sm:p-8",
-              "bg-gradient-to-b from-primary/12 via-card/60 to-card/80",
-              "border border-primary/40",
-              "shadow-[0_0_56px_-8px_rgba(16,185,129,0.22)]",
-              "animate-slide-up",
-            )}
-            style={{ animationDelay: "0.12s", animationFillMode: "both" }}
+            className="flex flex-wrap justify-center gap-x-7 gap-y-3 animate-fade-in"
+            style={{ animationDelay: "0.38s", animationFillMode: "both" }}
           >
-            {/* Top glow line */}
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-t-2xl" />
-
-            {/* Most popular badge */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1 text-[11px] font-bold text-primary-foreground shadow-lg shadow-primary/40 whitespace-nowrap">
-              <Star size={10} className="fill-current" />
-              {tx.mostPopular}
-            </div>
-
-            {/* Plan info */}
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center gap-1.5">
-                <Star size={12} className="text-primary fill-primary" />
-                <p className="text-[11px] font-semibold text-primary uppercase tracking-widest">
-                  {tx.proName}
-                </p>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold text-foreground">{tx.proPrice}</span>
-                <span className="text-sm text-muted-foreground">{tx.perMonth}</span>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{tx.proDesc}</p>
-            </div>
-
-            {/* Feature lists */}
-            <div className="flex-1 space-y-4">
-              <div className="space-y-2">
-                <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest flex items-center gap-1.5">
-                  <Unlock size={10} />
-                  {tx.proUnlocksLabel}
-                </p>
-                {tx.features.proUnlocks.map((f) => (
-                  <div key={f} className="flex items-center gap-3 text-sm text-foreground/90">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                      <Unlock size={9} className="text-primary" />
-                    </span>
-                    {f}
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-primary/15" />
-              <div className="space-y-2">
-                <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest flex items-center gap-1.5">
-                  <Sparkles size={10} />
-                  {tx.proExclusiveLabel}
-                </p>
-                {tx.features.proExclusive.map((f) => (
-                  <div key={f} className="flex items-center gap-3 text-sm text-foreground/90">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                      <Sparkles size={9} className="text-primary" />
-                    </span>
-                    {f}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── CTA area ──────────────────────────────────────────── */}
-            {isPro ? (
-              <Button disabled className="w-full bg-primary/20 text-primary border border-primary/30 gap-2">
-                <Star size={13} className="fill-current" />
-                {tx.currentPlan}
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                {/* Payment method toggle — shown only to logged-in users */}
-                {isLoggedIn && (
-                  <div className="flex rounded-xl border border-border/40 bg-muted/15 p-1 gap-1">
-                    <button
-                      onClick={() => setPayMethod("card")}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
-                        payMethod === "card"
-                          ? "bg-card shadow-sm text-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <CreditCard size={11} />
-                      {tx.payCard}
-                    </button>
-                    <button
-                      onClick={() => setPayMethod("pix")}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
-                        payMethod === "pix"
-                          ? "bg-card shadow-sm text-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Zap size={11} />
-                      {tx.payPix}
-                    </button>
-                  </div>
-                )}
-
-                {/* Method description */}
-                {isLoggedIn && (
-                  <p className="text-[11px] text-muted-foreground/70 text-center">
-                    {payMethod === "card" ? tx.payCardDesc : tx.payPixDesc}
-                  </p>
-                )}
-
-                {/* CTA button */}
-                {payMethod === "card" || !isLoggedIn ? (
-                  <Button
-                    onClick={handleCardUpgrade}
-                    disabled={upgrading}
-                    className={cn(
-                      "w-full gap-2 font-semibold",
-                      "bg-primary hover:bg-primary/90 text-primary-foreground",
-                      "shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40",
-                      "transition-all duration-200",
-                    )}
-                  >
-                    {upgrading
-                      ? <><Loader2 size={14} className="animate-spin" />{billingTx.upgrading}</>
-                      : <><Unlock size={14} />{isLoggedIn ? tx.upgrade : tx.loginToUpgrade}</>}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handlePixUpgrade}
-                    disabled={pixLoading}
-                    className={cn(
-                      "w-full gap-2 font-semibold",
-                      "bg-primary hover:bg-primary/90 text-primary-foreground",
-                      "shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40",
-                      "transition-all duration-200",
-                    )}
-                  >
-                    {pixLoading
-                      ? <><Loader2 size={14} className="animate-spin" />{tx.pixDialog.generatingQr}</>
-                      : <><Zap size={14} />{tx.pixCta}</>}
-                  </Button>
-                )}
-              </div>
-            )}
-
-            <p className="text-[11px] text-muted-foreground/60 text-center leading-relaxed">
-              {tx.guarantee}
-            </p>
-          </div>
-        </div>
-
-        {/* ── Comparison table ────────────────────────────────────────── */}
-        <div
-          className="w-full max-w-2xl animate-fade-in"
-          style={{ animationDelay: "0.22s", animationFillMode: "both" }}
-        >
-          <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest text-center mb-4">
-            {tx.compTitle}
-          </p>
-          <div className="glass-card overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-5 py-3 border-b border-border/30 bg-muted/10">
-              <span />
-              <span className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-24 text-center">
-                {tx.freeName}
+            {trustItems.map(({ icon: Icon, label }) => (
+              <span
+                key={label}
+                className="trust-badge flex items-center gap-1.5 text-[11px] text-muted-foreground/55 opacity-80"
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/8">
+                  <Icon size={10} className="text-primary/70" />
+                </span>
+                {label}
               </span>
-              <span className="text-[11px] font-semibold text-primary/80 uppercase tracking-wider w-24 text-center">
-                {tx.proName}
-              </span>
-            </div>
-            {tx.compRows.map((row, i) => {
-              const [feature, freeVal, proVal] = row as [string, string, string];
-              const isDash = freeVal === "—";
-              return (
-                <div
-                  key={feature}
-                  className={cn(
-                    "grid grid-cols-[1fr_auto_auto] gap-x-4 items-center px-5 py-3 text-sm",
-                    i % 2 === 1 && "bg-muted/5",
-                  )}
-                >
-                  <span className="text-foreground/75">{feature}</span>
-                  <span className={cn(
-                    "w-24 text-center text-xs font-medium",
-                    isDash ? "text-muted-foreground/40" : "text-amber-400/80",
-                  )}>
-                    {isDash ? <Minus size={12} className="mx-auto opacity-30" /> : freeVal}
-                  </span>
-                  <span className="w-24 text-center">
-                    {proVal === "Included" || proVal === "Incluído" ? (
-                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 mx-auto">
-                        <Check size={9} className="text-primary" />
-                      </span>
-                    ) : (
-                      <span className="text-xs font-semibold text-primary">{proVal}</span>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
+            ))}
           </div>
-        </div>
 
-        {/* ── Trust row ───────────────────────────────────────────────── */}
-        <div
-          className="flex flex-wrap justify-center gap-6 sm:gap-10 animate-fade-in"
-          style={{ animationDelay: "0.32s", animationFillMode: "both" }}
-        >
-          {[
-            { icon: Shield,    label: tx.trustSecure   },
-            { icon: RefreshCw, label: tx.trustCancel   },
-            { icon: Zap,       label: tx.trustCurrency },
-          ].map(({ icon: Icon, label }) => (
-            <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Icon size={13} className="text-primary/60" />
-              {label}
-            </span>
-          ))}
-        </div>
-
-      </main>
+        </main>
+      </div>
 
       {/* ── Pix QR dialog ───────────────────────────────────────────── */}
       <PixDialog
@@ -372,6 +442,6 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
         loading={pixLoading}
         tx={tx.pixDialog}
       />
-    </div>
+    </>
   );
 }
