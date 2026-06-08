@@ -100,7 +100,7 @@ export async function POST() {
         auto_recurring: {
           frequency:          1,
           frequency_type:     "months",
-          transaction_amount: 19.90,
+          transaction_amount: 9.99,
           currency_id:        "BRL",
         },
         external_reference: user.id,
