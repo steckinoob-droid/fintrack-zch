@@ -56,32 +56,34 @@ export async function POST() {
   try {
     const paymentClient = getMpPayment();
 
-    // QR code expires in 24 hours
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
     // SDK types don't cover Pix-specific fields — cast through unknown.
     const result = (await (paymentClient as unknown as {
       create: (opts: { body: unknown }) => Promise<unknown>;
     }).create({
       body: {
-        transaction_amount:   9.99,
-        description:          "FinTrack Pro — 30 dias",
-        payment_method_id:    "pix",
-        payer:                { email: user.email! },
-        external_reference:   user.id,
+        transaction_amount: 9.99,
+        description:        "FinTrack Pro — 30 dias",
+        payment_method_id:  "pix",
+        payer:              { email: user.email! },
+        external_reference: user.id,
         metadata: {
           user_id:        user.id,
           plan_id:        "pro",
           billing_reason: "pix_monthly",
-          period_days:    30,
+          period_days:    "30",
         },
-        notification_url:   `${appUrl}/api/webhooks/mercadopago`,
-        date_of_expiration: expiresAt,
+        notification_url: `${appUrl}/api/webhooks/mercadopago`,
       },
     })) as PixPaymentResult;
 
     const qrData = result.point_of_interaction?.transaction_data;
     if (!qrData?.qr_code) {
+      console.error("[billing/pix] MP response missing qr_code", {
+        mpPaymentId: result.id,
+        status:      result.status,
+        hasPoI:      !!result.point_of_interaction,
+        hasTxData:   !!result.point_of_interaction?.transaction_data,
+      });
       throw new Error("MP did not return a Pix QR code");
     }
 
@@ -90,7 +92,7 @@ export async function POST() {
     const admin = createAdminClient();
     await admin.from("billing_payments").upsert(
       {
-        user_id:        user.id,
+        user_id:         user.id,
         subscription_id: null,
         mp_payment_id:   String(result.id),
         amount:          9.99,
@@ -106,6 +108,8 @@ export async function POST() {
       { onConflict: "mp_payment_id", ignoreDuplicates: true },
     );
 
+    const expiresAt = result.date_of_expiration ?? new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
     console.log("[billing/pix] Payment created", {
       mpMode:        mpEnv,
       userId:        user.id,
@@ -118,7 +122,7 @@ export async function POST() {
       qr_code:        qrData.qr_code,
       qr_code_base64: qrData.qr_code_base64 ?? null,
       ticket_url:     qrData.ticket_url ?? null,
-      expires_at:     result.date_of_expiration ?? expiresAt,
+      expires_at:     expiresAt,
     });
 
   } catch (err) {

@@ -53,10 +53,10 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
     setPixOpen(true);
     try {
       const res  = await fetch("/api/billing/pix", { method: "POST" });
-      const json = await res.json() as PixPaymentData & { error?: string };
+      const json = await res.json() as PixPaymentData & { error?: string; detail?: string };
       if (!res.ok || !json.qr_code) {
         setPixOpen(false);
-        toast.error(tx.pixDialog.error);
+        toast.error(tx.pixDialog.error, json.detail ?? undefined);
         return;
       }
       setPixData(json);
