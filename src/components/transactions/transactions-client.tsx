@@ -93,6 +93,7 @@ export function TransactionsClient() {
   const [quickType, setQuickType]     = useState<"income" | "expense">("expense");
   const [quickCatId, setQuickCatId]   = useState("__auto__");
   const [quickLoading, setQuickLoading] = useState(false);
+  const [exporting, setExporting]     = useState(false);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -171,14 +172,14 @@ export function TransactionsClient() {
       if (error) {
         setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
         setTotalCount(prev => prev + 1);
-        toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir");
+        toast.error(tx.errorDelete);
       } else { refresh(); }
     }, 4000);
     toast({
-      title: lang === "en" ? "Transaction deleted" : "Transação excluída",
+      title: tx.deleted,
       variant: "default",
       action: {
-        label: lang === "en" ? "Undo" : "Desfazer",
+        label: tx.undo,
         onClick: () => {
           clearTimeout(timeoutId);
           setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
@@ -189,18 +190,16 @@ export function TransactionsClient() {
   }
 
   async function handleDeleteAll() {
-    const CONFIRM_WORD = lang === "en" ? "DELETE" : "APAGAR";
-    if (deleteConfirm.toUpperCase() !== CONFIRM_WORD) return;
+    if (deleteConfirm.toUpperCase() !== tx.deleteAllWord) return;
     setDeleting(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setDeleting(false); return; }
     const { error } = await supabase.from("transactions").delete().eq("user_id", user.id);
     setDeleting(false);
-    if (error) { toast.error(lang === "en" ? "Error deleting. Try again." : "Erro ao apagar. Tente novamente."); return; }
-    toast.success(lang === "en"
-      ? `${totalCount} transaction${totalCount !== 1 ? "s" : ""} deleted.`
-      : `${totalCount} transações apagadas.`);
+    if (error) { toast.error(tx.deleteAllError); return; }
+    const successMsg = totalCount === 1 ? tx.deleteAllSuccessSingle : tx.deleteAllSuccessPlural;
+    toast.success(successMsg.replace("{n}", String(totalCount)));
     setTransactions([]);
     setTotalCount(0);
     setDbOffset(PAGE_SIZE);
@@ -295,8 +294,8 @@ export function TransactionsClient() {
       notes: null, is_recurring: false, recurrence_interval: null,
     });
     setQuickLoading(false);
-    if (error) { toast.error(lang === "en" ? "Error" : "Erro ao adicionar"); return; }
-    toast.success(lang === "en" ? "Added!" : "Adicionada!");
+    if (error) { toast.error(tx.quickError); return; }
+    toast.success(tx.quickSuccess);
     setQuickTitle(""); setQuickAmount(""); setQuickCatId("__auto__");
     load(); refresh();
   }
@@ -310,37 +309,96 @@ export function TransactionsClient() {
     setDateFrom(""); setDateTo(""); setMinValue(""); setMaxValue("");
   }
 
-  function handleExportCsv() {
-    const header = lang === "en"
-      ? ["Date", "Title", "Type", "Amount", "Category"]
-      : ["Data", "Título", "Tipo", "Valor", "Categoria"];
-    const typeLabel = (t: typeof filtered[0]) =>
-      lang === "en"
-        ? (t.type === "income" ? "Income" : t.type === "saving" ? "Savings" : "Expense")
-        : (t.type === "income" ? "Receita" : t.type === "saving" ? "Poupança" : "Despesa");
-    const rows = [
-      header,
-      ...filtered.map(t => [
-        t.date,
-        `"${t.title.replace(/"/g, '""')}"`,
-        typeLabel(t),
-        t.amount.toFixed(2),
-        `"${(t.category?.name ?? "").replace(/"/g, '""')}"`,
-      ]),
-    ];
-    const csv  = rows.map(r => r.join(",")).join("\r\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `fintrack-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(
-      lang === "en"
-        ? `Exported ${filtered.length} transactions`
-        : `${filtered.length} transações exportadas`
-    );
+  async function handleExportCsv() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Resolve effective date range: custom date inputs override period pills
+      const effectiveStart = dateFrom || dateRange?.start || null;
+      const effectiveEnd   = dateTo   || dateRange?.end   || null;
+
+      // Fetch ALL matching transactions from DB in 1 000-row batches.
+      // We push every filter to the DB so we never miss records that haven't
+      // been loaded into the paginated UI yet.
+      const BATCH = 1000;
+      const allRows: Transaction[] = [];
+      let from = 0;
+      while (true) {
+        // eslint-disable-next-line prefer-const
+        let q = supabase
+          .from("transactions")
+          .select("*, category:categories(*)")
+          .eq("user_id", user.id)
+          .order("date", { ascending: false })
+          .range(from, from + BATCH - 1);
+
+        if (effectiveStart) q = q.gte("date", effectiveStart);
+        if (effectiveEnd)   q = q.lte("date", effectiveEnd);
+        if (tab !== "all")  q = q.eq("type", tab);
+        if (catFilter !== "__all__") q = q.eq("category_id", catFilter);
+        if (search) q = q.ilike("title", `%${search}%`);
+        const minV = parseFloat(minValue.replace(",", "."));
+        const maxV = parseFloat(maxValue.replace(",", "."));
+        if (!isNaN(minV) && minV > 0) q = q.gte("amount", minV);
+        if (!isNaN(maxV) && maxV > 0) q = q.lte("amount", maxV);
+
+        const { data, error } = await q;
+        if (error || !data || data.length === 0) break;
+        allRows.push(...(data as Transaction[]));
+        if (data.length < BATCH) break;
+        from += BATCH;
+      }
+
+      if (allRows.length === 0) {
+        toast.success(tx.exportSuccess.replace("{n}", "0"));
+        return;
+      }
+
+      const header = lang === "en"
+        ? ["Date", "Title", "Type", "Amount", "Category", "Notes"]
+        : ["Data", "Título", "Tipo", "Valor", "Categoria", "Notas"];
+
+      const typeLabel = (t: Transaction) => {
+        if (t.type === "income")  return lang === "en" ? "Income"   : "Receita";
+        if (t.type === "saving")  return lang === "en" ? "Savings"  : "Poupança";
+        return                           lang === "en" ? "Expense"  : "Despesa";
+      };
+
+      const csvRows = [
+        header,
+        ...allRows.map(t => {
+          const note = (t.notes ?? "")
+            .replace(/goal_id:[^\s]*/g, "")
+            .replace(/goal_withdrawal:[^\s]*/g, "")
+            .replace(/ofx:[^\s]*/g, "")
+            .trim();
+          return [
+            t.date,
+            `"${t.title.replace(/"/g, '""')}"`,
+            typeLabel(t),
+            t.amount.toFixed(2),
+            `"${(t.category?.name ?? "").replace(/"/g, '""')}"`,
+            `"${note.replace(/"/g, '""')}"`,
+          ];
+        }),
+      ];
+
+      const csv  = csvRows.map(r => r.join(",")).join("\r\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `fintrack-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(tx.exportSuccess.replace("{n}", String(allRows.length)));
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -357,27 +415,30 @@ export function TransactionsClient() {
                 className="text-red-400 hover:text-red-300 hover:border-red-500/50 hover:bg-red-500/10"
                 onClick={() => { setDeleteConfirm(""); setDeleteAllOpen(true); }}
               >
-                <Trash2 size={14} /> {lang === "en" ? "Delete all" : "Apagar tudo"}
+                <Trash2 size={14} /> {tx.deleteAll}
               </Button>
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                <Upload size={14} /> Extrato
+                <Upload size={14} /> {tx.importStatement}
               </Button>
               <Button variant="outline" size="sm" onClick={() => setRecurringOpen(true)}>
-                <RefreshCw size={14} /> {lang === "en" ? "Recurring" : "Recorrentes"}
+                <RefreshCw size={14} /> {tx.recurringBtn}
               </Button>
               <Button
                 variant="outline" size="sm"
                 onClick={handleExportCsv}
-                disabled={filtered.length === 0}
-                title={lang === "en" ? `Export ${filtered.length} transactions as CSV` : `Exportar ${filtered.length} transações em CSV`}
+                disabled={filtered.length === 0 || exporting}
+                title={tx.exportTooltip.replace("{n}", String(filtered.length))}
               >
-                <Download size={14} /> CSV
+                {exporting
+                  ? <RefreshCw size={14} className="animate-spin" />
+                  : <Download size={14} />
+                } CSV
               </Button>
               <Button
                 variant={quickOpen ? "default" : "outline"} size="sm"
                 onClick={() => setQuickOpen(v => !v)}
               >
-                <Zap size={14} /> {lang === "en" ? "Quick" : "Rápido"}
+                <Zap size={14} /> {tx.quick}
               </Button>
             </div>
 
@@ -391,23 +452,23 @@ export function TransactionsClient() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                    <Upload size={14} className="mr-2" /> {lang === "en" ? "Import Statement" : "Importar Extrato"}
+                    <Upload size={14} className="mr-2" /> {tx.importStatement}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setRecurringOpen(true)}>
-                    <RefreshCw size={14} className="mr-2" /> {lang === "en" ? "Recurring" : "Recorrentes"}
+                    <RefreshCw size={14} className="mr-2" /> {tx.recurringBtn}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setQuickOpen(v => !v)}>
-                    <Zap size={14} className="mr-2" /> {lang === "en" ? "Quick add" : "Rápido"}
+                    <Zap size={14} className="mr-2" /> {tx.quick}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportCsv} disabled={filtered.length === 0}>
-                    <Download size={14} className="mr-2" /> {lang === "en" ? `Export CSV (${filtered.length})` : `Exportar CSV (${filtered.length})`}
+                  <DropdownMenuItem onClick={handleExportCsv} disabled={filtered.length === 0 || exporting}>
+                    <Download size={14} className="mr-2" /> {tx.exportCsvMobile.replace("{n}", String(filtered.length))}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-red-400 focus:text-red-400"
                     onClick={() => { setDeleteConfirm(""); setDeleteAllOpen(true); }}
                   >
-                    <Trash2 size={14} className="mr-2" /> {lang === "en" ? "Delete all" : "Apagar tudo"}
+                    <Trash2 size={14} className="mr-2" /> {tx.deleteAll}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -426,9 +487,9 @@ export function TransactionsClient() {
         <div className="glass-card p-3 space-y-2">
           <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
             <Zap size={12} className="text-primary" />
-            {lang === "en" ? "Quick add — Enter to save" : "Adicionar rápido — Enter para salvar"}
+            {tx.quickAddHint}
             <span className="ml-auto text-muted-foreground font-normal hidden sm:inline">
-              {lang === "en" ? "press N to toggle" : "tecla N para fechar"}
+              {tx.quickAddToggle}
             </span>
           </p>
           <div className="flex flex-wrap gap-2 items-start">
@@ -436,16 +497,16 @@ export function TransactionsClient() {
               <button onClick={() => { setQuickType("expense"); setQuickCatId("__auto__"); }}
                 className={cn("px-3 py-1.5 transition-colors", quickType === "expense"
                   ? "bg-red-500/20 text-red-400 font-medium" : "text-muted-foreground hover:text-foreground")}>
-                − {lang === "en" ? "Expense" : "Despesa"}
+                − {common.expense}
               </button>
               <button onClick={() => { setQuickType("income"); setQuickCatId("__auto__"); }}
                 className={cn("px-3 py-1.5 transition-colors", quickType === "income"
                   ? "bg-emerald-500/20 text-emerald-400 font-medium" : "text-muted-foreground hover:text-foreground")}>
-                + {lang === "en" ? "Income" : "Receita"}
+                + {common.income}
               </button>
             </div>
             <Input className="flex-1 min-w-32 h-8 text-sm"
-              placeholder={lang === "en" ? "Description" : "Descrição"}
+              placeholder={tx.quickDesc}
               value={quickTitle} onChange={e => setQuickTitle(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleQuickAdd()} autoFocus />
             <Input className="w-28 h-8 text-sm" placeholder={lang === "en" ? "0.00" : "0,00"} inputMode="decimal"
@@ -456,7 +517,7 @@ export function TransactionsClient() {
                 <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__auto__" className="text-xs">
-                    {lang === "en" ? "Auto-detect" : "Auto-detectar"}
+                    {tx.autoDetect}
                   </SelectItem>
                   {categories.filter(c => c.type === quickType).map(c => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
@@ -470,7 +531,7 @@ export function TransactionsClient() {
               )}
             </div>
             <Button size="sm" className="h-8" onClick={handleQuickAdd} disabled={quickLoading}>
-              {quickLoading ? <RefreshCw size={13} className="animate-spin" /> : lang === "en" ? "Add" : "Adicionar"}
+              {quickLoading ? <RefreshCw size={13} className="animate-spin" /> : common.add}
             </Button>
           </div>
         </div>
@@ -510,7 +571,7 @@ export function TransactionsClient() {
             className={cn("shrink-0 h-9", activeFilters > 0 && "border-primary text-primary")}
           >
             <SlidersHorizontal size={14} />
-            <span className="hidden sm:inline ml-1">{lang === "en" ? "Filters" : "Filtros"}</span>
+            <span className="hidden sm:inline ml-1">{tx.filtersBtn}</span>
             {activeFilters > 0 && (
               <span className="ml-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                 {activeFilters}
@@ -554,11 +615,11 @@ export function TransactionsClient() {
             <div className="flex flex-wrap items-center gap-2">
               <Select value={catFilter} onValueChange={setCatFilter}>
                 <SelectTrigger className="h-7 text-xs w-44">
-                  <SelectValue placeholder={lang === "en" ? "All categories" : "Todas as categorias"} />
+                  <SelectValue placeholder={tx.allCategories} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__" className="text-xs">
-                    {lang === "en" ? "All categories" : "Todas as categorias"}
+                    {tx.allCategories}
                   </SelectItem>
                   {categories.map(c => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
@@ -636,18 +697,19 @@ export function TransactionsClient() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">
-                  {lang === "en"
-                    ? `No transactions in "${PERIODS.find(p => p.value === period)?.labelEn ?? "this period"}"`
-                    : `Nenhuma transação em "${PERIODS.find(p => p.value === period)?.label ?? "este período"}"`}
+                  {tx.noInPeriod.replace("{period}",
+                    lang === "en"
+                      ? (PERIODS.find(p => p.value === period)?.labelEn ?? "this period")
+                      : (PERIODS.find(p => p.value === period)?.label  ?? "este período")
+                  )}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1.5">
-                  {lang === "en"
-                    ? `You have ${totalCount} transaction${totalCount !== 1 ? "s" : ""} in other periods`
-                    : `Você tem ${totalCount} transação${totalCount !== 1 ? "ões" : ""} em outros períodos`}
+                  {(totalCount === 1 ? tx.otherPeriodsSingle : tx.otherPeriodsPlural)
+                    .replace("{n}", String(totalCount))}
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={() => setPeriod("all")}>
-                {lang === "en" ? "View all transactions" : "Ver todas as transações"}
+                {tx.viewAllTransactions}
               </Button>
             </div>
           ) : (() => {
@@ -655,15 +717,15 @@ export function TransactionsClient() {
               return (
                 <EmptyState
                   icon={hasFilters ? Search : ArrowLeftRight}
-                  title={hasFilters ? (lang === "en" ? "No results" : "Nenhum resultado") : tx.empty}
+                  title={hasFilters ? tx.noResultsTitle : tx.empty}
                   description={
-                    search ? `${lang === "en" ? "No transactions matching" : "Nenhuma transação com"} "${search}"`
-                    : hasFilters ? (lang === "en" ? "Try changing the filters above." : "Tente mudar os filtros acima.")
+                    search ? `${tx.noMatchingSearch} "${search}"`
+                    : hasFilters ? tx.noResultsDesc
                     : tx.emptyDesc
                   }
                   action={
                     hasFilters
-                      ? <Button size="sm" variant="outline" onClick={clearFilters}><X size={14} /> {lang === "en" ? "Clear filters" : "Limpar filtros"}</Button>
+                      ? <Button size="sm" variant="outline" onClick={clearFilters}><X size={14} /> {tx.filters.clearAll}</Button>
                       : <Button size="sm" onClick={() => { setEditTx(null); setDialogOpen(true); }}><Plus size={15} /> {tx.add}</Button>
                   }
                 />
@@ -682,7 +744,7 @@ export function TransactionsClient() {
                         {formatGroupDate(dateKey, lang)}
                       </span>
                       <span className="text-xs text-muted-foreground/50">
-                        {rows.length} {rows.length === 1 ? (lang === "en" ? "transaction" : "transação") : (lang === "en" ? "transactions" : "transações")}
+                        {rows.length} {rows.length === 1 ? tx.txSingular : tx.txPlural}
                       </span>
                       {/* Only show group total for 2+ transactions — with 1 tx
                           the total is the same number as the row, which looks
@@ -758,7 +820,7 @@ export function TransactionsClient() {
                             <button
                               onClick={() => setInlineCatTxId(t.id)}
                               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                              title={lang === "en" ? "Click to change category" : "Clique para mudar categoria"}
+                              title={tx.changeCategory}
                             >
                               {/* Category color dot */}
                               {t.category?.color ? (
@@ -770,7 +832,7 @@ export function TransactionsClient() {
                                 <span className="h-2 w-2 rounded-full shrink-0 bg-muted-foreground/30" />
                               )}
                               <span className={cn(!t.category?.name && "italic opacity-50")}>
-                                {t.category?.name ?? (lang === "en" ? "No category" : "Sem categoria")}
+                                {t.category?.name ?? common.noCategory}
                               </span>
                             </button>
                           )}
@@ -829,7 +891,7 @@ export function TransactionsClient() {
             className="min-w-32"
           >
             {loadingMore
-              ? <><RefreshCw size={13} className="animate-spin" /> {lang === "en" ? "Loading..." : "Carregando..."}</>
+              ? <><RefreshCw size={13} className="animate-spin" /> {tx.loadingMoreBtn}</>
               : <>{tx.loadMore} ({totalCount - transactions.length} {tx.loadMoreCount})</>}
           </Button>
         </div>
@@ -837,11 +899,11 @@ export function TransactionsClient() {
 
       {!loading && filtered.length > 0 && (
         <p className="text-xs text-muted-foreground text-center">
-          {filtered.length} {lang === "en" ? "transactions" : "transações"}
-          {activeFilters > 0 || search ? (lang === "en" ? " matching filters" : " com filtros ativos") : ""}
+          {filtered.length} {tx.txPlural}
+          {activeFilters > 0 || search ? ` ${tx.matchingFilters}` : ""}
           {transactions.length < totalCount && (
             <span className="ml-1 text-amber-400/70">
-              {lang === "en" ? `(of ${transactions.length} loaded)` : `(de ${transactions.length} carregadas)`}
+              {tx.ofLoaded.replace("{n}", String(transactions.length))}
             </span>
           )}
         </p>
@@ -862,48 +924,40 @@ export function TransactionsClient() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-400">
-              <AlertTriangle size={18} /> {lang === "en" ? "Delete all transactions" : "Apagar todas as transações"}
+              <AlertTriangle size={18} /> {tx.deleteAllTitle}
             </DialogTitle>
           </DialogHeader>
           <div className="px-6 pb-2 space-y-4">
             <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4 space-y-1">
-              <p className="text-sm font-semibold text-red-400">
-                {lang === "en" ? "This action cannot be undone." : "Esta ação não pode ser desfeita."}
-              </p>
+              <p className="text-sm font-semibold text-red-400">{tx.deleteAllCannotUndo}</p>
               <p className="text-xs text-muted-foreground">
-                {lang === "en"
-                  ? `All ${totalCount} transactions will be permanently deleted.`
-                  : `Todas as ${totalCount} transações serão apagadas permanentemente.`}
+                {tx.deleteAllCountMsg.replace("{n}", String(totalCount))}
               </p>
             </div>
             <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">
-                {lang === "en" ? 'Type ' : 'Digite '}
-                <span className="font-mono font-bold text-foreground">{lang === "en" ? "DELETE" : "APAGAR"}</span>
-                {lang === "en" ? ' to confirm:' : ' para confirmar:'}
-              </p>
+              <p className="text-xs text-muted-foreground">{tx.deleteAllConfirmLabel}</p>
               <input
                 type="text"
                 value={deleteConfirm}
                 onChange={e => setDeleteConfirm(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleDeleteAll()}
-                placeholder={lang === "en" ? "DELETE" : "APAGAR"}
+                placeholder={tx.deleteAllWord}
                 className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500/60"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDeleteAllOpen(false); setDeleteConfirm(""); }}>
-              {lang === "en" ? "Cancel" : "Cancelar"}
+              {common.cancel}
             </Button>
             <Button
               onClick={handleDeleteAll}
-              disabled={deleteConfirm.toUpperCase() !== (lang === "en" ? "DELETE" : "APAGAR") || deleting}
+              disabled={deleteConfirm.toUpperCase() !== tx.deleteAllWord || deleting}
               className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
             >
               {deleting
-                ? <><RefreshCw size={13} className="animate-spin" /> {lang === "en" ? "Deleting..." : "Apagando..."}</>
-                : <><Trash2 size={14} /> {lang === "en" ? `Delete ${totalCount}` : `Apagar ${totalCount}`}</>}
+                ? <><RefreshCw size={13} className="animate-spin" /> {tx.deletingBtn}</>
+                : <><Trash2 size={14} /> {tx.deleteConfirmBtn.replace("{n}", String(totalCount))}</>}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,8 +1,18 @@
 -- =========================================================
--- FinTrack – Consolidated Schema (v1.0)
--- Run this file ONCE on a fresh Supabase project.
--- Existing installs should run individual migration files
--- (001 → 005) in order via the Supabase SQL Editor.
+-- FinTrack – Consolidated Schema (v1.1)
+--
+-- NEW INSTALL: run THIS file once via Supabase SQL Editor.
+--   It creates all tables, RLS policies, indexes, triggers
+--   and RPC functions in one shot.
+--
+-- EXISTING INSTALL (already ran 001–004): run ONLY:
+--   005_rpc_functions.sql
+--   (adds get_all_time_totals + get_monthly_stats; safe to
+--    re-run — uses CREATE OR REPLACE)
+--
+-- The dashboard falls back to direct queries if the RPCs are
+-- missing, so skipping 005 degrades performance but never
+-- breaks the UI.
 -- =========================================================
 
 -- ── Extensions ──────────────────────────────────────────
