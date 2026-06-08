@@ -999,8 +999,20 @@ export function TransactionsClient() {
         transaction={editTx} categories={categories}
         onSuccess={() => { setDialogOpen(false); load(); refresh(); }} />
 
-      <CsvImportDialog open={importOpen} onOpenChange={setImportOpen}
-        categories={categories} onSuccess={() => { load(); refresh(); setPeriod("all"); }} />
+      <CsvImportDialog
+        open={importOpen}
+        onOpenChange={(v) => {
+          setImportOpen(v);
+          // Re-fetch when dialog closes so the list reflects server-side inserts.
+          // Called here (not just in onSuccess) because onSuccess fires while the
+          // dialog is still mounted; any silent load() failure there would leave
+          // the list stale.  By the time the user dismisses the dialog the async
+          // fetch has had time to settle.
+          if (!v) { load(); refresh(); }
+        }}
+        categories={categories}
+        onSuccess={() => { load(); refresh(); setPeriod("all"); }}
+      />
 
       <RecurringManagerDialog open={recurringOpen} onOpenChange={setRecurringOpen}
         categories={categories} onSuccess={() => { load(); refresh(); }} />
