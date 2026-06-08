@@ -85,12 +85,50 @@ export function SettingsClient() {
     if (!user) return;
     const parsedBalance = parseFloat(initialBalance.replace(",", "."));
     const balanceVal = isNaN(parsedBalance) || initialBalance.trim() === "" ? 0 : parsedBalance;
+
+    // Attempt 1: save everything including initial_balance
     const { error } = await supabase
       .from("profiles")
       .update({ name: data.name, currency, initial_balance: balanceVal })
       .eq("id", user.id);
-    if (error) { toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil"); return; }
-    toast.success(tx.profileUpdated);
+
+    if (!error) {
+      toast.success(tx.profileUpdated);
+      return;
+    }
+
+    // PostgreSQL error code 42703 = "undefined_column".
+    // Supabase surfaces it as error.code or via the message text.
+    // This happens when the user hasn't run migration 004_initial_balance.sql yet.
+    const isMissingColumn =
+      error.code === "42703" ||
+      (error.message ?? "").toLowerCase().includes("initial_balance") ||
+      (error.message ?? "").toLowerCase().includes("column");
+
+    if (isMissingColumn) {
+      // Attempt 2: save without initial_balance so name / currency still persist
+      const { error: error2 } = await supabase
+        .from("profiles")
+        .update({ name: data.name, currency })
+        .eq("id", user.id);
+
+      if (error2) {
+        toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil");
+        return;
+      }
+
+      // Partial success: name + currency saved; balance column not available yet
+      toast.warning(
+        lang === "en" ? "Profile saved (balance not applied)" : "Perfil salvo (saldo não aplicado)",
+        lang === "en"
+          ? "Run migration 004_initial_balance.sql in Supabase SQL Editor to enable Initial Balance."
+          : "Execute a migration 004_initial_balance.sql no Supabase SQL Editor para habilitar o Saldo Inicial."
+      );
+      return;
+    }
+
+    // Any other error
+    toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil");
   }
 
   async function onChangePassword(data: PasswordData) {

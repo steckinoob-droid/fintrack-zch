@@ -1,28 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!--
-    FinTrack favicon — matches the site logo:
-      • Dark navy background  (#0A0E1A)
-      • Emerald gradient rounded square  (#10B981 → #059669)
-      • White TrendingUp arrow  (Lucide icon, stroke-width proportional)
+    FinTrack favicon — brand emerald background + white TrendingUp arrow.
+    background_color in manifest.json matches this green (#10B981) so the
+    Android adaptive icon looks "filled" rather than showing a black square.
 
     Geometry mirrors generate-pwa-icons.mjs (size=512, non-maskable):
-      squareSide = round(512 * 0.73) = 374,  radius = round(374 * 0.22) = 82
-      arrowSz    = round(512 * 0.47) = 241,  sc = 241/24 ≈ 10.04
-      origin     = (256 - 241/2, 256 - 241/2) = (135.5, 135.5)
-      sw         = round(10.04 * 2.8) = 28
+      arrowSz = round(512 * 0.47) = 241,  sc = 241/24 ≈ 10.04
+      origin  = (256 - 241/2, 256 - 241/2) = (135.5, 135.5)
+      sw      = round(10.04 * 2.8) = 28
   -->
-  <defs>
-    <linearGradient id="sq-grad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#10B981"/>
-      <stop offset="100%" stop-color="#059669"/>
-    </linearGradient>
-  </defs>
 
-  <!-- Background -->
-  <rect width="512" height="512" fill="#0A0E1A"/>
-
-  <!-- Emerald rounded square (73 % of canvas, r ≈ 22 % of side) -->
-  <rect x="69" y="69" width="374" height="374" rx="82" fill="url(#sq-grad)"/>
+  <!-- Emerald green background -->
+  <rect width="512" height="512" fill="#10B981"/>
 
   <!-- TrendingUp — arrow indicator: M16 7 H22 V13 -->
   <polyline

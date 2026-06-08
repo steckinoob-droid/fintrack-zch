@@ -2,9 +2,9 @@
 /**
  * scripts/generate-pwa-icons.mjs
  *
- * Generates four static PNG icons that MATCH the FinTrack site logo:
- *   • Dark navy background  (#0A0E1A)
- *   • Emerald gradient rounded square  (#10B981 → #059669, like bg-gradient-to-br from-emerald-500 to-emerald-600)
+ * Generates four static PNG icons for the FinTrack PWA:
+ *   • Solid emerald background  (#10B981) — matches manifest background_color so Android
+ *     shows a "filled" icon instead of a dark square on the home screen
  *   • White TrendingUp arrow  (Lucide icon, stroke-width 2.5, stroke-linecap round)
  *
  * Output → public/
@@ -132,6 +132,10 @@ function drawLine(buf, size, x1, y1, x2, y2, sw, r, g, b) {
 /**
  * Renders the FinTrack icon to an RGB pixel buffer.
  *
+ * Design: solid emerald (#10B981) background + white TrendingUp arrow.
+ * The background matches manifest.json background_color so Android shows a
+ * "filled" icon instead of a dark square.
+ *
  * @param {number}  size      Canvas size (192 or 512).
  * @param {boolean} maskable  If true, keep visual content inside the 80% safe zone.
  */
@@ -140,32 +144,12 @@ function drawIcon(size, maskable = false) {
   const cx  = size / 2;
   const cy  = size / 2;
 
-  // ── 1. Background fill (#0A0E1A) ────────────────────────────────────────────
-  buf.fill(0);
+  // ── 1. Background fill (#10B981 — emerald-500) ──────────────────────────────
   for (let i = 0; i < size * size; i++) {
-    buf[i*3] = 10; buf[i*3+1] = 14; buf[i*3+2] = 26;
+    buf[i*3] = 16; buf[i*3+1] = 185; buf[i*3+2] = 129;
   }
 
-  // ── 2. Emerald gradient rounded square ──────────────────────────────────────
-  // Non-maskable: 73% of canvas.  Maskable: 56% (fits within 80% safe zone).
-  const sqSide   = Math.round(size * (maskable ? 0.56 : 0.73));
-  const sqRadius = Math.round(sqSide * 0.22); // proportional to Tailwind rounded-xl
-  const sqTop    = cy - sqSide / 2;
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (!inRRect(x, y, cx, cy, sqSide, sqRadius)) continue;
-      // Vertical gradient: #10B981 (emerald-500) → #059669 (emerald-600)
-      const t = Math.max(0, Math.min(1, (y + 0.5 - sqTop) / sqSide));
-      setPx(buf, size, x, y,
-        Math.round(16  + (5   - 16 ) * t),   // R
-        Math.round(185 + (150 - 185) * t),    // G
-        Math.round(129 + (105 - 129) * t),    // B
-      );
-    }
-  }
-
-  // ── 3. White TrendingUp arrow (Lucide, 24×24 viewbox) ───────────────────────
+  // ── 2. White TrendingUp arrow (Lucide, 24×24 viewbox) ───────────────────────
   // The icon spans (2,7)→(22,17) — visual center (12,12) = viewbox center ✓
   //
   // Path 1 — arrow indicator: (16,7)→(22,7)→(22,13)
