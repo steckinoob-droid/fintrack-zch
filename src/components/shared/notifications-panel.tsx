@@ -296,7 +296,7 @@ export function NotificationsPanel() {
 
             {/* Sheet */}
             <div
-              className="fixed inset-x-0 bottom-0 z-[81] flex flex-col bg-card border-t border-border/50 rounded-t-2xl shadow-2xl animate-slide-up"
+              className="fixed inset-x-0 bottom-0 z-[81] flex flex-col bg-card border-t border-border/50 rounded-t-2xl shadow-2xl animate-sheet-up"
               style={{ maxHeight: "min(85svh, 560px)" }}
             >
               {/* Drag handle */}
