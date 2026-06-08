@@ -231,10 +231,12 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.get_monthly_stats(UUID) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.get_monthly_stats(UUID) TO authenticated;
 
--- ── Billing: Phase 1 ─────────────────────────────────────
+-- ── Billing: Phase 1 + Phase 2 prep ──────────────────────────
 -- Observation-only — no features gated, no Mercado Pago wiring.
 -- 006_billing.sql handles back-filling existing users; on a fresh
 -- install the trigger below covers all new signups from day one.
+-- 007_billing_phase2_prep.sql adds subscriptions columns,
+-- billing_payments table, and get_my_plan().
 
 -- Plans catalog
 CREATE TABLE IF NOT EXISTS public.plans (
@@ -246,17 +248,27 @@ CREATE TABLE IF NOT EXISTS public.plans (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- One subscription row per user (status tracks lifecycle)
+-- One subscription row per user (current state; history in billing_payments)
+-- UNIQUE(user_id) is the Phase 1/2 invariant — never remove.
 CREATE TABLE IF NOT EXISTS public.subscriptions (
   id                   UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id              UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   plan_id              TEXT        NOT NULL REFERENCES public.plans(id),
-  status               TEXT        NOT NULL DEFAULT 'active',
+  status               TEXT        NOT NULL DEFAULT 'active'
+                         CONSTRAINT subscriptions_status_check
+                         CHECK (status IN (
+                           'active', 'canceled', 'past_due', 'trialing',
+                           'incomplete', 'paused', 'unpaid'
+                         )),
   provider             TEXT        NOT NULL DEFAULT 'internal',
   provider_sub_id      TEXT,
   current_period_start TIMESTAMPTZ,
   current_period_end   TIMESTAMPTZ,
   canceled_at          TIMESTAMPTZ,
+  mp_subscription_id   TEXT,
+  mp_customer_id       TEXT,
+  cancel_reason        TEXT,
+  trial_end            TIMESTAMPTZ,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (user_id)
@@ -289,6 +301,26 @@ CREATE TABLE IF NOT EXISTS public.webhook_events (
   UNIQUE (provider, event_id)
 );
 
+-- Payment history — one row per charge attempt (immutable audit log)
+-- subscription_id and plan_id are nullable to support one-off charges.
+CREATE TABLE IF NOT EXISTS public.billing_payments (
+  id               UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id          UUID          NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  subscription_id  UUID          REFERENCES public.subscriptions(id) ON DELETE SET NULL,
+  mp_payment_id    TEXT,
+  mp_preference_id TEXT,
+  amount           NUMERIC(12,2) NOT NULL,
+  currency         TEXT          NOT NULL DEFAULT 'BRL',
+  status           TEXT          NOT NULL DEFAULT 'pending',
+  payment_method   TEXT,
+  payment_type     TEXT,
+  plan_id          TEXT          REFERENCES public.plans(id),
+  period_start     TIMESTAMPTZ,
+  period_end       TIMESTAMPTZ,
+  raw_webhook      JSONB         NOT NULL DEFAULT '{}',
+  created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
 -- Plan seeds
 INSERT INTO public.plans (id, name, price_cents, currency, features)
 VALUES
@@ -309,16 +341,26 @@ CREATE INDEX IF NOT EXISTS idx_plan_grants_expires
   WHERE revoked_at IS NULL AND expires_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_webhook_events_lookup
   ON public.webhook_events(provider, event_type, processed);
+CREATE INDEX IF NOT EXISTS idx_billing_payments_user
+  ON public.billing_payments(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_billing_payments_mp_payment_id
+  ON public.billing_payments(mp_payment_id)
+  WHERE mp_payment_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_billing_payments_subscription
+  ON public.billing_payments(subscription_id)
+  WHERE subscription_id IS NOT NULL;
 
 -- Billing RLS
-ALTER TABLE public.plans          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.subscriptions  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.plan_grants    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plans             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plan_grants       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_events    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.billing_payments  ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Plans are publicly readable"  ON public.plans;
-DROP POLICY IF EXISTS "Users read own subscription"  ON public.subscriptions;
-DROP POLICY IF EXISTS "Users read own active grants" ON public.plan_grants;
+DROP POLICY IF EXISTS "Plans are publicly readable"       ON public.plans;
+DROP POLICY IF EXISTS "Users read own subscription"       ON public.subscriptions;
+DROP POLICY IF EXISTS "Users read own active grants"      ON public.plan_grants;
+DROP POLICY IF EXISTS "Users read own billing payments"   ON public.billing_payments;
 
 -- plans: public read (pricing page, client-side checks)
 CREATE POLICY "Plans are publicly readable"
@@ -332,6 +374,10 @@ CREATE POLICY "Users read own subscription"
 CREATE POLICY "Users read own active grants"
   ON public.plan_grants FOR SELECT
   USING (auth.uid() = user_id AND revoked_at IS NULL);
+
+-- billing_payments: own rows only; writes via service role (webhooks)
+CREATE POLICY "Users read own billing payments"
+  ON public.billing_payments FOR SELECT USING (auth.uid() = user_id);
 
 -- webhook_events: no user policy — all authenticated access blocked;
 -- service role bypasses RLS (intentional: admin-only data).
@@ -369,6 +415,20 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.get_effective_plan(UUID) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.get_effective_plan(UUID) TO authenticated;
+
+-- get_my_plan: no-parameter client-safe wrapper around get_effective_plan.
+-- Uses auth.uid() so the caller cannot request another user's plan.
+CREATE OR REPLACE FUNCTION public.get_my_plan()
+RETURNS TEXT
+LANGUAGE sql
+SECURITY INVOKER
+STABLE
+AS $$
+  SELECT public.get_effective_plan(auth.uid());
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_my_plan() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.get_my_plan() TO authenticated;
 
 -- Trigger: free subscription for every new user.
 -- Uses a SEPARATE function/trigger from handle_new_user (profile trigger)
