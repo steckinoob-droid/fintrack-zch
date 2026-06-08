@@ -28,12 +28,13 @@ export function LoginForm() {
   const [notConfirmedEmail, setNotConfirmedEmail] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   async function onSubmit(data: FormData) {
-    // Reset not-confirmed banner on new attempt
     setNotConfirmedEmail(null);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
@@ -41,7 +42,6 @@ export function LoginForm() {
       password: data.password,
     });
     if (error) {
-      // Detect "email not confirmed" specifically — show resend option
       const isNotConfirmed =
         error.message === "Email not confirmed" ||
         error.message.toLowerCase().includes("not confirmed") ||
@@ -89,28 +89,42 @@ export function LoginForm() {
 
   return (
     <div className="space-y-3">
-      {/* Email not confirmed banner */}
+      {/* ── Email not-confirmed banner ─────────────────────────────────────── */}
       {notConfirmedEmail && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3 animate-slide-up">
-          <div className="flex items-start gap-2.5">
-            <Mail size={15} className="text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-xs leading-relaxed text-amber-300">{tx.emailNotConfirmed}</p>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 space-y-3 animate-slide-up">
+          {/* Icon + message */}
+          <div className="flex gap-3">
+            <Mail size={16} className="text-amber-400 shrink-0 mt-px" aria-hidden />
+            <p className="text-sm text-foreground/90 leading-relaxed">
+              {tx.emailNotConfirmed}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={handleResendConfirmation}
-            disabled={resending}
-            className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-60"
-          >
-            {resending
-              ? <><Loader2 size={12} className="animate-spin" /> {appT[lang].auth.register.resending}</>
-              : <><RefreshCw size={12} /> {tx.resendConfirmation}</>
-            }
-          </button>
+
+          {/* Resend action */}
+          <div className="pl-7">
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={resending}
+              className="inline-flex items-center gap-2 h-8 px-3 rounded-md
+                         border border-amber-500/25 bg-amber-500/[0.08]
+                         text-xs font-medium text-amber-400
+                         hover:bg-amber-500/[0.15] hover:border-amber-500/35 hover:text-amber-300
+                         transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {resending ? (
+                <><Loader2 size={12} className="animate-spin" /> {appT[lang].auth.register.resending}</>
+              ) : (
+                <><RefreshCw size={12} /> {tx.resendConfirmation}</>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
+      {/* ── Login form ─────────────────────────────────────────────────────── */}
       <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 space-y-4">
+        {/* Email */}
         <div className="space-y-1.5">
           <Label htmlFor="email">{tx.email}</Label>
           <Input
@@ -121,13 +135,16 @@ export function LoginForm() {
             {...register("email")}
             aria-invalid={!!errors.email}
           />
-          {errors.email && <p className="text-xs text-destructive" role="alert">{tx.email}</p>}
         </div>
 
+        {/* Password */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">{tx.password}</Label>
-            <a href="/forgot-password" className="text-xs text-primary hover:underline">
+            <a
+              href="/forgot-password"
+              className="text-xs text-primary hover:underline"
+            >
               {tx.forgotPassword}
             </a>
           </div>
@@ -152,8 +169,13 @@ export function LoginForm() {
           </div>
         </div>
 
+        {/* Submit */}
         <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? <><Loader2 size={15} className="animate-spin" /> {tx.submitting}</> : tx.submit}
+          {isSubmitting ? (
+            <><Loader2 size={15} className="animate-spin" /> {tx.submitting}</>
+          ) : (
+            tx.submit
+          )}
         </Button>
       </form>
     </div>
