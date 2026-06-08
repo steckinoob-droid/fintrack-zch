@@ -100,10 +100,19 @@ export function TransactionsClient() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    if (authErr) console.error("[load] auth error:", authErr.message);
     if (!user) { setLoading(false); return; }
-    // Generate any recurring transactions for the current month before loading
-    await generateRecurringTransactions(supabase, user.id);
+
+    // Generate any recurring transactions for the current month before loading.
+    // Wrapped in try-catch so a date-parsing or network error doesn't silently
+    // prevent the rest of load() from running (leaving loading=true forever).
+    try {
+      await generateRecurringTransactions(supabase, user.id);
+    } catch (err) {
+      console.error("[load] generateRecurringTransactions threw:", err);
+    }
+
     const [txRes, catRes] = await Promise.all([
       supabase.from("transactions")
         .select("*, category:categories(*)", { count: "exact" })
@@ -112,6 +121,17 @@ export function TransactionsClient() {
         .limit(PAGE_SIZE),
       supabase.from("categories").select("*").eq("user_id", user.id).order("name"),
     ]);
+
+    if (txRes.error) {
+      console.error("[load] transactions query error:", txRes.error.code, txRes.error.message, txRes.error.hint);
+      toast.error(lang === "en" ? "Error loading transactions. Reload the page." : "Erro ao carregar transações. Recarregue a página.");
+    } else {
+      console.log(`[load] user=${user.id.slice(0, 8)} transactions=${txRes.data?.length ?? 0} total=${txRes.count}`);
+    }
+    if (catRes.error) {
+      console.error("[load] categories query error:", catRes.error.code, catRes.error.message);
+    }
+
     setTransactions(txRes.data ?? []);
     setTotalCount(txRes.count ?? 0);
     setDbOffset(PAGE_SIZE);
@@ -185,7 +205,8 @@ export function TransactionsClient() {
       const maxV = parseFloat(maxValue.replace(",", "."));
       if (!isNaN(minV) && minV > 0)  q = q.gte("amount", minV);
       if (!isNaN(maxV) && maxV > 0)  q = q.lte("amount", maxV);
-      const { data } = await q;
+      const { data, error: totalsErr } = await q;
+      if (totalsErr) console.error("[totals] query error:", totalsErr.code, totalsErr.message);
       if (cancelled || !data) return;
       let income = 0, expense = 0;
       for (const t of data) {

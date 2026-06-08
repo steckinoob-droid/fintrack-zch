@@ -107,6 +107,8 @@ export async function POST(request: Request) {
   // Service-role client for all DB operations (bypasses RLS stale-JWT issues)
   const admin = createAdminClient();
 
+  console.log(`[import] received user=${user.id.slice(0, 8)} rows=${rows.length} fileMode=${fileMode} force=${force}`);
+
   // Safety: skip zero-amount rows (DB has CHECK amount > 0)
   let newOnly = rows.filter(r => r.amount > 0);
   let skipped = 0;
@@ -190,16 +192,32 @@ export async function POST(request: Request) {
   }));
 
   // 5. Insert via service role
+  console.log(`[import] inserting user=${user.id.slice(0, 8)} count=${payload.length} fileMode=${fileMode}`);
   const { error: insertError } = await admin.from("transactions").insert(payload);
 
   if (insertError) {
-    console.error("[import-api] Insert failed:", {
+    console.error("[import] insert FAILED:", {
       code:    insertError.code,
       message: insertError.message,
       details: insertError.details,
       hint:    insertError.hint,
     });
     return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  // 6. Verify the inserted rows are visible via service role (sanity check)
+  const datesSorted = payload.map(r => r.date).sort();
+  const { count: verifiedCount, error: verifyErr } = await admin
+    .from("transactions")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("date", datesSorted[0])
+    .lte("date", datesSorted[datesSorted.length - 1]);
+
+  if (verifyErr) {
+    console.error("[import] post-insert verify failed:", verifyErr.message);
+  } else {
+    console.log(`[import] done — imported=${newOnly.length} skipped=${skipped} db_visible=${verifiedCount}`);
   }
 
   return NextResponse.json({ ok: true, imported: newOnly.length, skipped, examples });
