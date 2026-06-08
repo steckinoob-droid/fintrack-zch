@@ -1,13 +1,15 @@
 -- =========================================================
--- FinTrack – Consolidated Schema (v1.1)
+-- FinTrack – Consolidated Schema (v1.2)
 --
 -- NEW INSTALL: run THIS file once via Supabase SQL Editor.
---   It creates all tables, RLS policies, indexes, triggers
---   and RPC functions in one shot.
+--   Creates all tables, indexes, constraints, RLS policies,
+--   triggers and RPC functions in one shot — including the
+--   Phase 1 billing infrastructure.
 --
 -- EXISTING INSTALL (already ran 001–003): run in order:
 --   005_rpc_functions.sql  — get_all_time_totals + get_monthly_stats
---   006_billing.sql        — billing tables, plans, grants, get_effective_plan
+--   006_billing.sql        — billing tables, plans, grants,
+--                            get_effective_plan, back-fill
 --
 -- The dashboard falls back to direct queries if the RPCs are
 -- missing, so skipping 005 degrades performance but never
@@ -228,3 +230,165 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.get_monthly_stats(UUID) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.get_monthly_stats(UUID) TO authenticated;
+
+-- ── Billing: Phase 1 ─────────────────────────────────────
+-- Observation-only — no features gated, no Mercado Pago wiring.
+-- 006_billing.sql handles back-filling existing users; on a fresh
+-- install the trigger below covers all new signups from day one.
+
+-- Plans catalog
+CREATE TABLE IF NOT EXISTS public.plans (
+  id          TEXT        PRIMARY KEY,
+  name        TEXT        NOT NULL,
+  price_cents INT         NOT NULL DEFAULT 0,
+  currency    TEXT        NOT NULL DEFAULT 'BRL',
+  features    JSONB       NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One subscription row per user (status tracks lifecycle)
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+  id                   UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id              UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  plan_id              TEXT        NOT NULL REFERENCES public.plans(id),
+  status               TEXT        NOT NULL DEFAULT 'active',
+  provider             TEXT        NOT NULL DEFAULT 'internal',
+  provider_sub_id      TEXT,
+  current_period_start TIMESTAMPTZ,
+  current_period_end   TIMESTAMPTZ,
+  canceled_at          TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id)
+);
+
+-- Admin-issued grants (legacy transitions, promos, overrides)
+CREATE TABLE IF NOT EXISTS public.plan_grants (
+  id         UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  plan_id    TEXT        NOT NULL REFERENCES public.plans(id),
+  reason     TEXT        NOT NULL,
+  granted_by TEXT        NOT NULL DEFAULT 'system',
+  granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Idempotent payment event log
+CREATE TABLE IF NOT EXISTS public.webhook_events (
+  id           UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  provider     TEXT        NOT NULL,
+  event_type   TEXT        NOT NULL,
+  event_id     TEXT        NOT NULL,
+  payload      JSONB       NOT NULL DEFAULT '{}',
+  processed    BOOLEAN     NOT NULL DEFAULT FALSE,
+  processed_at TIMESTAMPTZ,
+  error        TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (provider, event_id)
+);
+
+-- Plan seeds
+INSERT INTO public.plans (id, name, price_cents, currency, features)
+VALUES
+  ('free', 'Free', 0,    'BRL', '{"highlight": false}'),
+  ('pro',  'Pro',  1990, 'BRL', '{"highlight": true}')
+ON CONFLICT (id) DO NOTHING;
+
+-- Billing indexes
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user
+  ON public.subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status
+  ON public.subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_plan_grants_user_active
+  ON public.plan_grants(user_id, granted_at DESC)
+  WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_plan_grants_expires
+  ON public.plan_grants(expires_at)
+  WHERE revoked_at IS NULL AND expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_webhook_events_lookup
+  ON public.webhook_events(provider, event_type, processed);
+
+-- Billing RLS
+ALTER TABLE public.plans          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plan_grants    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Plans are publicly readable"  ON public.plans;
+DROP POLICY IF EXISTS "Users read own subscription"  ON public.subscriptions;
+DROP POLICY IF EXISTS "Users read own active grants" ON public.plan_grants;
+
+-- plans: public read (pricing page, client-side checks)
+CREATE POLICY "Plans are publicly readable"
+  ON public.plans FOR SELECT USING (true);
+
+-- subscriptions: own row only; writes via service role / trigger
+CREATE POLICY "Users read own subscription"
+  ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
+
+-- plan_grants: own non-revoked grants only
+CREATE POLICY "Users read own active grants"
+  ON public.plan_grants FOR SELECT
+  USING (auth.uid() = user_id AND revoked_at IS NULL);
+
+-- webhook_events: no user policy — all authenticated access blocked;
+-- service role bypasses RLS (intentional: admin-only data).
+
+-- get_effective_plan: priority → grant → paid subscription → 'free'
+CREATE OR REPLACE FUNCTION public.get_effective_plan(p_user_id UUID)
+RETURNS TEXT
+LANGUAGE sql
+SECURITY INVOKER
+STABLE
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT g.plan_id
+      FROM   public.plan_grants g
+      WHERE  g.user_id    = p_user_id
+        AND  g.revoked_at IS NULL
+        AND  (g.expires_at IS NULL OR g.expires_at > NOW())
+      ORDER  BY g.granted_at DESC
+      LIMIT  1
+    ),
+    (
+      SELECT s.plan_id
+      FROM   public.subscriptions s
+      WHERE  s.user_id   = p_user_id
+        AND  s.status    = 'active'
+        AND  s.plan_id  <> 'free'
+        AND  (s.current_period_end IS NULL OR s.current_period_end > NOW())
+      ORDER  BY s.created_at DESC
+      LIMIT  1
+    ),
+    'free'
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_effective_plan(UUID) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.get_effective_plan(UUID) TO authenticated;
+
+-- Trigger: free subscription for every new user.
+-- Uses a SEPARATE function/trigger from handle_new_user (profile trigger)
+-- so the two never interfere.  PostgreSQL fires triggers alphabetically:
+--   on_auth_user_created             → profile
+--   on_auth_user_created_subscription → subscription
+CREATE OR REPLACE FUNCTION public.handle_new_user_subscription()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO public.subscriptions (user_id, plan_id, status, provider)
+  VALUES (NEW.id, 'free', 'active', 'internal')
+  ON CONFLICT (user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created_subscription ON auth.users;
+CREATE TRIGGER on_auth_user_created_subscription
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_subscription();
