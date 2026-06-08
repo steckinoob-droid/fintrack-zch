@@ -2,22 +2,24 @@
 /**
  * scripts/generate-pwa-icons.mjs
  *
- * Generates four static PNG icons for the PWA manifest.
- * Pure Node.js — zero external dependencies (uses only zlib + fs built-ins).
+ * Generates four static PNG icons that MATCH the FinTrack site logo:
+ *   • Dark navy background  (#0A0E1A)
+ *   • Emerald gradient rounded square  (#10B981 → #059669, like bg-gradient-to-br from-emerald-500 to-emerald-600)
+ *   • White TrendingUp arrow  (Lucide icon, stroke-width 2.5, stroke-linecap round)
  *
  * Output → public/
  *   icon-192.png           192×192  purpose: any
  *   icon-512.png           512×512  purpose: any
- *   icon-maskable-192.png  192×192  purpose: maskable  (safe-zone design)
- *   icon-maskable-512.png  512×512  purpose: maskable  (safe-zone design)
+ *   icon-maskable-192.png  192×192  purpose: maskable  (content within 80% safe zone)
+ *   icon-maskable-512.png  512×512  purpose: maskable  (content within 80% safe zone)
  *
- * Design: dark background (#0A0E1A) + green circle (#10B981) + white "F"
+ * Pure Node.js — zero external dependencies (only zlib + fs built-ins).
  */
 
-import { deflateSync }        from 'zlib';
+import { deflateSync }              from 'zlib';
 import { writeFileSync, mkdirSync } from 'fs';
-import { fileURLToPath }      from 'url';
-import path                   from 'path';
+import { fileURLToPath }            from 'url';
+import path                         from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC    = path.resolve(__dirname, '..', 'public');
@@ -47,30 +49,22 @@ function makeChunk(type, data) {
   return Buffer.concat([len, tp, data, crcv]);
 }
 
-// ── PNG writer — accepts RGB Uint8Array ────────────────────────────────────────
-function writePng(pixels, width, height, filePath) {
-  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); // PNG magic bytes
-
+// ── PNG writer (RGB, no alpha) ────────────────────────────────────────────────
+function writePng(pixels, size, filePath) {
+  const sig  = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   const ihdr = Buffer.allocUnsafe(13);
-  ihdr.writeUInt32BE(width,  0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8]  = 8; // bit depth: 8
-  ihdr[9]  = 2; // color type: RGB truecolor
-  ihdr[10] = 0; // compression: deflate
-  ihdr[11] = 0; // filter method
-  ihdr[12] = 0; // interlace: none
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
 
-  // Scanlines: 1 filter byte (0 = None) + RGB pixels per row
-  const stride = 1 + width * 3;
-  const raw    = Buffer.allocUnsafe(height * stride);
-  for (let y = 0; y < height; y++) {
-    raw[y * stride] = 0; // filter type: None
-    for (let x = 0; x < width; x++) {
-      const src = (y * width + x) * 3;
-      const dst = y * stride + 1 + x * 3;
-      raw[dst]     = pixels[src];
-      raw[dst + 1] = pixels[src + 1];
-      raw[dst + 2] = pixels[src + 2];
+  const stride = 1 + size * 3;
+  const raw    = Buffer.allocUnsafe(size * stride);
+  for (let y = 0; y < size; y++) {
+    raw[y * stride] = 0; // filter: None
+    for (let x = 0; x < size; x++) {
+      const s = (y * size + x) * 3;
+      const d = y * stride + 1 + x * 3;
+      raw[d] = pixels[s]; raw[d+1] = pixels[s+1]; raw[d+2] = pixels[s+2];
     }
   }
 
@@ -80,86 +74,138 @@ function writePng(pixels, width, height, filePath) {
     makeChunk('IDAT', deflateSync(raw, { level: 9 })),
     makeChunk('IEND', Buffer.alloc(0)),
   ]);
-
   writeFileSync(filePath, png);
-  console.log(`  ✓ ${path.basename(filePath)}  (${width}×${height}, ${(png.length / 1024).toFixed(1)} KB)`);
+  console.log(`  ✓  ${path.basename(filePath)}  (${size}×${size}, ${(png.length / 1024).toFixed(1)} KB)`);
+}
+
+// ── Drawing helpers ────────────────────────────────────────────────────────────
+
+/** Set an RGB pixel; silently ignores out-of-bounds coords. */
+function setPx(buf, size, x, y, r, g, b) {
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || x >= size || y < 0 || y >= size) return;
+  const i = (y * size + x) * 3;
+  buf[i] = r; buf[i+1] = g; buf[i+2] = b;
+}
+
+/**
+ * Returns true if the pixel center (px+0.5, py+0.5) is inside
+ * a filled rounded rectangle centered at (cx, cy) with given side and radius.
+ */
+function inRRect(px, py, cx, cy, side, r) {
+  const l = cx - side/2, ri = cx + side/2;
+  const t = cy - side/2, b  = cy + side/2;
+  const x = px + 0.5,    y  = py + 0.5;
+  if (x < l || x > ri || y < t || y > b) return false;
+  const nearL = x < l + r,  nearR = x > ri - r;
+  const nearT = y < t + r,  nearB = y > b  - r;
+  if (nearL && nearT) return (x-(l+r))**2  + (y-(t+r))**2  <= r*r;
+  if (nearR && nearT) return (x-(ri-r))**2 + (y-(t+r))**2  <= r*r;
+  if (nearL && nearB) return (x-(l+r))**2  + (y-(b-r))**2  <= r*r;
+  if (nearR && nearB) return (x-(ri-r))**2 + (y-(b-r))**2  <= r*r;
+  return true;
+}
+
+/** Perpendicular distance from point (px,py) to segment (x1,y1)→(x2,y2), with round caps. */
+function dSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2-x1, dy = y2-y1;
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq === 0) return Math.hypot(px-x1, py-y1);
+  const t = Math.max(0, Math.min(1, ((px-x1)*dx + (py-y1)*dy) / lenSq));
+  return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
+}
+
+/** Draw a thick stroke-linecap:round line. */
+function drawLine(buf, size, x1, y1, x2, y2, sw, r, g, b) {
+  const half = sw / 2;
+  const x0 = Math.max(0,      Math.floor(Math.min(x1,x2) - half - 1));
+  const xE = Math.min(size-1, Math.ceil( Math.max(x1,x2) + half + 1));
+  const y0 = Math.max(0,      Math.floor(Math.min(y1,y2) - half - 1));
+  const yE = Math.min(size-1, Math.ceil( Math.max(y1,y2) + half + 1));
+  for (let y = y0; y <= yE; y++)
+    for (let x = x0; x <= xE; x++)
+      if (dSeg(x+.5, y+.5, x1, y1, x2, y2) <= half)
+        setPx(buf, size, x, y, r, g, b);
 }
 
 // ── Icon renderer ──────────────────────────────────────────────────────────────
-// Palette
-const BG    = [10,  14,  26 ]; // #0A0E1A — dark navy background
-const GREEN = [16,  185, 129]; // #10B981 — brand green
-const WHITE = [255, 255, 255]; // #FFFFFF — letter fill
-
 /**
- * @param {number}  size     Canvas size (192 or 512)
- * @param {boolean} maskable If true, keep visual content within the 80% safe zone
+ * Renders the FinTrack icon to an RGB pixel buffer.
+ *
+ * @param {number}  size      Canvas size (192 or 512).
+ * @param {boolean} maskable  If true, keep visual content inside the 80% safe zone.
  */
 function drawIcon(size, maskable = false) {
-  const px = new Uint8Array(size * size * 3);
-  const cx = size / 2;
-  const cy = size / 2;
+  const buf = new Uint8Array(size * size * 3);
+  const cx  = size / 2;
+  const cy  = size / 2;
 
-  // Maskable safe zone: visual content must stay within central 80%
-  // → effective radius = 40% of size.  Non-maskable can use more (36%).
-  const circleR = maskable ? size * 0.29 : size * 0.36;
-
-  // ── Step 1: fill background ────────────────────────────────────────────────
+  // ── 1. Background fill (#0A0E1A) ────────────────────────────────────────────
+  buf.fill(0);
   for (let i = 0; i < size * size; i++) {
-    px[i * 3]     = BG[0];
-    px[i * 3 + 1] = BG[1];
-    px[i * 3 + 2] = BG[2];
+    buf[i*3] = 10; buf[i*3+1] = 14; buf[i*3+2] = 26;
   }
 
-  // ── Step 2: draw green circle ──────────────────────────────────────────────
+  // ── 2. Emerald gradient rounded square ──────────────────────────────────────
+  // Non-maskable: 73% of canvas.  Maskable: 56% (fits within 80% safe zone).
+  const sqSide   = Math.round(size * (maskable ? 0.56 : 0.73));
+  const sqRadius = Math.round(sqSide * 0.22); // proportional to Tailwind rounded-xl
+  const sqTop    = cy - sqSide / 2;
+
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const dx = x + 0.5 - cx;
-      const dy = y + 0.5 - cy;
-      if (Math.sqrt(dx * dx + dy * dy) <= circleR) {
-        const i    = (y * size + x) * 3;
-        px[i]     = GREEN[0];
-        px[i + 1] = GREEN[1];
-        px[i + 2] = GREEN[2];
-      }
+      if (!inRRect(x, y, cx, cy, sqSide, sqRadius)) continue;
+      // Vertical gradient: #10B981 (emerald-500) → #059669 (emerald-600)
+      const t = Math.max(0, Math.min(1, (y + 0.5 - sqTop) / sqSide));
+      setPx(buf, size, x, y,
+        Math.round(16  + (5   - 16 ) * t),   // R
+        Math.round(185 + (150 - 185) * t),    // G
+        Math.round(129 + (105 - 129) * t),    // B
+      );
     }
   }
 
-  // ── Step 3: draw "F" letterform (3 rectangles) ────────────────────────────
-  function fillRect(x0, y0, x1, y1) {
-    for (let y = Math.round(y0); y < Math.round(y1); y++) {
-      for (let x = Math.round(x0); x < Math.round(x1); x++) {
-        if (x < 0 || x >= size || y < 0 || y >= size) continue;
-        const i    = (y * size + x) * 3;
-        px[i]     = WHITE[0];
-        px[i + 1] = WHITE[1];
-        px[i + 2] = WHITE[2];
-      }
+  // ── 3. White TrendingUp arrow (Lucide, 24×24 viewbox) ───────────────────────
+  // The icon spans (2,7)→(22,17) — visual center (12,12) = viewbox center ✓
+  //
+  // Path 1 — arrow indicator: (16,7)→(22,7)→(22,13)
+  //   M16 7h6v6
+  // Path 2 — trend line:      (22,7)→(13.5,15.5)→(8.5,10.5)→(2,17)
+  //   m22 7  -8.5 8.5  -5 -5  L2 17
+  //
+  const arrowSz = Math.round(size * (maskable ? 0.37 : 0.47));
+  const sc      = arrowSz / 24;                       // viewbox → pixel scale
+  const sw      = Math.max(2, Math.round(sc * 2.8));  // stroke width (2.5 in viewbox)
+  const ox      = cx - arrowSz / 2;                   // arrow area origin X
+  const oy      = cy - arrowSz / 2;                   // arrow area origin Y
+
+  // Map a 24×24 viewbox point to pixel coordinates
+  const p = (vx, vy) => [ox + vx * sc, oy + vy * sc];
+
+  const drawPath = (pts) => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, y1] = p(...pts[i]);
+      const [x2, y2] = p(...pts[i+1]);
+      drawLine(buf, size, x1, y1, x2, y2, sw, 255, 255, 255);
     }
-  }
+  };
 
-  const r   = circleR;
-  const sw  = r * 0.18;  // stroke width  (width of vertical bar)
-  const sh  = r * 0.145; // stroke height (height of horizontal bars)
-  // Position the F slightly left of center so it reads as centered visually
-  const fL  = cx - r * 0.26;               // left edge of vertical bar
-  const fT  = cy - r * 0.60;               // top of F
-  const fB  = cy + r * 0.60;               // bottom of F
+  // Arrow indicator (top-right corner: horizontal then vertical)
+  drawPath([[16,7],[22,7],[22,13]]);
 
-  fillRect(fL,       fT,            fL + sw,       fB);          // vertical bar
-  fillRect(fL,       fT,            fL + r * 0.68, fT + sh);     // top horizontal
-  fillRect(fL,       cy - sh * 0.7, fL + r * 0.55, cy + sh * 0.7); // middle horizontal
+  // Trend line (bottom-left to top-right, zigzag)
+  drawPath([[22,7],[13.5,15.5],[8.5,10.5],[2,17]]);
 
-  return px;
+  return buf;
 }
 
 // ── Generate all four icons ────────────────────────────────────────────────────
 console.log('Generating PWA icons…');
 mkdirSync(PUBLIC, { recursive: true });
 
-writePng(drawIcon(192, false), 192, 192, path.join(PUBLIC, 'icon-192.png'));
-writePng(drawIcon(512, false), 512, 512, path.join(PUBLIC, 'icon-512.png'));
-writePng(drawIcon(192, true),  192, 192, path.join(PUBLIC, 'icon-maskable-192.png'));
-writePng(drawIcon(512, true),  512, 512, path.join(PUBLIC, 'icon-maskable-512.png'));
+writePng(drawIcon(192, false), 192, path.join(PUBLIC, 'icon-192.png'));
+writePng(drawIcon(512, false), 512, path.join(PUBLIC, 'icon-512.png'));
+writePng(drawIcon(192, true),  192, path.join(PUBLIC, 'icon-maskable-192.png'));
+writePng(drawIcon(512, true),  512, path.join(PUBLIC, 'icon-maskable-512.png'));
 
 console.log('Done ✓');
