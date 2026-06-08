@@ -64,15 +64,43 @@ export async function POST(request: Request) {
   }
 
   // 2. Parse body
-  let body: ImportBody;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const { rows, fileMode, force } = body;
-  if (!Array.isArray(rows) || rows.length === 0) {
+  // Normalize: browser-cached JS from a previous deploy sends an array directly;
+  // current dialog sends { rows, fileMode, force }.  Handle both.
+  let rows: IncomingRow[];
+  let fileMode: "csv" | "pdf" | "ofx" = "csv";
+  let force = false;
+
+  if (Array.isArray(rawBody)) {
+    // Legacy format: array of DB-shaped rows with snake_case fields
+    rows = (rawBody as Array<Record<string, unknown>>)
+      .filter(r => typeof r.amount === "number" && Number(r.amount) > 0)
+      .map(r => {
+        const notes = (r.notes as string | null) ?? null;
+        return {
+          title:      String(r.title ?? ""),
+          amount:     Number(r.amount),
+          type:       (r.type as "income" | "expense" | "saving") ?? "expense",
+          date:       String(r.date ?? ""),
+          categoryId: String(r.category_id ?? "__none__"),
+          goalId:     notes?.startsWith("goal_id:") ? notes.slice(8) : "__none__",
+          fitId:      notes?.startsWith("ofx:") ? notes.slice(4) : undefined,
+        };
+      });
+  } else {
+    const b = rawBody as ImportBody;
+    rows     = Array.isArray(b?.rows) ? b.rows : [];
+    fileMode = (b?.fileMode ?? "csv") as "csv" | "pdf" | "ofx";
+    force    = b?.force ?? false;
+  }
+
+  if (!rows.length) {
     return NextResponse.json({ error: "empty_payload" }, { status: 400 });
   }
 
