@@ -307,6 +307,7 @@ export async function parseSantanderPDF(file: File): Promise<ParsedRow[]> {
     const desc = cleanTitle(raw);   // strips noise suffixes + CamelCase spacing
 
     if (!desc || !currentDate) return;
+    if (amount === 0) return;           // DB CHECK (amount > 0) — skip zero-value rows
     if (shouldDiscard(desc)) return;
 
     const internal = isInternal(desc);

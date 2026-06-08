@@ -342,7 +342,7 @@ export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
     // rendimentos, and some PIX types — without this they'd be silently dropped.
     const title = rawTitle.trim() || rawType.trim();
 
-    if (!date || amount === null || !title) continue;
+    if (!date || amount === null || amount === 0 || !title) continue;
 
     // Detect internal investment / savings-jar transfers
     const internal = isInternalTransfer(rawType, title);

@@ -355,7 +355,18 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       }
     }
 
-    const payload = newOnly.map(r => ({
+    // Safety guard: DB has CHECK (amount > 0). Filter before insert so a single
+    // zero-value row (e.g. fee waiver, reversed charge) doesn't abort the batch.
+    const toInsert = newOnly.filter(r => r.amount > 0);
+    if (!toInsert.length) {
+      setImporting(false);
+      setImportResult({ imported: 0, skipped, examples });
+      setStep("result");
+      onSuccess();
+      return;
+    }
+
+    const payload = toInsert.map(r => ({
       user_id: user.id,
       title: r.title,
       amount: r.amount,
@@ -383,7 +394,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       return;
     }
 
-    setImportResult({ imported: newOnly.length, skipped, examples });
+    setImportResult({ imported: toInsert.length, skipped, examples });
     setStep("result");
     onSuccess();
   }
