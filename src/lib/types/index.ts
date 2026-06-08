@@ -86,3 +86,46 @@ export type CategoryWithStats = Category & {
   count: number;
   percentage: number;
 };
+
+export type SubscriptionStatus =
+  | "active" | "canceled" | "past_due" | "trialing"
+  | "incomplete" | "paused" | "unpaid";
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: SubscriptionStatus;
+  provider: string;
+  provider_sub_id: string | null;
+  mp_subscription_id: string | null;
+  mp_customer_id: string | null;
+  cancel_reason: string | null;
+  trial_end: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanGrant {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  reason: string;
+  granted_by: string;
+  granted_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+}
+
+/** Resolved billing state for display in Settings / Pricing. */
+export interface BillingInfo {
+  /** Effective plan: result of get_my_plan() */
+  plan: "free" | "pro";
+  /** Where the current plan comes from */
+  source: "free" | "mercado_pago" | "manual_grant";
+  subscription: Subscription | null;
+  activeGrant: PlanGrant | null;
+}

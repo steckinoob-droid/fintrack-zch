@@ -18,6 +18,7 @@ import { appT } from "@/lib/i18n/app";
 import { getCurrencySymbol } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils/cn";
 import { BackupImportDialog } from "./backup-import-dialog";
+import { BillingSection } from "./billing-section";
 
 const CURRENCIES = [
   { code: "BRL", label: "Real Brasileiro",     flag: "🇧🇷" },
@@ -201,6 +202,9 @@ export function SettingsClient() {
           </Button>
         </form>
       </section>
+
+      {/* ── Plan & Billing ───────────────────────────────────────────── */}
+      <BillingSection />
 
       {/* ── Language ──────────────────────────────────────────────────── */}
       <section className="glass-card p-6 space-y-4">
