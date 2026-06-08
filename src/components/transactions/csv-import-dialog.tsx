@@ -278,135 +278,36 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const toImportRows = rows.filter(r => !r.skip);
     if (!toImportRows.length) return;
     setImporting(true);
-    const supabase = createClient();
 
-    // Refresh the session before any DB write.  Without the middleware the
-    // access-token cookie can silently expire, causing every INSERT to fail
-    // with an RLS policy error (auth.uid() returns NULL for a stale JWT).
-    const { data: sessionData } = await supabase.auth.refreshSession();
-    const user = sessionData.session?.user ?? (await supabase.auth.getUser()).data.user;
-    if (!user) {
-      setImporting(false);
-      toast.error(
-        lang === "en" ? "Session expired. Please log in again." : "Sessão expirada. Faça login novamente.",
-      );
-      return;
-    }
-
-    let newOnly = toImportRows;
-    let skipped = 0;
-    let examples: { date: string; title: string; amount: number }[] = [];
-
-    if (!force) {
-      // ── OFX FITID deduplication ─────────────────────────────────────────
-      // Runs first for OFX imports. The bank guarantees FITID uniqueness
-      // within an account, making this more reliable than fingerprinting.
-      if (fileMode === "ofx") {
-        const fitIdNotes = newOnly
-          .filter(r => r.fitId)
-          .map(r => `ofx:${r.fitId!}`);
-
-        if (fitIdNotes.length > 0) {
-          const { data: existingOFX } = await supabase
-            .from("transactions")
-            .select("notes")
-            .eq("user_id", user.id)
-            .in("notes", fitIdNotes);
-
-          const foundNotes = new Set<string>(
-            (existingOFX ?? []).map((t: { notes: string | null }) => t.notes ?? "")
-          );
-
-          const fitBlocked = newOnly.filter(r => r.fitId && foundNotes.has(`ofx:${r.fitId}`));
-          newOnly  = newOnly.filter(r => !r.fitId || !foundNotes.has(`ofx:${r.fitId}`));
-          skipped += fitBlocked.length;
-          examples.push(
-            ...fitBlocked.slice(0, 6).map(r => ({ date: r.date, title: r.title, amount: r.amount }))
-          );
-        }
-      }
-
-      // ── Fingerprint deduplication (all file types) ──────────────────────
-      // Catches duplicates imported before OFX support, or OFX rows without
-      // a FITID.  Runs on `newOnly` so FITID-blocked rows aren't re-counted.
-      if (newOnly.length > 0) {
-        const dates   = newOnly.map(r => r.date).sort();
-        const minDate = dates[0];
-        const maxDate = dates[dates.length - 1];
-
-        const { data: existing } = await supabase
-          .from("transactions")
-          .select("date, amount, title")
-          .eq("user_id", user.id)
-          .gte("date", minDate)
-          .lte("date", maxDate);
-
-        const existingSet = new Set<string>(
-          (existing ?? []).map((t: { date: string; amount: number; title: string }) =>
-            fingerprint(t.date, t.amount, t.title)
-          )
-        );
-
-        const fpBlocked = newOnly.filter(r => existingSet.has(fingerprint(r.date, r.amount, r.title)));
-        newOnly  = newOnly.filter(r => !existingSet.has(fingerprint(r.date, r.amount, r.title)));
-        skipped += fpBlocked.length;
-        examples.push(
-          ...fpBlocked
-            .slice(0, Math.max(0, 6 - examples.length))
-            .map(r => ({ date: r.date, title: r.title, amount: r.amount }))
-        );
-      }
-
-      if (!newOnly.length) {
-        setImporting(false);
-        setImportResult({ imported: 0, skipped, examples });
-        setStep("result");
-        onSuccess();
-        return;
-      }
-    }
-
-    // Safety guard: DB has CHECK (amount > 0). Filter before insert so a single
-    // zero-value row (e.g. fee waiver, reversed charge) doesn't abort the batch.
-    const toInsert = newOnly.filter(r => r.amount > 0);
-    if (!toInsert.length) {
-      setImporting(false);
-      setImportResult({ imported: 0, skipped, examples });
-      setStep("result");
-      onSuccess();
-      return;
-    }
-
-    // Build payload WITHOUT user_id — the server API stamps it from the
-    // verified session, preventing any possibility of a user_id mismatch.
-    const payload = toInsert.map(r => ({
-      title: r.title,
-      amount: r.amount,
-      type: r.type,
-      date: r.date,
-      category_id: (r.categoryId && r.categoryId !== "__none__") ? r.categoryId : null,
-      // Priority: saving goal link > OFX FITID (for deduplication on re-import)
-      notes: (r.type === "saving" && r.goalId && r.goalId !== "__none__")
-        ? `goal_id:${r.goalId}`
-        : r.fitId
-        ? `ofx:${r.fitId}`
-        : null,
-      is_recurring: false,
-      recurrence_interval: null,
+    // All DB work (dedup + insert) runs server-side via the import API.
+    // The server uses the service-role client which bypasses RLS entirely,
+    // eliminating the stale-JWT / auth.uid()=NULL failure that occurred
+    // when the browser client's anon-key inserts went through PostgREST.
+    const payload = toImportRows.map(r => ({
+      title:      r.title,
+      amount:     r.amount,
+      type:       r.type,
+      date:       r.date,
+      categoryId: r.categoryId,
+      goalId:     r.goalId,
+      fitId:      r.fitId,
     }));
 
-    // Use the server-side import API — the server Supabase client always has
-    // a valid session via proxy.ts cookies, eliminating RLS failures caused by
-    // an expired access-token in the browser client.
     const importRes = await fetch("/api/transactions/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ rows: payload, fileMode, force }),
     });
     setImporting(false);
+
+    const resJson = await importRes.json().catch(() => ({})) as {
+      ok?: boolean; imported?: number; skipped?: number;
+      examples?: { date: string; title: string; amount: number }[];
+      error?: string;
+    };
+
     if (!importRes.ok) {
-      const json = await importRes.json().catch(() => ({})) as { error?: string };
-      const detail = json.error ?? "";
+      const detail = resJson.error ?? "";
       console.error("[csv-import] Import API failed:", importRes.status, detail);
       toast.error(
         lang === "en" ? "Import error. Please try again." : "Erro ao importar. Tente novamente.",
@@ -415,7 +316,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       return;
     }
 
-    setImportResult({ imported: toInsert.length, skipped, examples });
+    setImportResult({
+      imported: resJson.imported ?? 0,
+      skipped:  resJson.skipped  ?? 0,
+      examples: resJson.examples ?? [],
+    });
     setStep("result");
     onSuccess();
   }
