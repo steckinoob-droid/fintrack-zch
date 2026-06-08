@@ -52,6 +52,10 @@ export const appT = {
         resendRateLimit: "Wait a few minutes before trying again.",
         resendError: "Could not send email. Try again.",
         resendCooldown: "Resend in {n}s",
+        emailInUse: "This email is already registered.",
+        emailInUseHint: "Sign in with your existing account or reset your password.",
+        emailUnconfirmedHint: "This email is registered but not yet confirmed. We resent the confirmation link.",
+        resetPassword: "Reset password",
       },
       forgotPassword: {
         title: "Reset password", subtitle: "Enter your email and we'll send you a reset link.",
@@ -420,6 +424,10 @@ export const appT = {
         resendRateLimit: "Aguarde alguns minutos antes de tentar novamente.",
         resendError: "Não foi possível enviar o e-mail. Tente novamente.",
         resendCooldown: "Reenviar em {n}s",
+        emailInUse: "Este e-mail já está cadastrado.",
+        emailInUseHint: "Faça login com sua conta existente ou redefina sua senha.",
+        emailUnconfirmedHint: "Este e-mail está cadastrado mas não foi confirmado. Reenviamos o link de confirmação.",
+        resetPassword: "Redefinir senha",
       },
       forgotPassword: {
         title: "Recuperar senha", subtitle: "Digite seu email e enviaremos um link para redefinir sua senha.",
