@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/terms", "/privacy"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/terms", "/privacy", "/offline"];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -54,5 +54,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Exclude Next.js internals, static assets, AND PWA-critical files
+  // (manifest.json, sw.js, offline page) so unauthenticated browsers can
+  // fetch them — without these exceptions Chrome refuses to install the PWA.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|sw\\.js|offline|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
