@@ -5,7 +5,6 @@ export interface Profile {
   name: string | null;
   avatar_url: string | null;
   currency: string;
-  initial_balance: number;
   created_at: string;
 }
 

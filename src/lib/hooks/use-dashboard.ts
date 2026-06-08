@@ -56,7 +56,6 @@ export function useDashboard(monthOffset = 0) {
           monthTxResult,
           budgetResult,
           goalResult,
-          profileResult,
           recentTxResult,
         ] = await Promise.all([
           supabase.rpc("get_all_time_totals", { p_user_id: user.id }),
@@ -79,11 +78,6 @@ export function useDashboard(monthOffset = 0) {
             .eq("user_id", user.id)
             .order("created_at", { ascending: false }),
           supabase
-            .from("profiles")
-            .select("initial_balance")
-            .eq("id", user.id)
-            .single(),
-          supabase
             .from("transactions")
             .select("*, category:categories(*)")
             .eq("user_id", user.id)
@@ -95,7 +89,6 @@ export function useDashboard(monthOffset = 0) {
         const budgets: Budget[]                 = budgetResult.data     ?? [];
         const goals: SavingsGoal[]              = goalResult.data       ?? [];
         const recentTransactions: Transaction[] = recentTxResult.data   ?? [];
-        const initialBalance: number            = profileResult.data?.initial_balance ?? 0;
 
         // Month-level aggregates
         const monthIncome   = currentMonthTx.filter(t => t.type === "income") .reduce((s, t) => s + t.amount, 0);
@@ -123,7 +116,7 @@ export function useDashboard(monthOffset = 0) {
             if (t.type === "saving")  allSavings  += Number(t.amount);
           }
         }
-        const totalBalance = initialBalance + allIncome - allExpenses - allSavings;
+        const totalBalance = allIncome - allExpenses - allSavings;
 
         // 6-month chart — use RPC rows when available, otherwise compute from a
         // direct query so the chart renders before migration 005 is applied.

@@ -5,7 +5,7 @@
 --   It creates all tables, RLS policies, indexes, triggers
 --   and RPC functions in one shot.
 --
--- EXISTING INSTALL (already ran 001–004): run ONLY:
+-- EXISTING INSTALL (already ran 001–003): run ONLY:
 --   005_rpc_functions.sql
 --   (adds get_all_time_totals + get_monthly_stats; safe to
 --    re-run — uses CREATE OR REPLACE)
@@ -21,13 +21,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ── Tables ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id              UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  name            TEXT,
-  avatar_url      TEXT,
-  currency        TEXT NOT NULL DEFAULT 'BRL',
-  initial_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT,
+  avatar_url TEXT,
+  currency   TEXT NOT NULL DEFAULT 'BRL',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.categories (
