@@ -202,26 +202,46 @@ async function handlePaymentEvent(
     throw new Error(`Invalid external_reference on payment ${paymentId}: ${userId}`);
   }
 
-  // Get the subscription row to link billing_payments.subscription_id
-  const { data: sub } = await supabase
-    .from("subscriptions")
-    .select("id, mp_subscription_id")
-    .eq("user_id", userId)
-    .single();
+  // Pix payments: identified by payment_method_id or by the metadata we set in /api/billing/pix
+  const metadata    = p.metadata as Record<string, unknown> | undefined;
+  const isPixPayment =
+    p.payment_method_id === "pix" ||
+    metadata?.billing_reason === "pix_monthly";
 
-  const mpStatus  = mapPaymentStatus(p.status ?? "pending");
-  const amount    = p.transaction_amount ?? 0;
-  const currency  = p.currency_id ?? "BRL";
+  // For card payments only: get the subscription row to link billing_payments.subscription_id
+  let subId: string | null = null;
+  if (!isPixPayment) {
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", userId)
+      .single();
+    subId = sub?.id ?? null;
+  }
 
-  // Insert payment record — atomic via upsert ON CONFLICT DO NOTHING on the unique index
-  const { error: payInsertErr } = await supabase
+  const mpStatus = mapPaymentStatus(p.status ?? "pending");
+  const amount   = p.transaction_amount ?? 0;
+  const currency = p.currency_id ?? "BRL";
+
+  // Check if this payment was already recorded as approved (for idempotent grant logic).
+  // Must happen BEFORE the upsert so we can detect a pending→approved transition.
+  const { data: existingRecord } = await supabase
+    .from("billing_payments")
+    .select("status")
+    .eq("mp_payment_id", String(p.id))
+    .maybeSingle();
+  const wasAlreadyApproved = existingRecord?.status === "approved";
+
+  // Upsert billing_payments — ignoreDuplicates: false so pending Pix records
+  // created by /api/billing/pix get their status updated to "approved" here.
+  const { error: payUpsertErr } = await supabase
     .from("billing_payments")
     .upsert(
       {
         user_id:          userId,
-        subscription_id:  sub?.id ?? null,
+        subscription_id:  subId,
         mp_payment_id:    String(p.id),
-        mp_preference_id: (p.metadata?.preference_id as string) ?? null,
+        mp_preference_id: (metadata?.preference_id as string) ?? null,
         amount,
         currency,
         status:           mpStatus,
@@ -232,30 +252,45 @@ async function handlePaymentEvent(
         period_end:       computePeriodEnd(p.date_approved),
         raw_webhook:      p as unknown as Record<string, unknown>,
       },
-      { onConflict: "mp_payment_id", ignoreDuplicates: true },
+      { onConflict: "mp_payment_id", ignoreDuplicates: false },
     );
-  if (payInsertErr) throw new Error(`billing_payments upsert failed: ${payInsertErr.message}`);
+  if (payUpsertErr) throw new Error(`billing_payments upsert failed: ${payUpsertErr.message}`);
 
-  // Update subscription status based on payment result
+  console.log("[webhook/mp] Payment processed", {
+    mpPaymentId:    String(p.id),
+    userId,
+    paymentMethod:  p.payment_method_id ?? "unknown",
+    paymentStatus:  mpStatus,
+    isPixPayment,
+  });
+
   if (mpStatus === "approved") {
-    const periodEnd = computePeriodEnd(p.date_approved);
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({
-        status:               "active",
-        plan_id:              "pro",
-        provider:             "mercado_pago",
-        current_period_start: p.date_approved ?? new Date().toISOString(),
-        current_period_end:   periodEnd,
-        canceled_at:          null,
-        cancel_reason:        null,
-        updated_at:           new Date().toISOString(),
-      })
-      .eq("user_id", userId);
-    if (error) throw new Error(`subscriptions update (approved) failed: ${error.message}`);
-
-  } else if (mpStatus === "rejected") {
-    // Only update if currently incomplete/past_due — don't downgrade an active subscription
+    if (isPixPayment) {
+      // Pix path: grant Pro for 30 days via plan_grants.
+      // Skip if we already processed this payment (idempotency).
+      if (!wasAlreadyApproved) {
+        await handlePixGrant(supabase, userId);
+      }
+    } else {
+      // Card subscription path: update subscriptions table.
+      const periodEnd = computePeriodEnd(p.date_approved);
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({
+          status:               "active",
+          plan_id:              "pro",
+          provider:             "mercado_pago",
+          current_period_start: p.date_approved ?? new Date().toISOString(),
+          current_period_end:   periodEnd,
+          canceled_at:          null,
+          cancel_reason:        null,
+          updated_at:           new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+      if (error) throw new Error(`subscriptions update (approved) failed: ${error.message}`);
+    }
+  } else if (mpStatus === "rejected" && !isPixPayment) {
+    // Only downgrade for card subscriptions — Pix rejection doesn't affect subscriptions.
     const { error } = await supabase
       .from("subscriptions")
       .update({ status: "past_due", updated_at: new Date().toISOString() })
@@ -263,6 +298,65 @@ async function handlePaymentEvent(
       .in("status", ["incomplete", "past_due"]);
     if (error) throw new Error(`subscriptions update (rejected) failed: ${error.message}`);
   }
+}
+
+// ── Pix grant handler ─────────────────────────────────────────────────────────
+
+/**
+ * Creates or extends a 30-day Pro grant via plan_grants when a Pix payment is approved.
+ * If the user already has an active Pix grant, the new 30 days are stacked on top
+ * (new expiry = max(now, current_expires_at) + 30 days).
+ */
+async function handlePixGrant(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+) {
+  const now = new Date();
+
+  // Look for an existing unexpired Pix grant to stack on
+  const { data: existingGrant } = await supabase
+    .from("plan_grants")
+    .select("id, expires_at")
+    .eq("user_id", userId)
+    .eq("granted_by", "mercado_pago_pix")
+    .is("revoked_at", null)
+    .order("expires_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // New expiry = max(now, current_expires_at) + 30 days
+  const base = existingGrant?.expires_at && new Date(existingGrant.expires_at) > now
+    ? new Date(existingGrant.expires_at)
+    : now;
+
+  const newExpiry = new Date(base);
+  newExpiry.setDate(newExpiry.getDate() + 30);
+
+  if (existingGrant) {
+    const { error } = await supabase
+      .from("plan_grants")
+      .update({ expires_at: newExpiry.toISOString(), granted_at: now.toISOString() })
+      .eq("id", existingGrant.id);
+    if (error) throw new Error(`plan_grants update failed: ${error.message}`);
+  } else {
+    const { error } = await supabase
+      .from("plan_grants")
+      .insert({
+        user_id:    userId,
+        plan_id:    "pro",
+        reason:     "Pro via Pix Mercado Pago",
+        granted_by: "mercado_pago_pix",
+        granted_at: now.toISOString(),
+        expires_at: newExpiry.toISOString(),
+      });
+    if (error) throw new Error(`plan_grants insert failed: ${error.message}`);
+  }
+
+  console.log("[webhook/mp] Pix grant applied", {
+    userId,
+    newExpiry: newExpiry.toISOString(),
+    extended: !!existingGrant,
+  });
 }
 
 function computePeriodEnd(dateApproved?: string | null): string {

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CreditCard, Loader2, Star, ExternalLink,
-  AlertCircle, CheckCircle2, Clock, Zap, ArrowRight,
+  AlertCircle, CheckCircle2, Clock, Zap, ArrowRight, QrCode,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ function resolveSource(
   grant: PlanGrant | null,
 ): BillingInfo["source"] {
   if (plan !== "pro") return "free";
+  if (grant?.granted_by === "mercado_pago_pix") return "pix";
   if (grant) return "manual_grant";
   if (sub?.provider === "mercado_pago") return "mercado_pago";
   return "free";
@@ -50,11 +51,18 @@ export function BillingSection() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [planRes, subRes, grantRes] = await Promise.all([
+      const [planRes, subRes, grantRes, pixRes] = await Promise.all([
         supabase.rpc("get_my_plan"),
         supabase.from("subscriptions").select("*").eq("user_id", user.id).single(),
         supabase.from("plan_grants").select("*").eq("user_id", user.id)
           .is("revoked_at", null).order("granted_at", { ascending: false }).limit(1),
+        supabase.from("billing_payments")
+          .select("mp_payment_id")
+          .eq("user_id", user.id)
+          .eq("status", "pending")
+          .eq("payment_method", "pix")
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       const plan  = (planRes.data as string | null) ?? "free";
@@ -62,8 +70,9 @@ export function BillingSection() {
       const now   = new Date().toISOString();
       const grant = ((grantRes.data ?? []) as PlanGrant[])
         .find(g => g.expires_at === null || g.expires_at > now) ?? null;
+      const pendingPixPayment = (pixRes.data as { mp_payment_id: string } | null) ?? null;
 
-      setInfo({ plan: plan as "free" | "pro", source: resolveSource(plan, sub, grant), subscription: sub, activeGrant: grant });
+      setInfo({ plan: plan as "free" | "pro", source: resolveSource(plan, sub, grant), subscription: sub, activeGrant: grant, pendingPixPayment });
     } finally {
       setLoading(false);
     }
@@ -138,12 +147,14 @@ export function BillingSection() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20">
-                  <Star size={15} className="text-primary fill-current" />
+                  {info.source === "pix"
+                    ? <QrCode size={15} className="text-primary" />
+                    : <Star size={15} className="text-primary fill-current" />}
                 </span>
                 <div>
                   <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
                     Pro
-                    {isActive && (
+                    {isActive && info.source !== "pix" && (
                       <span className="rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                         {tx.statusActive}
                       </span>
@@ -152,10 +163,13 @@ export function BillingSection() {
                   <p className="text-xs text-muted-foreground">
                     {info.source === "mercado_pago" && tx.sourceMp}
                     {info.source === "manual_grant"  && tx.sourceGrant}
+                    {info.source === "pix"            && tx.sourcePix}
                   </p>
                 </div>
               </div>
-              <span className="text-sm font-semibold text-primary">{tx.price}</span>
+              {info.source !== "pix" && (
+                <span className="text-sm font-semibold text-primary">{tx.price}</span>
+              )}
             </div>
 
             {/* Subscription details */}
@@ -177,6 +191,24 @@ export function BillingSection() {
                     <AlertCircle size={11} /> {tx.cancelledNote}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Pix grant details */}
+            {info.source === "pix" && info.activeGrant && (
+              <div className="rounded-xl bg-primary/5 border border-primary/15 p-3 flex items-start gap-2 text-xs">
+                <QrCode size={13} className="text-primary shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-primary font-medium">{tx.sourcePix}</p>
+                  {info.activeGrant.expires_at && (
+                    <p className="text-muted-foreground">
+                      {tx.pixExpiresOn}:{" "}
+                      <span className="text-foreground/80">
+                        {formatDate(info.activeGrant.expires_at, lang)}
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -203,16 +235,18 @@ export function BillingSection() {
               </div>
             )}
 
-            {/* Manage link */}
-            <a
-              href="https://www.mercadopago.com.br/subscriptions"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
-            >
-              <ExternalLink size={11} />
-              {tx.managePlan}
-            </a>
+            {/* Manage link — only for recurring subscriptions */}
+            {info.source === "mercado_pago" && (
+              <a
+                href="https://www.mercadopago.com.br/subscriptions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
+              >
+                <ExternalLink size={11} />
+                {tx.managePlan}
+              </a>
+            )}
           </div>
         </div>
       ) : (
@@ -233,6 +267,17 @@ export function BillingSection() {
               {pricingTx.freePrice}
             </span>
           </div>
+
+          {/* Pending Pix payment banner */}
+          {info.pendingPixPayment && (
+            <div className="flex items-start gap-2.5 px-5 py-3.5 border-b border-border/30 bg-primary/5">
+              <QrCode size={14} className="text-primary shrink-0 mt-0.5" />
+              <div className="text-xs space-y-0.5">
+                <p className="font-semibold text-primary">{tx.pixPending}</p>
+                <p className="text-muted-foreground">{tx.pixPendingNote}</p>
+              </div>
+            </div>
+          )}
 
           {/* Upgrade block */}
           <div className="px-5 py-4 space-y-3">

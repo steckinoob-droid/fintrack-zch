@@ -125,7 +125,8 @@ export interface BillingInfo {
   /** Effective plan: result of get_my_plan() */
   plan: "free" | "pro";
   /** Where the current plan comes from */
-  source: "free" | "mercado_pago" | "manual_grant";
+  source: "free" | "mercado_pago" | "manual_grant" | "pix";
   subscription: Subscription | null;
   activeGrant: PlanGrant | null;
+  pendingPixPayment: { mp_payment_id: string } | null;
 }

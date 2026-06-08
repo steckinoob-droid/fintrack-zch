@@ -4,26 +4,34 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Check, Star, ArrowLeft, Loader2,
-  Shield, RefreshCw, Zap, Unlock, Sparkles, Minus,
+  Shield, RefreshCw, Zap, Unlock, Sparkles, Minus, CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
+import { PixDialog, type PixPaymentData } from "./pix-dialog";
 
 interface Props {
   currentPlan: string;
   isLoggedIn: boolean;
 }
 
+type PayMethod = "card" | "pix";
+
 export function PricingClient({ currentPlan, isLoggedIn }: Props) {
   const { lang } = useLang();
   const tx        = appT[lang].pricing;
   const billingTx = appT[lang].billing;
-  const [upgrading, setUpgrading] = useState(false);
 
-  async function handleUpgrade() {
+  const [upgrading,   setUpgrading]   = useState(false);
+  const [payMethod,   setPayMethod]   = useState<PayMethod>("card");
+  const [pixLoading,  setPixLoading]  = useState(false);
+  const [pixData,     setPixData]     = useState<PixPaymentData | null>(null);
+  const [pixOpen,     setPixOpen]     = useState(false);
+
+  async function handleCardUpgrade() {
     if (!isLoggedIn) { window.location.href = `/login?next=/pricing`; return; }
     setUpgrading(true);
     try {
@@ -36,6 +44,27 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
       toast.error(billingTx.upgradeError);
     } finally {
       setUpgrading(false);
+    }
+  }
+
+  async function handlePixUpgrade() {
+    if (!isLoggedIn) { window.location.href = `/login?next=/pricing`; return; }
+    setPixLoading(true);
+    setPixOpen(true);
+    try {
+      const res  = await fetch("/api/billing/pix", { method: "POST" });
+      const json = await res.json() as PixPaymentData & { error?: string };
+      if (!res.ok || !json.qr_code) {
+        setPixOpen(false);
+        toast.error(tx.pixDialog.error);
+        return;
+      }
+      setPixData(json);
+    } catch {
+      setPixOpen(false);
+      toast.error(tx.pixDialog.error);
+    } finally {
+      setPixLoading(false);
     }
   }
 
@@ -76,7 +105,6 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
             className="glass-card p-7 sm:p-8 flex flex-col gap-6 animate-slide-up"
             style={{ animationDelay: "0.05s", animationFillMode: "both" }}
           >
-            {/* Plan info */}
             <div className="space-y-2">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                 {tx.freeName}
@@ -88,7 +116,6 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
               <p className="text-sm text-muted-foreground leading-relaxed">{tx.freeDesc}</p>
             </div>
 
-            {/* Features */}
             <div className="flex-1 space-y-1.5">
               <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3">
                 {tx.freeLimitsLabel}
@@ -148,10 +175,8 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
               <p className="text-sm text-muted-foreground leading-relaxed">{tx.proDesc}</p>
             </div>
 
-            {/* Features */}
+            {/* Feature lists */}
             <div className="flex-1 space-y-4">
-
-              {/* Unlocks section */}
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest flex items-center gap-1.5">
                   <Unlock size={10} />
@@ -166,11 +191,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
                   </div>
                 ))}
               </div>
-
-              {/* Divider */}
               <div className="border-t border-primary/15" />
-
-              {/* Exclusive section */}
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest flex items-center gap-1.5">
                   <Sparkles size={10} />
@@ -187,27 +208,84 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
               </div>
             </div>
 
-            {/* CTA */}
+            {/* ── CTA area ──────────────────────────────────────────── */}
             {isPro ? (
               <Button disabled className="w-full bg-primary/20 text-primary border border-primary/30 gap-2">
                 <Star size={13} className="fill-current" />
                 {tx.currentPlan}
               </Button>
             ) : (
-              <Button
-                onClick={handleUpgrade}
-                disabled={upgrading}
-                className={cn(
-                  "w-full gap-2 font-semibold",
-                  "bg-primary hover:bg-primary/90 text-primary-foreground",
-                  "shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40",
-                  "transition-all duration-200",
+              <div className="space-y-3">
+                {/* Payment method toggle — shown only to logged-in users */}
+                {isLoggedIn && (
+                  <div className="flex rounded-xl border border-border/40 bg-muted/15 p-1 gap-1">
+                    <button
+                      onClick={() => setPayMethod("card")}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                        payMethod === "card"
+                          ? "bg-card shadow-sm text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <CreditCard size={11} />
+                      {tx.payCard}
+                    </button>
+                    <button
+                      onClick={() => setPayMethod("pix")}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                        payMethod === "pix"
+                          ? "bg-card shadow-sm text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Zap size={11} />
+                      {tx.payPix}
+                    </button>
+                  </div>
                 )}
-              >
-                {upgrading
-                  ? <><Loader2 size={14} className="animate-spin" />{billingTx.upgrading}</>
-                  : <><Unlock size={14} />{isLoggedIn ? tx.upgrade : tx.loginToUpgrade}</>}
-              </Button>
+
+                {/* Method description */}
+                {isLoggedIn && (
+                  <p className="text-[11px] text-muted-foreground/70 text-center">
+                    {payMethod === "card" ? tx.payCardDesc : tx.payPixDesc}
+                  </p>
+                )}
+
+                {/* CTA button */}
+                {payMethod === "card" || !isLoggedIn ? (
+                  <Button
+                    onClick={handleCardUpgrade}
+                    disabled={upgrading}
+                    className={cn(
+                      "w-full gap-2 font-semibold",
+                      "bg-primary hover:bg-primary/90 text-primary-foreground",
+                      "shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40",
+                      "transition-all duration-200",
+                    )}
+                  >
+                    {upgrading
+                      ? <><Loader2 size={14} className="animate-spin" />{billingTx.upgrading}</>
+                      : <><Unlock size={14} />{isLoggedIn ? tx.upgrade : tx.loginToUpgrade}</>}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handlePixUpgrade}
+                    disabled={pixLoading}
+                    className={cn(
+                      "w-full gap-2 font-semibold",
+                      "bg-primary hover:bg-primary/90 text-primary-foreground",
+                      "shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40",
+                      "transition-all duration-200",
+                    )}
+                  >
+                    {pixLoading
+                      ? <><Loader2 size={14} className="animate-spin" />{tx.pixDialog.generatingQr}</>
+                      : <><Zap size={14} />{tx.pixCta}</>}
+                  </Button>
+                )}
+              </div>
             )}
 
             <p className="text-[11px] text-muted-foreground/60 text-center leading-relaxed">
@@ -224,9 +302,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
           <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest text-center mb-4">
             {tx.compTitle}
           </p>
-
           <div className="glass-card overflow-hidden">
-            {/* Table header */}
             <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-5 py-3 border-b border-border/30 bg-muted/10">
               <span />
               <span className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-24 text-center">
@@ -236,8 +312,6 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
                 {tx.proName}
               </span>
             </div>
-
-            {/* Rows */}
             {tx.compRows.map((row, i) => {
               const [feature, freeVal, proVal] = row as [string, string, string];
               const isDash = freeVal === "—";
@@ -289,6 +363,15 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
         </div>
 
       </main>
+
+      {/* ── Pix QR dialog ───────────────────────────────────────────── */}
+      <PixDialog
+        open={pixOpen}
+        onClose={() => { setPixOpen(false); setPixData(null); }}
+        data={pixData}
+        loading={pixLoading}
+        tx={tx.pixDialog}
+      />
     </div>
   );
 }
