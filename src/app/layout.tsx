@@ -28,6 +28,15 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "FinTrack",
   },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg",     type: "image/svg+xml" },
+    ],
+    apple:    "/icon-192.png",
+    shortcut: "/icon-192.png",
+  },
   openGraph: {
     title: "FinTrack — Controle Financeiro Inteligente",
     description: "Gerencie suas finanças com clareza. Receitas, despesas, orçamentos e metas em um só lugar.",
@@ -41,11 +50,6 @@ export const metadata: Metadata = {
     description: "Gerencie suas finanças com clareza.",
   },
   robots: { index: true, follow: true },
-  icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
-    shortcut: "/icon.svg",
-  },
 };
 
 export const viewport: Viewport = {
@@ -53,7 +57,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   minimumScale: 1,
   viewportFit: "cover",
-  themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#0A0E1A" }],
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)",  color: "#0A0E1A" },
+    { media: "(prefers-color-scheme: light)", color: "#F7F9FC" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

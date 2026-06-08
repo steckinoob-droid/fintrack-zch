@@ -22,7 +22,7 @@ export function MobileNav() {
   ];
 
   return (
-    <nav className="lg:hidden flex items-center border-t border-border/50 bg-card/80 backdrop-blur-sm safe-area-inset-bottom">
+    <nav className="lg:hidden flex items-center border-t border-border/50 bg-card/80 backdrop-blur-sm safe-bottom">
       {ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (

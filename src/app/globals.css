@@ -120,6 +120,26 @@
   }
 }
 
+@layer utilities {
+  /**
+   * Safe-area inset helpers for PWA standalone mode.
+   * Pads elements away from the home indicator (iOS) and navigation gestures (Android).
+   * Uses env() with a 0px fallback so it's a no-op on non-notched browsers.
+   */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-left {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .safe-right {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
 @layer components {
   .glass-card {
     @apply relative overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03] backdrop-blur-sm;
