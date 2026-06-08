@@ -377,8 +377,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       return;
     }
 
+    // Build payload WITHOUT user_id — the server API stamps it from the
+    // verified session, preventing any possibility of a user_id mismatch.
     const payload = toInsert.map(r => ({
-      user_id: user.id,
       title: r.title,
       amount: r.amount,
       type: r.type,
@@ -394,13 +395,22 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       recurrence_interval: null,
     }));
 
-    const { error } = await supabase.from("transactions").insert(payload);
+    // Use the server-side import API — the server Supabase client always has
+    // a valid session via proxy.ts cookies, eliminating RLS failures caused by
+    // an expired access-token in the browser client.
+    const importRes = await fetch("/api/transactions/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
     setImporting(false);
-    if (error) {
-      console.error("[csv-import] Insert failed:", error.code, error.message, error.details, error.hint);
+    if (!importRes.ok) {
+      const json = await importRes.json().catch(() => ({})) as { error?: string };
+      const detail = json.error ?? "";
+      console.error("[csv-import] Import API failed:", importRes.status, detail);
       toast.error(
         lang === "en" ? "Import error. Please try again." : "Erro ao importar. Tente novamente.",
-        error.message ?? undefined,
+        detail || undefined,
       );
       return;
     }
