@@ -1,9 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    FinTrack favicon — matches the site logo:
+      • Dark navy background  (#0A0E1A)
+      • Emerald gradient rounded square  (#10B981 → #059669)
+      • White TrendingUp arrow  (Lucide icon, stroke-width proportional)
+
+    Geometry mirrors generate-pwa-icons.mjs (size=512, non-maskable):
+      squareSide = round(512 * 0.73) = 374,  radius = round(374 * 0.22) = 82
+      arrowSz    = round(512 * 0.47) = 241,  sc = 241/24 ≈ 10.04
+      origin     = (256 - 241/2, 256 - 241/2) = (135.5, 135.5)
+      sw         = round(10.04 * 2.8) = 28
+  -->
+  <defs>
+    <linearGradient id="sq-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
   <!-- Background -->
-  <rect width="512" height="512" rx="112" fill="#0A0E1A"/>
-  <!-- F letter — FinTrack wordmark style -->
-  <text x="120" y="360" font-family="system-ui, -apple-system, sans-serif"
-        font-weight="900" font-size="300" fill="#6C63FF">F</text>
-  <!-- Green accent dot -->
-  <circle cx="370" cy="155" r="32" fill="#10B981"/>
+  <rect width="512" height="512" fill="#0A0E1A"/>
+
+  <!-- Emerald rounded square (73 % of canvas, r ≈ 22 % of side) -->
+  <rect x="69" y="69" width="374" height="374" rx="82" fill="url(#sq-grad)"/>
+
+  <!-- TrendingUp — arrow indicator: M16 7 H22 V13 -->
+  <polyline
+    points="296.2,205.8 356.4,205.8 356.4,266.0"
+    fill="none" stroke="white" stroke-width="28"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- TrendingUp — trend line: M22 7 L13.5 15.5 L8.5 10.5 L2 17 -->
+  <polyline
+    points="356.4,205.8 271.1,291.2 220.9,240.9 155.6,306.2"
+    fill="none" stroke="white" stroke-width="28"
+    stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
