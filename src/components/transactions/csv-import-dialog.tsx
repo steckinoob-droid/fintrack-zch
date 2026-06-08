@@ -279,8 +279,19 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     if (!toImportRows.length) return;
     setImporting(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setImporting(false); return; }
+
+    // Refresh the session before any DB write.  Without the middleware the
+    // access-token cookie can silently expire, causing every INSERT to fail
+    // with an RLS policy error (auth.uid() returns NULL for a stale JWT).
+    const { data: sessionData } = await supabase.auth.refreshSession();
+    const user = sessionData.session?.user ?? (await supabase.auth.getUser()).data.user;
+    if (!user) {
+      setImporting(false);
+      toast.error(
+        lang === "en" ? "Session expired. Please log in again." : "Sessão expirada. Faça login novamente.",
+      );
+      return;
+    }
 
     let newOnly = toImportRows;
     let skipped = 0;
