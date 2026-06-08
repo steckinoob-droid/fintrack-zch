@@ -15,14 +15,14 @@ const icons = {
 const styles = {
   default: "border-border bg-card",
   success: "border-emerald-500/30 bg-emerald-500/10",
-  error: "border-red-500/30 bg-red-500/10",
+  error:   "border-red-500/30 bg-red-500/10",
   warning: "border-amber-500/30 bg-amber-500/10",
 };
 
 const iconStyles = {
   default: "text-muted-foreground",
   success: "text-emerald-400",
-  error: "text-red-400",
+  error:   "text-red-400",
   warning: "text-amber-400",
 };
 
@@ -34,9 +34,27 @@ export function Toaster() {
   }, [add, addListener]);
 
   return (
+    /**
+     * Mobile fix: the old "right-4 w-full" caused a negative left edge on screens
+     * narrower than ~400px (e.g. 375px: left = 375 - 16 - 375 = -16px overflow).
+     *
+     * Fix: use inset-x-4 (left-4 right-4, auto width) on mobile so the toast
+     * stretches edge-to-edge with 16px padding on both sides.
+     * On desktop (lg+) we revert to the classic anchored-bottom-right pattern.
+     *
+     * Bottom offset accounts for the mobile bottom-nav (~56px) + FAB (~16px gap)
+     * + safe-area-inset-bottom so the toast is never hidden under the home bar.
+     */
     <div
       aria-live="polite"
-      className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 lg:bottom-4 max-w-sm w-full pointer-events-none"
+      className={cn(
+        "fixed z-[90] flex flex-col gap-2 pointer-events-none",
+        // Mobile: full-width between left/right gutters, above bottom nav + FAB
+        // bottom-24 (96px) clears the nav (~56px) + FAB area + safe-area buffer
+        "left-4 right-4 bottom-24",
+        // Desktop: anchored bottom-right with fixed max-width
+        "lg:left-auto lg:right-4 lg:bottom-4 lg:w-80"
+      )}
     >
       {toasts.map((t) => {
         const Icon = icons[t.variant ?? "default"];
@@ -44,7 +62,8 @@ export function Toaster() {
           <div
             key={t.id}
             className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-xl border p-4 shadow-xl backdrop-blur-sm animate-slide-up",
+              "pointer-events-auto flex items-start gap-3 rounded-xl border p-4",
+              "shadow-xl backdrop-blur-sm animate-slide-up",
               styles[t.variant ?? "default"]
             )}
           >
@@ -52,7 +71,7 @@ export function Toaster() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground">{t.title}</p>
               {t.description && (
-                <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{t.description}</p>
               )}
             </div>
             {t.action && (
@@ -65,7 +84,7 @@ export function Toaster() {
             )}
             <button
               onClick={() => dismiss(t.id)}
-              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5"
               aria-label="Fechar notificação"
             >
               <X size={14} />
