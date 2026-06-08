@@ -10,6 +10,27 @@ import {
   InvalidWebhookSignatureError,
 } from "mercadopago";
 
+// ── Environment detection ─────────────────────────────────────────────────────
+
+export type MpEnv        = "sandbox" | "production" | "unknown";
+export type TokenPrefix  = "TEST" | "APP_USR" | "unknown";
+
+/** Returns only the safe prefix — never the full token value. */
+export function getTokenPrefix(token: string | undefined): TokenPrefix {
+  if (!token) return "unknown";
+  if (token.startsWith("TEST-"))    return "TEST";
+  if (token.startsWith("APP_USR-")) return "APP_USR";
+  return "unknown";
+}
+
+/** Derives sandbox/production from MERCADOPAGO_ACCESS_TOKEN prefix. */
+export function getMpEnv(): MpEnv {
+  const p = getTokenPrefix(process.env.MERCADOPAGO_ACCESS_TOKEN);
+  if (p === "TEST")    return "sandbox";
+  if (p === "APP_USR") return "production";
+  return "unknown";
+}
+
 // ── Client factory ────────────────────────────────────────────────────────────
 
 function getMpConfig(): MercadoPagoConfig {

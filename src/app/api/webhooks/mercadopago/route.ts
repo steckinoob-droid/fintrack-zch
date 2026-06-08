@@ -4,6 +4,8 @@ import {
   verifyMpSignature,
   getMpPreApproval,
   getMpPayment,
+  getMpEnv,
+  getTokenPrefix,
   mapSubStatus,
   mapPaymentStatus,
 } from "@/lib/billing/mercadopago";
@@ -34,6 +36,13 @@ export async function POST(req: NextRequest) {
     console.error("[webhook/mp] Service role not configured");
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
+
+  // Safe diagnostic: log mode without exposing token value
+  console.log("[webhook/mp] Received notification", {
+    mpMode:            getMpEnv(),
+    accessTokenPrefix: getTokenPrefix(process.env.MERCADOPAGO_ACCESS_TOKEN),
+    hasWebhookSecret:  !!process.env.MERCADOPAGO_WEBHOOK_SECRET,
+  });
 
   // ── Parse body ────────────────────────────────────────────────────────────
   let body: MpWebhookBody;
