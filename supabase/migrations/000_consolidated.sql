@@ -237,6 +237,8 @@ GRANT  EXECUTE ON FUNCTION public.get_monthly_stats(UUID) TO authenticated;
 -- install the trigger below covers all new signups from day one.
 -- 007_billing_phase2_prep.sql adds subscriptions columns,
 -- billing_payments table, and get_my_plan().
+-- 008_billing_adjustments.sql: get_effective_plan trialing support,
+-- billing_payments status CHECK, webhook_events explicit constraint.
 
 -- Plans catalog
 CREATE TABLE IF NOT EXISTS public.plans (
@@ -287,18 +289,21 @@ CREATE TABLE IF NOT EXISTS public.plan_grants (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Idempotent payment event log
+-- Idempotent log of incoming payment-provider events (insert-only).
+-- id       = internal UUID PK (never sent to providers)
+-- event_id = provider-assigned event ID (MP notification_id / data.id)
+-- Dedup key: (provider, event_id) via uq_webhook_events_idempotency
 CREATE TABLE IF NOT EXISTS public.webhook_events (
   id           UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
   provider     TEXT        NOT NULL,
   event_type   TEXT        NOT NULL,
-  event_id     TEXT        NOT NULL,
+  event_id     TEXT        NOT NULL,  -- provider event ID — idempotency key, NOT our internal id
   payload      JSONB       NOT NULL DEFAULT '{}',
   processed    BOOLEAN     NOT NULL DEFAULT FALSE,
   processed_at TIMESTAMPTZ,
   error        TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (provider, event_id)
+  CONSTRAINT uq_webhook_events_idempotency UNIQUE (provider, event_id)
 );
 
 -- Payment history — one row per charge attempt (immutable audit log)
@@ -311,7 +316,12 @@ CREATE TABLE IF NOT EXISTS public.billing_payments (
   mp_preference_id TEXT,
   amount           NUMERIC(12,2) NOT NULL,
   currency         TEXT          NOT NULL DEFAULT 'BRL',
-  status           TEXT          NOT NULL DEFAULT 'pending',
+  status           TEXT          NOT NULL DEFAULT 'pending'
+                     CONSTRAINT billing_payments_status_check
+                     CHECK (status IN (
+                       'pending', 'approved', 'rejected', 'refunded',
+                       'cancelled', 'in_process', 'in_mediation'
+                     )),
   payment_method   TEXT,
   payment_type     TEXT,
   plan_id          TEXT          REFERENCES public.plans(id),
@@ -382,7 +392,9 @@ CREATE POLICY "Users read own billing payments"
 -- webhook_events: no user policy — all authenticated access blocked;
 -- service role bypasses RLS (intentional: admin-only data).
 
--- get_effective_plan: priority → grant → paid subscription → 'free'
+-- get_effective_plan: priority → grant → active/trialing subscription → 'free'
+-- trialing: respects trial_end when set; current_period_end check still applies.
+-- Grant always wins over any subscription status (including valid trial).
 CREATE OR REPLACE FUNCTION public.get_effective_plan(p_user_id UUID)
 RETURNS TEXT
 LANGUAGE sql
@@ -390,6 +402,7 @@ SECURITY INVOKER
 STABLE
 AS $$
   SELECT COALESCE(
+    -- 1. Active plan grant (highest priority — admin always wins)
     (
       SELECT g.plan_id
       FROM   public.plan_grants g
@@ -399,16 +412,20 @@ AS $$
       ORDER  BY g.granted_at DESC
       LIMIT  1
     ),
+    -- 2. Active or trialing paid subscription
+    --    trialing: also requires trial_end to be valid (or unset)
     (
       SELECT s.plan_id
       FROM   public.subscriptions s
       WHERE  s.user_id   = p_user_id
-        AND  s.status    = 'active'
+        AND  s.status    IN ('active', 'trialing')
         AND  s.plan_id  <> 'free'
         AND  (s.current_period_end IS NULL OR s.current_period_end > NOW())
+        AND  (s.status <> 'trialing' OR s.trial_end IS NULL OR s.trial_end > NOW())
       ORDER  BY s.created_at DESC
       LIMIT  1
     ),
+    -- 3. Default
     'free'
   );
 $$;
