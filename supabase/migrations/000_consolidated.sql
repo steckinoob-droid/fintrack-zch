@@ -1,5 +1,5 @@
 -- =========================================================
--- FinTrack – Consolidated Schema (v1.2)
+-- FinTrack – Consolidated Schema (v1.5)
 --
 -- NEW INSTALL: run THIS file once via Supabase SQL Editor.
 --   Creates all tables, indexes, constraints, RLS policies,
@@ -239,6 +239,7 @@ GRANT  EXECUTE ON FUNCTION public.get_monthly_stats(UUID) TO authenticated;
 -- billing_payments table, and get_my_plan().
 -- 008_billing_adjustments.sql: get_effective_plan trialing support,
 -- billing_payments status CHECK, webhook_events explicit constraint.
+-- 009_billing_payments_mp_unique.sql: UNIQUE(mp_payment_id) for atomic webhook dedup.
 
 -- Plans catalog
 CREATE TABLE IF NOT EXISTS public.plans (
@@ -353,9 +354,9 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_lookup
   ON public.webhook_events(provider, event_type, processed);
 CREATE INDEX IF NOT EXISTS idx_billing_payments_user
   ON public.billing_payments(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_billing_payments_mp_payment_id
-  ON public.billing_payments(mp_payment_id)
-  WHERE mp_payment_id IS NOT NULL;
+-- UNIQUE constraint doubles as the index; enables atomic ON CONFLICT DO NOTHING in webhook handler
+ALTER TABLE public.billing_payments
+  ADD CONSTRAINT uq_billing_payments_mp_payment_id UNIQUE (mp_payment_id);
 CREATE INDEX IF NOT EXISTS idx_billing_payments_subscription
   ON public.billing_payments(subscription_id)
   WHERE subscription_id IS NOT NULL;

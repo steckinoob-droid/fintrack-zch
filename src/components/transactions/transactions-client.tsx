@@ -93,7 +93,10 @@ export function TransactionsClient() {
   const [quickType, setQuickType]     = useState<"income" | "expense">("expense");
   const [quickCatId, setQuickCatId]   = useState("__auto__");
   const [quickLoading, setQuickLoading] = useState(false);
-  const [exporting, setExporting]     = useState(false);
+  const [exporting, setExporting]       = useState(false);
+  const [dbTotals, setDbTotals]         = useState<{ income: number; expense: number; count: number } | null>(null);
+  const [loadAllLoading, setLoadAllLoading] = useState(false);
+  const [totalsKey, setTotalsKey]       = useState(0);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -114,6 +117,7 @@ export function TransactionsClient() {
     setDbOffset(PAGE_SIZE);
     setCategories(catRes.data ?? []);
     setLoading(false);
+    setTotalsKey(k => k + 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -134,7 +138,66 @@ export function TransactionsClient() {
     setLoadingMore(false);
   }, [loadingMore, dbOffset]);
 
+  const loadAll = useCallback(async () => {
+    if (loadAllLoading) return;
+    setLoadAllLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoadAllLoading(false); return; }
+    const BATCH = 1000;
+    const allRows: Transaction[] = [];
+    let from = dbOffset;
+    while (true) {
+      const { data } = await supabase
+        .from("transactions")
+        .select("*, category:categories(*)")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+        .range(from, from + BATCH - 1);
+      if (!data || data.length === 0) break;
+      allRows.push(...(data as Transaction[]));
+      if (data.length < BATCH) break;
+      from += BATCH;
+    }
+    setTransactions(prev => [...prev, ...allRows]);
+    setDbOffset(prev => prev + allRows.length);
+    setLoadAllLoading(false);
+  }, [loadAllLoading, dbOffset]);
+
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchDbTotals() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const effectiveStart = dateFrom || dateRange?.start || null;
+      const effectiveEnd   = dateTo   || dateRange?.end   || null;
+      // eslint-disable-next-line prefer-const
+      let q = supabase.from("transactions").select("type, amount").eq("user_id", user.id).limit(100_000);
+      if (effectiveStart)            q = q.gte("date", effectiveStart);
+      if (effectiveEnd)              q = q.lte("date", effectiveEnd);
+      if (tab !== "all")             q = q.eq("type", tab);
+      if (catFilter !== "__all__")   q = q.eq("category_id", catFilter);
+      if (search)                    q = q.ilike("title", `%${search}%`);
+      const minV = parseFloat(minValue.replace(",", "."));
+      const maxV = parseFloat(maxValue.replace(",", "."));
+      if (!isNaN(minV) && minV > 0)  q = q.gte("amount", minV);
+      if (!isNaN(maxV) && maxV > 0)  q = q.lte("amount", maxV);
+      const { data } = await q;
+      if (cancelled || !data) return;
+      let income = 0, expense = 0;
+      for (const t of data) {
+        if (t.type === "income") income += Number(t.amount);
+        else expense += Number(t.amount);
+      }
+      setDbTotals({ income, expense, count: data.length });
+    }
+    fetchDbTotals();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, tab, catFilter, search, dateFrom, dateTo, minValue, maxValue, totalsKey]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -303,6 +366,11 @@ export function TransactionsClient() {
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = filtered.filter(t => t.type !== "income").reduce((s, t) => s + t.amount, 0);
   const netBalance   = totalIncome - totalExpense;
+
+  // DB-level totals — always accurate regardless of how many rows are loaded
+  const displayIncome  = dbTotals?.income  ?? totalIncome;
+  const displayExpense = dbTotals?.expense ?? totalExpense;
+  const displayBalance = displayIncome - displayExpense;
 
   function clearFilters() {
     setSearch(""); setTab("all"); setPeriod("this_month"); setCatFilter("__all__");
@@ -541,18 +609,18 @@ export function TransactionsClient() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="glass-card p-3 sm:p-4">
           <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.incomeFiltered}</p>
-          <p className="font-display font-bold text-sm sm:text-lg text-emerald-400 tabular-nums truncate">{fck(totalIncome)}</p>
+          <p className="font-display font-bold text-sm sm:text-lg text-emerald-400 tabular-nums truncate">{fck(displayIncome)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">
             {tab === "saving" ? tx.savingsTab : tx.expensesFiltered}
           </p>
-          <p className="font-display font-bold text-sm sm:text-lg text-red-400 tabular-nums truncate">{fck(totalExpense)}</p>
+          <p className="font-display font-bold text-sm sm:text-lg text-red-400 tabular-nums truncate">{fck(displayExpense)}</p>
         </div>
         <div className="glass-card p-3 sm:p-4">
           <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{tx.balanceFilter}</p>
-          <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate", netBalance >= 0 ? "text-primary" : "text-red-400")}>
-            {fck(netBalance)}
+          <p className={cn("font-display font-bold text-sm sm:text-lg tabular-nums truncate", displayBalance >= 0 ? "text-primary" : "text-red-400")}>
+            {fck(displayBalance)}
           </p>
         </div>
       </div>
@@ -876,35 +944,53 @@ export function TransactionsClient() {
         )}
       </div>
 
-      {/* ── Load more / partial load banner ──────────────────────────── */}
+      {/* ── Pagination banner ─────────────────────────────────────────── */}
       {!loading && transactions.length < totalCount && (
-        <div className="glass-card p-4 flex flex-col items-center gap-3 text-center">
-          <p className="text-xs text-muted-foreground">
-            {tx.partialLoad
-              .replace("{n}", String(transactions.length))
-              .replace("{total}", String(totalCount))}
-          </p>
-          <Button
-            variant="outline" size="sm"
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="min-w-32"
-          >
-            {loadingMore
-              ? <><RefreshCw size={13} className="animate-spin" /> {tx.loadingMoreBtn}</>
-              : <>{tx.loadMore} ({totalCount - transactions.length} {tx.loadMoreCount})</>}
-          </Button>
+        <div className="glass-card border border-amber-500/20 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {tx.partialLoad
+                .replace("{n}", String(transactions.length))
+                .replace("{total}", String(totalCount))}
+            </p>
+            {dbTotals && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {tx.partialLoadTotals.replace("{total}", String(dbTotals.count))}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline" size="sm"
+              onClick={loadMore}
+              disabled={loadingMore || loadAllLoading}
+            >
+              {loadingMore
+                ? <><RefreshCw size={13} className="animate-spin" /> {tx.loadingMoreBtn}</>
+                : <>{tx.loadMore} ({Math.min(PAGE_SIZE, totalCount - transactions.length)} {tx.loadMoreCount})</>}
+            </Button>
+            {totalCount <= 5000 && (
+              <Button
+                variant="ghost" size="sm"
+                onClick={loadAll}
+                disabled={loadAllLoading || loadingMore}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {loadAllLoading
+                  ? <><RefreshCw size={13} className="animate-spin" /> {tx.loadAllLoading}</>
+                  : tx.loadAllBtn.replace("{n}", String(totalCount - transactions.length))}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
       {!loading && filtered.length > 0 && (
         <p className="text-xs text-muted-foreground text-center">
-          {filtered.length} {tx.txPlural}
-          {activeFilters > 0 || search ? ` ${tx.matchingFilters}` : ""}
-          {transactions.length < totalCount && (
-            <span className="ml-1 text-amber-400/70">
-              {tx.ofLoaded.replace("{n}", String(transactions.length))}
-            </span>
+          {filtered.length} {filtered.length === 1 ? tx.txSingular : tx.txPlural}
+          {(activeFilters > 0 || search) ? ` ${tx.matchingFilters}` : ""}
+          {search && transactions.length < totalCount && (
+            <> — <span className="text-amber-400/70">{tx.searchLoadedOnly.replace("{n}", String(transactions.length))}</span></>
           )}
         </p>
       )}

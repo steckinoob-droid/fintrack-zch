@@ -43,8 +43,8 @@ export function verifyMpSignature(
 ): boolean {
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn("[billing/webhook] MERCADOPAGO_WEBHOOK_SECRET not set — skipping signature check");
-    return true;
+    console.error("[billing/webhook] MERCADOPAGO_WEBHOOK_SECRET not set — rejecting all webhooks");
+    return false;
   }
   if (!xSignature) return false;
 

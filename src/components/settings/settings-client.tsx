@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -204,7 +204,9 @@ export function SettingsClient() {
       </section>
 
       {/* ── Plan & Billing ───────────────────────────────────────────── */}
-      <BillingSection />
+      <Suspense fallback={null}>
+        <BillingSection />
+      </Suspense>
 
       {/* ── Language ──────────────────────────────────────────────────── */}
       <section className="glass-card p-6 space-y-4">

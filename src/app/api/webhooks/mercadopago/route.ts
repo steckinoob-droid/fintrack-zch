@@ -142,9 +142,12 @@ async function handleSubscriptionEvent(
     provider:           "mercado_pago",
     mp_subscription_id: pa.id,
     status:             newStatus,
-    plan_id:            newStatus === "active" ? "pro" : "free",
     updated_at:         new Date().toISOString(),
   };
+
+  // Only update plan_id for terminal state changes; leave it untouched for paused/incomplete
+  if (newStatus === "active")   update.plan_id = "pro";
+  if (newStatus === "canceled") update.plan_id = "free";
 
   if (pa.payer_id)   update.mp_customer_id = String(pa.payer_id);
   if (newStatus === "canceled") {
@@ -156,14 +159,22 @@ async function handleSubscriptionEvent(
     if (pa.next_payment_date) {
       update.current_period_end = pa.next_payment_date;
     }
-    // Start date = now if not set
     update.current_period_start = new Date().toISOString();
   }
 
-  const { error } = await supabase
+  // A stale "pending→incomplete" event must not overwrite an already-active subscription.
+  // Race: payment webhook arrives and sets active, then the original pending preapproval
+  // event is retried/replayed — without this guard it would downgrade to incomplete.
+  let query = supabase
     .from("subscriptions")
     .update(update)
     .eq("user_id", userId);
+
+  if (newStatus === "incomplete") {
+    query = query.not("status", "eq", "active");
+  }
+
+  const { error } = await query;
 
   if (error) throw new Error(`subscriptions update failed: ${error.message}`);
 }
@@ -193,21 +204,15 @@ async function handlePaymentEvent(
   const amount    = p.transaction_amount ?? 0;
   const currency  = p.currency_id ?? "BRL";
 
-  // Insert payment record (idempotent: skip if mp_payment_id already exists)
-  const { data: existingPayment } = await supabase
+  // Insert payment record — atomic via upsert ON CONFLICT DO NOTHING on the unique index
+  const { error: payInsertErr } = await supabase
     .from("billing_payments")
-    .select("id")
-    .eq("mp_payment_id", String(p.id))
-    .maybeSingle();
-
-  if (!existingPayment) {
-    const { error: payInsertErr } = await supabase
-      .from("billing_payments")
-      .insert({
+    .upsert(
+      {
         user_id:          userId,
         subscription_id:  sub?.id ?? null,
         mp_payment_id:    String(p.id),
-        mp_preference_id: p.metadata?.preference_id as string ?? null,
+        mp_preference_id: (p.metadata?.preference_id as string) ?? null,
         amount,
         currency,
         status:           mpStatus,
@@ -217,9 +222,10 @@ async function handlePaymentEvent(
         period_start:     p.date_approved     ?? null,
         period_end:       computePeriodEnd(p.date_approved),
         raw_webhook:      p as unknown as Record<string, unknown>,
-      });
-    if (payInsertErr) throw new Error(`billing_payments insert failed: ${payInsertErr.message}`);
-  }
+      },
+      { onConflict: "mp_payment_id", ignoreDuplicates: true },
+    );
+  if (payInsertErr) throw new Error(`billing_payments upsert failed: ${payInsertErr.message}`);
 
   // Update subscription status based on payment result
   if (mpStatus === "approved") {
