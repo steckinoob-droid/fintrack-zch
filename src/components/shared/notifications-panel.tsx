@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Bell, AlertTriangle, XCircle, Target, TrendingUp,
   CheckCircle, X,
@@ -26,7 +27,11 @@ export function NotificationsPanel() {
   const [open, setOpen]                   = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [read, setRead]                   = useState<Set<string>>(new Set());
+  const [mounted, setMounted]             = useState(false);
   const ref                               = useRef<HTMLDivElement>(null);
+
+  // Needed to safely use createPortal (avoids SSR mismatch)
+  useEffect(() => { setMounted(true); }, []);
 
   // ── Data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -153,13 +158,14 @@ export function NotificationsPanel() {
     return () => document.removeEventListener("keydown", handler);
   }, [open]);
 
-  // ── Body scroll lock while open ──────────────────────────────────────────
+  // ── Body scroll lock while the mobile sheet is open ──────────────────────
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
   const unread = notifications.filter((n) => !read.has(n.id)).length;
+  const pt     = lang === "pt";
 
   function markAllRead() {
     setRead(new Set(notifications.map((n) => n.id)));
@@ -172,93 +178,86 @@ export function NotificationsPanel() {
     info:    "border-indigo-500/20 bg-indigo-500/5",
   };
 
-  const pt = lang === "pt";
-
-  // ── Shared sub-elements ──────────────────────────────────────────────────
-  const panelHeader = (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
-      <div className="flex items-center gap-2">
-        <Bell size={15} className="text-foreground" />
-        <span className="text-sm font-semibold text-foreground">
-          {pt ? "Notificações" : "Notifications"}
-        </span>
-        {unread > 0 && (
-          <span className="h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center px-1">
-            {unread}
+  // ── Shared UI pieces ─────────────────────────────────────────────────────
+  function PanelHeader() {
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
+        <div className="flex items-center gap-2">
+          <Bell size={15} className="text-foreground" />
+          <span className="text-sm font-semibold text-foreground">
+            {pt ? "Notificações" : "Notifications"}
           </span>
-        )}
-      </div>
-      <div className="flex items-center gap-3">
-        {unread > 0 && (
+          {unread > 0 && (
+            <span className="h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center px-1">
+              {unread}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {unread > 0 && (
+            <button onClick={markAllRead} className="text-xs text-primary hover:underline whitespace-nowrap">
+              {pt ? "Marcar tudo como lido" : "Mark all read"}
+            </button>
+          )}
           <button
-            onClick={markAllRead}
-            className="text-xs text-primary hover:underline whitespace-nowrap"
+            onClick={() => setOpen(false)}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label={pt ? "Fechar" : "Close"}
           >
-            {pt ? "Marcar tudo como lido" : "Mark all read"}
+            <X size={15} />
           </button>
-        )}
-        <button
-          onClick={() => setOpen(false)}
-          className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label={pt ? "Fechar" : "Close"}
-        >
-          <X size={15} />
-        </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  const panelList = (
-    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y divide-border/30 scrollbar-thin">
-      {notifications.map((n) => {
-        const isRead = read.has(n.id);
-        return (
-          <Link
-            key={n.id}
-            href={n.href}
-            onClick={() => { setRead((p) => new Set([...p, n.id])); setOpen(false); }}
-            className={cn(
-              "flex items-start gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors",
-              isRead && "opacity-60"
-            )}
-          >
-            <div className={cn(
-              "mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border",
-              urgencyStyles[n.urgency]
-            )}>
-              {n.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={cn(
-                "text-sm font-medium",
-                isRead ? "text-muted-foreground" : "text-foreground"
-              )}>
-                {n.title}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.description}</p>
-            </div>
-            {!isRead && <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
-          </Link>
-        );
-      })}
-    </div>
-  );
-
-  const panelFooter = (
-    <div className="px-4 py-3 border-t border-border/50 shrink-0">
+  function NotificationItem({ n, compact = false }: { n: Notification; compact?: boolean }) {
+    const isRead = read.has(n.id);
+    return (
       <Link
-        href="/reports"
-        onClick={() => setOpen(false)}
-        className="text-xs text-primary hover:underline"
+        href={n.href}
+        onClick={() => { setRead((p) => new Set([...p, n.id])); setOpen(false); }}
+        className={cn(
+          "flex items-start gap-3 px-4 hover:bg-muted/30 transition-colors",
+          compact ? "py-3" : "py-3.5",
+          isRead && "opacity-60"
+        )}
       >
-        {pt ? "Ver relatórios completos →" : "View full reports →"}
+        <div className={cn(
+          "mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border",
+          urgencyStyles[n.urgency]
+        )}>
+          {n.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={cn("text-sm font-medium", compact && "truncate", isRead ? "text-muted-foreground" : "text-foreground")}>
+            {n.title}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.description}</p>
+        </div>
+        {!isRead && <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
       </Link>
-    </div>
-  );
+    );
+  }
+
+  function PanelFooter() {
+    return (
+      <div className="px-4 py-3 border-t border-border/50 shrink-0">
+        <Link
+          href="/reports"
+          onClick={() => setOpen(false)}
+          className="text-xs text-primary hover:underline"
+        >
+          {pt ? "Ver relatórios completos →" : "View full reports →"}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} className="relative">
-      {/* ── Bell button ─────────────────────────────────────────────────── */}
+
+      {/* ── Bell trigger ──────────────────────────────────────────────────── */}
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -272,95 +271,79 @@ export function NotificationsPanel() {
         )}
       </button>
 
-      {open && (
+      {/*
+       * ── MOBILE bottom sheet — rendered via React Portal in document.body ──
+       *
+       * WHY PORTAL: The header has `backdrop-filter: blur(...)` (backdrop-blur-sm).
+       * In some Chrome Mobile versions, backdrop-filter creates a containing block
+       * for position:fixed descendants, so `fixed inset-x-0 bottom-0` would be
+       * positioned relative to the 64px header instead of the full viewport.
+       * createPortal bypasses this entirely — the sheet mounts at document.body,
+       * completely outside the header's stacking context.
+       *
+       * The `lg:hidden` class hides these portal elements on desktop (≥1024px),
+       * so the desktop dropdown below takes over seamlessly.
+       */}
+      {open && mounted && createPortal(
         <>
-          {/* ════════════════════════════════════════════════════════════════
-              MOBILE  (<lg) — full-screen overlay + bottom sheet
-
-              Fix: the old "absolute right-0 w-80" caused the 320px panel to
-              overflow the left edge of the viewport (e.g. on 375px screens
-              the bell is ~58px from the right, so left edge = 375-58-320 = -3px).
-              Desktop dropdown patterns simply do not work on narrow screens.
-
-              New pattern: fixed full-screen backdrop + slide-up bottom sheet
-              with internal scroll.  z-[80/81] sits above FAB (z-40), bottom nav,
-              and dashboard cards but below toasts (z-[90]).
-          ════════════════════════════════════════════════════════════════ */}
-          <div className="lg:hidden" role="dialog" aria-modal="true" aria-label={pt ? "Notificações" : "Notifications"}>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-[2px]"
-              onClick={() => setOpen(false)}
-              aria-hidden
-            />
-
-            {/* Sheet */}
-            <div
-              className="fixed inset-x-0 bottom-0 z-[81] flex flex-col bg-card border-t border-border/50 rounded-t-2xl shadow-2xl animate-sheet-up"
-              style={{ maxHeight: "min(85svh, 560px)" }}
-            >
-              {/* Drag handle */}
-              <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden>
-                <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-              </div>
-
-              {panelHeader}
-              {panelList}
-              {panelFooter}
-
-              {/* Safe area spacer for home indicator */}
-              <div className="safe-bottom shrink-0" />
-            </div>
-          </div>
-
-          {/* ════════════════════════════════════════════════════════════════
-              DESKTOP (lg+) — absolute dropdown anchored to the bell button.
-              Position is fine on wide screens; the panel is right-aligned and
-              max-w constraint prevents it from clipping the left edge.
-          ════════════════════════════════════════════════════════════════ */}
+          {/* Backdrop */}
           <div
-            className="hidden lg:block absolute right-0 top-11 w-80 z-50 animate-slide-up"
+            className="lg:hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-[2px]"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+
+          {/* Bottom sheet */}
+          <div
+            className="lg:hidden fixed inset-x-0 bottom-0 z-[81] flex flex-col bg-card border-t border-border/50 rounded-t-2xl shadow-2xl animate-sheet-up"
+            style={{ maxHeight: "min(85svh, 560px)" }}
             role="dialog"
             aria-modal="true"
             aria-label={pt ? "Notificações" : "Notifications"}
           >
-            <div className="rounded-xl border border-border/60 shadow-2xl bg-card flex flex-col overflow-hidden">
-              {panelHeader}
-              <div className="max-h-96 overflow-y-auto overscroll-contain divide-y divide-border/30 scrollbar-thin">
-                {notifications.map((n) => {
-                  const isRead = read.has(n.id);
-                  return (
-                    <Link
-                      key={n.id}
-                      href={n.href}
-                      onClick={() => { setRead((p) => new Set([...p, n.id])); setOpen(false); }}
-                      className={cn(
-                        "flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors",
-                        isRead && "opacity-60"
-                      )}
-                    >
-                      <div className={cn(
-                        "mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border",
-                        urgencyStyles[n.urgency]
-                      )}>
-                        {n.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={cn("text-sm font-medium truncate", isRead ? "text-muted-foreground" : "text-foreground")}>
-                          {n.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.description}</p>
-                      </div>
-                      {!isRead && <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
-                    </Link>
-                  );
-                })}
-              </div>
-              {panelFooter}
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden>
+              <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
             </div>
+
+            <PanelHeader />
+
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y divide-border/30 scrollbar-thin">
+              {notifications.map((n) => <NotificationItem key={n.id} n={n} />)}
+            </div>
+
+            <PanelFooter />
+
+            {/* Safe-area spacer for iOS home indicator */}
+            <div className="safe-bottom shrink-0" />
           </div>
-        </>
+        </>,
+        document.body
       )}
+
+      {/*
+       * ── DESKTOP dropdown — absolute, anchored to the bell button ──────────
+       *
+       * `hidden lg:block` hides it on mobile. The mobile portal above
+       * takes care of small screens via lg:hidden.
+       */}
+      {open && (
+        <div
+          className="hidden lg:block absolute right-0 top-11 w-80 z-50 animate-slide-up"
+          role="dialog"
+          aria-modal="true"
+          aria-label={pt ? "Notificações" : "Notifications"}
+        >
+          <div className="rounded-xl border border-border/60 shadow-2xl bg-card flex flex-col overflow-hidden">
+            <PanelHeader />
+            <div className="max-h-96 overflow-y-auto overscroll-contain divide-y divide-border/30 scrollbar-thin">
+              {notifications.map((n) => <NotificationItem key={n.id} n={n} compact />)}
+            </div>
+            <PanelFooter />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
