@@ -375,7 +375,11 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     const { error } = await supabase.from("transactions").insert(payload);
     setImporting(false);
     if (error) {
-      toast.error(lang === "en" ? "Import error. Please try again." : "Erro ao importar. Tente novamente.");
+      console.error("[csv-import] Insert failed:", error.code, error.message, error.details, error.hint);
+      toast.error(
+        lang === "en" ? "Import error. Please try again." : "Erro ao importar. Tente novamente.",
+        error.message ?? undefined,
+      );
       return;
     }
 
