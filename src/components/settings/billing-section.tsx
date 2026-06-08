@@ -242,7 +242,7 @@ export function BillingSection() {
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">
-                  {lang === "en" ? "Unlock Pro" : "Desbloqueie o Pro"}
+                  {pricingTx.upgrade}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                   {tx.upgradeTeaser}

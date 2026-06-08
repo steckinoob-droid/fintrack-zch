@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Star, ArrowLeft, Loader2, Shield, RefreshCw, Zap } from "lucide-react";
+import {
+  Check, Star, ArrowLeft, Loader2,
+  Shield, RefreshCw, Zap, Unlock, Sparkles, Minus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
@@ -55,14 +58,10 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
       </header>
 
       {/* ── Main ────────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col items-center px-4 py-14 sm:py-20 gap-12">
+      <main className="flex-1 flex flex-col items-center px-4 py-14 sm:py-20 gap-14">
 
         {/* Hero */}
-        <div className="text-center space-y-4 max-w-xl animate-fade-in">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            <Zap size={10} className="fill-current" />
-            {tx.mostPopular}
-          </div>
+        <div className="text-center space-y-3 max-w-xl animate-fade-in">
           <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-tight">
             {tx.title}
           </h1>
@@ -72,11 +71,12 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
         {/* ── Cards ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-3xl">
 
-          {/* Free card */}
+          {/* ── Free card ─────────────────────────────────────────────── */}
           <div
-            className="glass-card p-7 sm:p-8 flex flex-col gap-7 animate-slide-up"
+            className="glass-card p-7 sm:p-8 flex flex-col gap-6 animate-slide-up"
             style={{ animationDelay: "0.05s", animationFillMode: "both" }}
           >
+            {/* Plan info */}
             <div className="space-y-2">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                 {tx.freeName}
@@ -88,31 +88,36 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
               <p className="text-sm text-muted-foreground leading-relaxed">{tx.freeDesc}</p>
             </div>
 
-            <ul className="space-y-3 flex-1">
-              {tx.features.freeList.map((f) => (
-                <li key={f} className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted/60">
-                    <Check size={10} className="text-muted-foreground" />
+            {/* Features */}
+            <div className="flex-1 space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3">
+                {tx.freeLimitsLabel}
+              </p>
+              {tx.features.freeList.map((f, i) => (
+                <div key={f} className="flex items-center gap-3 text-sm">
+                  <span className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
+                    i < 2 ? "bg-primary/15" : "bg-amber-500/12",
+                  )}>
+                    <Check size={10} className={i < 2 ? "text-primary/70" : "text-amber-400/80"} />
                   </span>
-                  {f}
-                </li>
+                  <span className={i < 2 ? "text-foreground/75" : "text-muted-foreground"}>
+                    {f}
+                  </span>
+                </div>
               ))}
-            </ul>
+            </div>
 
-            <Button
-              variant="outline"
-              disabled
-              className="w-full opacity-60 cursor-default"
-            >
+            <Button variant="outline" disabled className="w-full opacity-60 cursor-default">
               {!isPro ? tx.currentPlan : tx.ctaFree}
             </Button>
           </div>
 
-          {/* Pro card */}
+          {/* ── Pro card ──────────────────────────────────────────────── */}
           <div
             className={cn(
-              "relative flex flex-col gap-7 rounded-2xl p-7 sm:p-8",
-              "bg-gradient-to-b from-primary/10 via-card/60 to-card/80",
+              "relative flex flex-col gap-6 rounded-2xl p-7 sm:p-8",
+              "bg-gradient-to-b from-primary/12 via-card/60 to-card/80",
               "border border-primary/40",
               "shadow-[0_0_56px_-8px_rgba(16,185,129,0.22)]",
               "animate-slide-up",
@@ -145,27 +150,36 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
 
             {/* Features */}
             <div className="flex-1 space-y-4">
-              {/* Free features included */}
-              <ul className="space-y-2.5">
-                {tx.features.freeList.map((f) => (
-                  <li key={f} className="flex items-center gap-3 text-sm text-foreground/70">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15">
-                      <Check size={10} className="text-primary/60" />
+
+              {/* Unlocks section */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest flex items-center gap-1.5">
+                  <Unlock size={10} />
+                  {tx.proUnlocksLabel}
+                </p>
+                {tx.features.proUnlocks.map((f) => (
+                  <div key={f} className="flex items-center gap-3 text-sm text-foreground/90">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                      <Unlock size={9} className="text-primary" />
                     </span>
                     {f}
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
 
-              {/* Pro-exclusive separator */}
-              <div className="border-t border-primary/15 pt-3 space-y-2.5">
-                <p className="text-[11px] font-semibold text-primary/70 uppercase tracking-wider">
+              {/* Divider */}
+              <div className="border-t border-primary/15" />
+
+              {/* Exclusive section */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest flex items-center gap-1.5">
+                  <Sparkles size={10} />
                   {tx.proExclusiveLabel}
                 </p>
-                {tx.features.proList.map((f) => (
-                  <div key={f} className="flex items-center gap-3 text-sm text-foreground">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/25">
-                      <Check size={10} className="text-primary" />
+                {tx.features.proExclusive.map((f) => (
+                  <div key={f} className="flex items-center gap-3 text-sm text-foreground/90">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                      <Sparkles size={9} className="text-primary" />
                     </span>
                     {f}
                   </div>
@@ -192,7 +206,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
               >
                 {upgrading
                   ? <><Loader2 size={14} className="animate-spin" />{billingTx.upgrading}</>
-                  : <><Star size={14} />{isLoggedIn ? tx.upgrade : tx.loginToUpgrade}</>}
+                  : <><Unlock size={14} />{isLoggedIn ? tx.upgrade : tx.loginToUpgrade}</>}
               </Button>
             )}
 
@@ -202,15 +216,70 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
           </div>
         </div>
 
+        {/* ── Comparison table ────────────────────────────────────────── */}
+        <div
+          className="w-full max-w-2xl animate-fade-in"
+          style={{ animationDelay: "0.22s", animationFillMode: "both" }}
+        >
+          <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest text-center mb-4">
+            {tx.compTitle}
+          </p>
+
+          <div className="glass-card overflow-hidden">
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-5 py-3 border-b border-border/30 bg-muted/10">
+              <span />
+              <span className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-24 text-center">
+                {tx.freeName}
+              </span>
+              <span className="text-[11px] font-semibold text-primary/80 uppercase tracking-wider w-24 text-center">
+                {tx.proName}
+              </span>
+            </div>
+
+            {/* Rows */}
+            {tx.compRows.map((row, i) => {
+              const [feature, freeVal, proVal] = row as [string, string, string];
+              const isDash = freeVal === "—";
+              return (
+                <div
+                  key={feature}
+                  className={cn(
+                    "grid grid-cols-[1fr_auto_auto] gap-x-4 items-center px-5 py-3 text-sm",
+                    i % 2 === 1 && "bg-muted/5",
+                  )}
+                >
+                  <span className="text-foreground/75">{feature}</span>
+                  <span className={cn(
+                    "w-24 text-center text-xs font-medium",
+                    isDash ? "text-muted-foreground/40" : "text-amber-400/80",
+                  )}>
+                    {isDash ? <Minus size={12} className="mx-auto opacity-30" /> : freeVal}
+                  </span>
+                  <span className="w-24 text-center">
+                    {proVal === "Included" || proVal === "Incluído" ? (
+                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 mx-auto">
+                        <Check size={9} className="text-primary" />
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold text-primary">{proVal}</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── Trust row ───────────────────────────────────────────────── */}
         <div
           className="flex flex-wrap justify-center gap-6 sm:gap-10 animate-fade-in"
-          style={{ animationDelay: "0.22s", animationFillMode: "both" }}
+          style={{ animationDelay: "0.32s", animationFillMode: "both" }}
         >
           {[
-            { icon: Shield,     label: tx.trustSecure  },
-            { icon: RefreshCw,  label: tx.trustCancel  },
-            { icon: Zap,        label: tx.trustCurrency },
+            { icon: Shield,    label: tx.trustSecure   },
+            { icon: RefreshCw, label: tx.trustCancel   },
+            { icon: Zap,       label: tx.trustCurrency },
           ].map(({ icon: Icon, label }) => (
             <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Icon size={13} className="text-primary/60" />
@@ -218,6 +287,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
             </span>
           ))}
         </div>
+
       </main>
     </div>
   );
