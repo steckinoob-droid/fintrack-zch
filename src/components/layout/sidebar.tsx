@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ArrowLeftRight, Tag, PieChart,
-  Target, BarChart3, Settings, LogOut,
+  Target, BarChart3, Settings, LogOut, Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Logo } from "@/components/shared/logo";
@@ -19,9 +19,10 @@ import Image from "next/image";
 interface SidebarProps {
   user: User;
   profile: Profile | null;
+  isAdmin: boolean;
 }
 
-export function Sidebar({ user, profile }: SidebarProps) {
+export function Sidebar({ user, profile, isAdmin }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
   const { lang } = useLang();
@@ -87,6 +88,25 @@ export function Sidebar({ user, profile }: SidebarProps) {
             {tx.settings}
           </Link>
         </div>
+
+        {/* Admin — only visible to authorized admins */}
+        {isAdmin && (
+          <div className="pt-4">
+            <p className="px-3 py-2 text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest">
+              Sistema
+            </p>
+            <Link
+              href="/admin"
+              className={cn("sidebar-item", pathname.startsWith("/admin") && "active")}
+            >
+              <Shield size={17} />
+              {tx.admin}
+              {pathname.startsWith("/admin") && (
+                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Upgrade CTA */}

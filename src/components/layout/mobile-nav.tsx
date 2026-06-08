@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, PieChart, Target, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, PieChart, Target, BarChart3, Settings, Shield } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 
-export function MobileNav() {
+interface MobileNavProps {
+  isAdmin?: boolean;
+}
+
+export function MobileNav({ isAdmin = false }: MobileNavProps) {
   const pathname = usePathname();
   const { lang } = useLang();
   const tx       = appT[lang].nav;
@@ -19,6 +23,7 @@ export function MobileNav() {
     { href: "/goals",        label: tx.goals,        icon: Target          },
     { href: "/reports",      label: tx.reports,      icon: BarChart3       },
     { href: "/settings",     label: tx.settings,     icon: Settings        },
+    ...(isAdmin ? [{ href: "/admin", label: tx.admin, icon: Shield }] : []),
   ];
 
   return (
