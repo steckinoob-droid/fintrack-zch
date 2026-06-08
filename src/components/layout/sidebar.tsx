@@ -11,6 +11,7 @@ import { Logo } from "@/components/shared/logo";
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
+import { UpgradeCta } from "@/components/layout/upgrade-cta";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/types";
 import Image from "next/image";
@@ -87,6 +88,9 @@ export function Sidebar({ user, profile }: SidebarProps) {
           </Link>
         </div>
       </nav>
+
+      {/* Upgrade CTA */}
+      <UpgradeCta />
 
       {/* User */}
       <div className="px-3 py-4 border-t border-border/50">

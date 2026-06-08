@@ -5,6 +5,7 @@ import { Search, Globe, LogOut } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
+import { UpgradeCta } from "@/components/layout/upgrade-cta";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { formatMonthYear } from "@/lib/utils/date";
@@ -85,6 +86,9 @@ export function Header({ user, profile }: HeaderProps) {
               ⌘K
             </kbd>
           </button>
+
+          {/* Plan CTA — compact pill */}
+          <UpgradeCta compact />
 
           {/* Language toggle */}
           <button
