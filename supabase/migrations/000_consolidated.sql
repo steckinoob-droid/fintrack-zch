@@ -5,10 +5,9 @@
 --   It creates all tables, RLS policies, indexes, triggers
 --   and RPC functions in one shot.
 --
--- EXISTING INSTALL (already ran 001–003): run ONLY:
---   005_rpc_functions.sql
---   (adds get_all_time_totals + get_monthly_stats; safe to
---    re-run — uses CREATE OR REPLACE)
+-- EXISTING INSTALL (already ran 001–003): run in order:
+--   005_rpc_functions.sql  — get_all_time_totals + get_monthly_stats
+--   006_billing.sql        — billing tables, plans, grants, get_effective_plan
 --
 -- The dashboard falls back to direct queries if the RPCs are
 -- missing, so skipping 005 degrades performance but never
