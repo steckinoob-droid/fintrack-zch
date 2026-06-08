@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,18 +25,32 @@ export function LoginForm() {
   const { lang } = useLang();
   const tx = appT[lang].auth.login;
   const [showPass, setShowPass] = useState(false);
+  const [notConfirmedEmail, setNotConfirmedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
   async function onSubmit(data: FormData) {
+    // Reset not-confirmed banner on new attempt
+    setNotConfirmedEmail(null);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     });
     if (error) {
+      // Detect "email not confirmed" specifically — show resend option
+      const isNotConfirmed =
+        error.message === "Email not confirmed" ||
+        error.message.toLowerCase().includes("not confirmed") ||
+        (error as { code?: string }).code === "email_not_confirmed";
+
+      if (isNotConfirmed) {
+        setNotConfirmedEmail(data.email);
+        return;
+      }
       toast.error(tx.errors.invalidCredentials);
       return;
     }
@@ -45,52 +59,103 @@ export function LoginForm() {
     router.refresh();
   }
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="email">{tx.email}</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder={tx.emailPlaceholder}
-          autoComplete="email"
-          {...register("email")}
-          aria-invalid={!!errors.email}
-        />
-        {errors.email && <p className="text-xs text-destructive" role="alert">{tx.email}</p>}
-      </div>
+  async function handleResendConfirmation() {
+    if (!notConfirmedEmail || resending) return;
+    setResending(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: notConfirmedEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      },
+    });
+    setResending(false);
+    if (error) {
+      const isRateLimit =
+        error.message.toLowerCase().includes("rate") ||
+        error.message.includes("60 seconds") ||
+        (error as { status?: number }).status === 429;
+      toast.error(
+        isRateLimit
+          ? appT[lang].auth.register.resendRateLimit
+          : appT[lang].auth.register.resendError
+      );
+    } else {
+      toast.success(tx.confirmationResent);
+      setNotConfirmedEmail(null);
+    }
+  }
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">{tx.password}</Label>
-          <a href="/forgot-password" className="text-xs text-primary hover:underline">
-            {tx.forgotPassword}
-          </a>
-        </div>
-        <div className="relative">
-          <Input
-            id="password"
-            type={showPass ? "text" : "password"}
-            placeholder={tx.passwordPlaceholder}
-            autoComplete="current-password"
-            className="pr-10"
-            {...register("password")}
-            aria-invalid={!!errors.password}
-          />
+  return (
+    <div className="space-y-3">
+      {/* Email not confirmed banner */}
+      {notConfirmedEmail && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3 animate-slide-up">
+          <div className="flex items-start gap-2.5">
+            <Mail size={15} className="text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs leading-relaxed text-amber-300">{tx.emailNotConfirmed}</p>
+          </div>
           <button
             type="button"
-            onClick={() => setShowPass(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={showPass ? "Hide password" : "Show password"}
+            onClick={handleResendConfirmation}
+            disabled={resending}
+            className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-60"
           >
-            {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+            {resending
+              ? <><Loader2 size={12} className="animate-spin" /> {appT[lang].auth.register.resending}</>
+              : <><RefreshCw size={12} /> {tx.resendConfirmation}</>
+            }
           </button>
         </div>
-      </div>
+      )}
 
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? <><Loader2 size={15} className="animate-spin" /> {tx.submitting}</> : tx.submit}
-      </Button>
-    </form>
+      <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="email">{tx.email}</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder={tx.emailPlaceholder}
+            autoComplete="email"
+            {...register("email")}
+            aria-invalid={!!errors.email}
+          />
+          {errors.email && <p className="text-xs text-destructive" role="alert">{tx.email}</p>}
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">{tx.password}</Label>
+            <a href="/forgot-password" className="text-xs text-primary hover:underline">
+              {tx.forgotPassword}
+            </a>
+          </div>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPass ? "text" : "password"}
+              placeholder={tx.passwordPlaceholder}
+              autoComplete="current-password"
+              className="pr-10"
+              {...register("password")}
+              aria-invalid={!!errors.password}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={showPass ? "Hide password" : "Show password"}
+            >
+              {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? <><Loader2 size={15} className="animate-spin" /> {tx.submitting}</> : tx.submit}
+        </Button>
+      </form>
+    </div>
   );
 }

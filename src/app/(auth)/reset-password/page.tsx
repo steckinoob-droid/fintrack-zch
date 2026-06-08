@@ -8,11 +8,8 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-8 animate-slide-up">
-        <div className="text-center space-y-2">
+        <div className="text-center">
           <Logo className="mx-auto" size="lg" />
-          <p className="text-muted-foreground text-sm">
-            Escolha uma nova senha para sua conta.
-          </p>
         </div>
         <ResetPasswordForm />
       </div>

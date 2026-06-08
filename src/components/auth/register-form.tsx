@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2, Mail, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, ArrowRight, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,15 @@ export function RegisterForm() {
   const tx = appT[lang].auth.register;
   const [showPass, setShowPass] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Countdown timer for resend cooldown
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -36,10 +45,38 @@ export function RegisterForm() {
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
-      options: { data: { name: data.name } },
+      options: {
+        data: { name: data.name },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      },
     });
     if (error) { toast.error(error.message); return; }
     setSentTo(data.email);
+  }
+
+  async function handleResend() {
+    if (!sentTo || resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: sentTo,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      },
+    });
+    setResendLoading(false);
+    if (error) {
+      const isRateLimit =
+        error.message.toLowerCase().includes("rate") ||
+        error.message.includes("60 seconds") ||
+        (error as { status?: number }).status === 429;
+      toast.error(isRateLimit ? tx.resendRateLimit : tx.resendError);
+      if (isRateLimit) setResendCooldown(60);
+    } else {
+      toast.success(tx.resendSuccess);
+      setResendCooldown(60);
+    }
   }
 
   /* ── Email verification screen ── */
@@ -65,6 +102,21 @@ export function RegisterForm() {
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
           <p className="text-xs leading-relaxed text-amber-300">{tx.verifyNote}</p>
         </div>
+
+        {/* Resend button */}
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={resendLoading || resendCooldown > 0}
+          className="flex items-center justify-center gap-2 w-full rounded-xl border border-border/60 bg-muted/40 px-6 py-2.5 text-sm text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {resendLoading
+            ? <><Loader2 size={14} className="animate-spin" /> {tx.resending}</>
+            : resendCooldown > 0
+              ? <><RefreshCw size={14} /> {tx.resendCooldown.replace("{n}", String(resendCooldown))}</>
+              : <><RefreshCw size={14} /> {tx.resend}</>
+          }
+        </button>
 
         {/* CTA */}
         <Link

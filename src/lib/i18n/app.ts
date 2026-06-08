@@ -29,6 +29,9 @@ export const appT = {
         noAccount: "Don't have an account?", createAccount: "Create account",
         errors: { invalidCredentials: "Invalid email or password" },
         success: "Welcome back!",
+        emailNotConfirmed: "Your email is not confirmed yet. Check your inbox for the confirmation link.",
+        resendConfirmation: "Resend confirmation email",
+        confirmationResent: "Confirmation email sent!",
       },
       register: {
         title: "Create your account", subtitle: "Start managing your finances for free.",
@@ -43,6 +46,12 @@ export const appT = {
         verifySpam: "Can't find it? Check your spam or junk folder.",
         verifyNote: "⚠️ You must confirm your email before you can sign in.",
         verifyAction: "Go to sign in",
+        resend: "Resend confirmation email",
+        resending: "Sending...",
+        resendSuccess: "Email sent! Check your inbox.",
+        resendRateLimit: "Wait a few minutes before trying again.",
+        resendError: "Could not send email. Try again.",
+        resendCooldown: "Resend in {n}s",
       },
       forgotPassword: {
         title: "Reset password", subtitle: "Enter your email and we'll send you a reset link.",
@@ -57,6 +66,8 @@ export const appT = {
         submit: "Reset password", submitting: "Saving...",
         success: "Password updated!", successDesc: "You'll be redirected to the dashboard.",
         mismatch: "Passwords don't match",
+        minPassword: "Minimum 6 characters",
+        error: "Error resetting password",
       },
     },
     common: {
@@ -386,6 +397,9 @@ export const appT = {
         noAccount: "Não tem uma conta?", createAccount: "Criar conta",
         errors: { invalidCredentials: "Email ou senha incorretos" },
         success: "Bem-vindo de volta!",
+        emailNotConfirmed: "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.",
+        resendConfirmation: "Reenviar e-mail de confirmação",
+        confirmationResent: "E-mail de confirmação enviado!",
       },
       register: {
         title: "Crie sua conta", subtitle: "Comece a organizar suas finanças de graça.",
@@ -400,6 +414,12 @@ export const appT = {
         verifySpam: "Não encontrou? Verifique a pasta de spam ou lixo eletrônico.",
         verifyNote: "⚠️ Você precisa confirmar seu email antes de fazer login.",
         verifyAction: "Ir para o login",
+        resend: "Reenviar e-mail de confirmação",
+        resending: "Enviando...",
+        resendSuccess: "E-mail enviado! Verifique sua caixa de entrada.",
+        resendRateLimit: "Aguarde alguns minutos antes de tentar novamente.",
+        resendError: "Não foi possível enviar o e-mail. Tente novamente.",
+        resendCooldown: "Reenviar em {n}s",
       },
       forgotPassword: {
         title: "Recuperar senha", subtitle: "Digite seu email e enviaremos um link para redefinir sua senha.",
@@ -414,6 +434,8 @@ export const appT = {
         submit: "Redefinir senha", submitting: "Salvando...",
         success: "Senha redefinida!", successDesc: "Você será redirecionado ao dashboard.",
         mismatch: "As senhas não coincidem",
+        minPassword: "Mínimo 6 caracteres",
+        error: "Erro ao redefinir senha",
       },
     },
     common: {

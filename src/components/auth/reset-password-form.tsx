@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,19 +11,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/hooks/use-toast";
+import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 
-const schema = z.object({
-  password: z.string().min(6, "Mínimo 6 caracteres"),
-  confirm: z.string().min(6),
-}).refine((d) => d.password === d.confirm, {
-  message: "As senhas não coincidem",
-  path: ["confirm"],
-});
-type FormData = z.infer<typeof schema>;
+type FormData = { password: string; confirm: string };
 
 export function ResetPasswordForm() {
   const router = useRouter();
+  const { lang } = useLang();
+  const tx = appT[lang].auth.resetPassword;
   const [showPass, setShowPass] = useState(false);
+
+  // Schema built from i18n so validation messages are localised
+  const schema = useMemo(
+    () =>
+      z
+        .object({
+          password: z.string().min(6, tx.minPassword),
+          confirm: z.string().min(6),
+        })
+        .refine((d) => d.password === d.confirm, {
+          message: tx.mismatch,
+          path: ["confirm"],
+        }),
+    // tx reference is stable per lang — update schema when lang changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang]
+  );
+
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
@@ -31,15 +46,17 @@ export function ResetPasswordForm() {
   async function onSubmit(data: FormData) {
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password: data.password });
-    if (error) { toast.error("Erro ao redefinir senha", error.message); return; }
-    toast.success("Senha redefinida!", "Você será redirecionado ao dashboard.");
+    if (error) { toast.error(tx.error, error.message); return; }
+    toast.success(tx.success, tx.successDesc);
     setTimeout(() => router.push("/dashboard"), 1500);
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 space-y-4">
+      <p className="text-sm text-muted-foreground -mt-1 pb-1">{tx.subtitle}</p>
+
       <div className="space-y-1.5">
-        <Label htmlFor="password">Nova senha</Label>
+        <Label htmlFor="password">{tx.password}</Label>
         <div className="relative">
           <Input
             id="password"
@@ -59,7 +76,7 @@ export function ResetPasswordForm() {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="confirm">Confirmar nova senha</Label>
+        <Label htmlFor="confirm">{tx.confirm}</Label>
         <Input
           id="confirm"
           type="password"
@@ -72,7 +89,7 @@ export function ResetPasswordForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : "Redefinir senha"}
+        {isSubmitting ? <><Loader2 size={15} className="animate-spin" /> {tx.submitting}</> : tx.submit}
       </Button>
     </form>
   );
