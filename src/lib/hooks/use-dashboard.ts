@@ -56,28 +56,23 @@ export function useDashboard(monthOffset = 0) {
         const currentMonthEnd = new Date(target.getFullYear(), target.getMonth() + 1, 0)
           .toISOString().slice(0, 10);
 
-        // Parallel fetch: scoped queries + optional RPC aggregates.
-        // Transactions are fetched WITHOUT the embedded category join to avoid
-        // PGRST200 errors from a stale PostgREST schema cache.  Categories are
-        // fetched separately and joined client-side.
+        // Parallel fetch: RPCs + scoped queries.
+        // Transaction SELECTs go through the API route (service role) to bypass
+        // the anon-client JWT issue that makes auth.uid() return NULL in PostgREST.
+        type TxListJson = { transactions: Record<string, unknown>[]; categories: Record<string, unknown>[] };
+        const emptyTxList: TxListJson = { transactions: [], categories: [] };
+
         const [
           totalsResult,
           monthlyStatsResult,
-          monthTxResult,
           budgetResult,
           goalResult,
-          recentTxResult,
           catResult,
+          monthTxJson,
+          recentTxJson,
         ] = await Promise.all([
           supabase.rpc("get_all_time_totals", { p_user_id: user.id }),
           supabase.rpc("get_monthly_stats", { p_user_id: user.id }),
-          supabase
-            .from("transactions")
-            .select("*")
-            .eq("user_id", user.id)
-            .gte("date", currentMonthStart)
-            .lte("date", currentMonthEnd)
-            .order("date", { ascending: false }),
           supabase
             .from("budgets")
             .select("*, category:categories(*)")
@@ -89,19 +84,16 @@ export function useDashboard(monthOffset = 0) {
             .eq("user_id", user.id)
             .order("created_at", { ascending: false }),
           supabase
-            .from("transactions")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("date", { ascending: false })
-            .limit(8),
-          supabase
             .from("categories")
             .select("*")
             .eq("user_id", user.id),
+          fetch(`/api/transactions/list?dateFrom=${currentMonthStart}&dateTo=${currentMonthEnd}&limit=5000`)
+            .then(r => r.ok ? r.json() as Promise<TxListJson> : emptyTxList)
+            .catch(() => emptyTxList),
+          fetch(`/api/transactions/list?limit=8`)
+            .then(r => r.ok ? r.json() as Promise<TxListJson> : emptyTxList)
+            .catch(() => emptyTxList),
         ]);
-
-        if (monthTxResult.error)   console.error("[dashboard] monthTx error:", monthTxResult.error.code, monthTxResult.error.message);
-        if (recentTxResult.error)  console.error("[dashboard] recentTx error:", recentTxResult.error.code, recentTxResult.error.message);
 
         const catMap = new Map((catResult.data ?? []).map(c => [c.id, c]));
         const attachCat = (t: Record<string, unknown>) => ({
@@ -109,10 +101,10 @@ export function useDashboard(monthOffset = 0) {
           category: t.category_id ? (catMap.get(t.category_id as string) ?? null) : null,
         });
 
-        const currentMonthTx: Transaction[]     = (monthTxResult.data  ?? []).map(attachCat) as Transaction[];
-        const budgets: Budget[]                 = budgetResult.data     ?? [];
-        const goals: SavingsGoal[]              = goalResult.data       ?? [];
-        const recentTransactions: Transaction[] = (recentTxResult.data  ?? []).map(attachCat) as Transaction[];
+        const currentMonthTx: Transaction[]     = ((monthTxJson  as TxListJson).transactions ?? []).map(attachCat) as Transaction[];
+        const budgets: Budget[]                 = budgetResult.data ?? [];
+        const goals: SavingsGoal[]              = goalResult.data   ?? [];
+        const recentTransactions: Transaction[] = ((recentTxJson as TxListJson).transactions ?? []).map(attachCat) as Transaction[];
 
         // Month-level aggregates
         const monthIncome   = currentMonthTx.filter(t => t.type === "income") .reduce((s, t) => s + t.amount, 0);
@@ -128,13 +120,11 @@ export function useDashboard(monthOffset = 0) {
           allExpenses = Number(row?.total_expenses ?? 0);
           allSavings  = Number(row?.total_savings  ?? 0);
         } else {
-          // RPC not available — load all transactions for totals
-          const { data: allTx } = await supabase
-            .from("transactions")
-            .select("type, amount")
-            .eq("user_id", user.id)
-            .limit(100_000);
-          for (const t of allTx ?? []) {
+          // RPC not available — load all transactions for totals via API route.
+          const fallbackRes = await fetch("/api/transactions/list?limit=100000")
+            .then(r => r.ok ? r.json() as Promise<{ transactions: Array<{ type: string; amount: number }> }> : { transactions: [] })
+            .catch(() => ({ transactions: [] }));
+          for (const t of fallbackRes.transactions ?? []) {
             if (t.type === "income")  allIncome   += Number(t.amount);
             if (t.type === "expense") allExpenses += Number(t.amount);
             if (t.type === "saving")  allSavings  += Number(t.amount);
@@ -164,19 +154,17 @@ export function useDashboard(monthOffset = 0) {
             return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses, daysOfData };
           });
         } else {
-          // RPC not available — load 6-month window of transactions client-side
+          // RPC not available — load 6-month window of transactions via API route.
           const sixMonthsAgo = months[0];
           const { start: chartStart } = getMonthRange(sixMonthsAgo);
-          const { data: chartTx } = await supabase
-            .from("transactions")
-            .select("type, amount, date")
-            .eq("user_id", user.id)
-            .gte("date", chartStart)
-            .limit(100_000);
+          const chartRes = await fetch(`/api/transactions/list?dateFrom=${encodeURIComponent(chartStart)}&limit=100000`)
+            .then(r => r.ok ? r.json() as Promise<{ transactions: Array<{ type: string; amount: number; date: string }> }> : { transactions: [] })
+            .catch(() => ({ transactions: [] }));
+          const chartTx = chartRes.transactions ?? [];
 
           monthlyStats = months.map((m) => {
             const { start, end } = getMonthRange(m);
-            const slice = (chartTx ?? []).filter(t => t.date >= start && t.date <= end);
+            const slice = chartTx.filter(t => t.date >= start && t.date <= end);
             const income   = slice.filter(t => t.type === "income") .reduce((s, t) => s + Number(t.amount), 0);
             const expenses = slice.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
             const dates = slice.map(t => t.date).sort();

@@ -15,7 +15,7 @@ import {
 } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
-import type { Transaction, SavingsGoal } from "@/lib/types";
+import type { Transaction, SavingsGoal, Category } from "@/lib/types";
 import { ChartSkeleton } from "@/components/shared/skeleton";
 import { Target, CalendarDays } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
@@ -76,20 +76,22 @@ export function ReportsClient() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
-      const [txRes, goalsRes, catRes] = await Promise.all([
-        supabase.from("transactions").select("*")
-          .eq("user_id", user.id).order("date", { ascending: true }),
+      // Fetch transactions + categories via API route (service role bypasses RLS).
+      // Goals use browser client — different table, not affected by the JWT issue.
+      const [txApiRes, goalsRes] = await Promise.all([
+        fetch("/api/transactions/list?limit=100000&order=asc"),
         supabase.from("savings_goals").select("*")
           .eq("user_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("categories").select("*").eq("user_id", user.id),
       ]);
-      if (txRes.error) console.error("[reports] transactions error:", txRes.error.code, txRes.error.message);
-      const catMap = new Map((catRes.data ?? []).map(c => [c.id, c]));
-      const txsWithCats = (txRes.data ?? []).map(t => ({
+      if (!txApiRes.ok) { setLoading(false); return; }
+      const json = await txApiRes.json() as { transactions: Transaction[]; categories: Category[] };
+      const catMap = new Map(json.categories.map(c => [c.id, c]));
+      const txsWithCats: Transaction[] = json.transactions.map(t => ({
         ...t,
-        category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+        category: t.category_id ? catMap.get(t.category_id) : undefined,
       }));
-      setTransactions(txsWithCats as Transaction[]);
+      console.log("[reports] loaded", json.transactions.length, "transactions");
+      setTransactions(txsWithCats);
       setGoals(goalsRes.data ?? []);
       setLoading(false);
     }

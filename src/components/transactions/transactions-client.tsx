@@ -102,55 +102,40 @@ export function TransactionsClient() {
   const [totalsKey, setTotalsKey]       = useState(0);
 
   const load = useCallback(async () => {
+    // Keep browser client only for generateRecurringTransactions (INSERT — not affected by RLS issue).
     const supabase = createClient();
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr) console.error("[load] auth error:", authErr.message);
     if (!user) { setLoading(false); return; }
 
-    // Generate any recurring transactions for the current month before loading.
-    // Wrapped in try-catch so a date-parsing or network error doesn't silently
-    // prevent the rest of load() from running (leaving loading=true forever).
     try {
       await generateRecurringTransactions(supabase, user.id);
     } catch (err) {
       console.error("[load] generateRecurringTransactions threw:", err);
     }
 
-    // Fetch transactions and categories in parallel.
-    // Intentionally NO embedded join (category:categories(*)) — if the FK is
-    // absent from PostgREST's schema cache it returns PGRST200 silently
-    // (data = null) and the list appears empty.  We join client-side instead.
-    const [txRes, catRes] = await Promise.all([
-      supabase.from("transactions")
-        .select("*", { count: "exact" })
-        .eq("user_id", user.id)
-        .order("date", { ascending: false })
-        .limit(PAGE_SIZE),
-      supabase.from("categories").select("*").eq("user_id", user.id).order("name"),
-    ]);
-
-    if (txRes.error) {
-      console.error("[load] transactions query error:", txRes.error.code, txRes.error.message, txRes.error.hint);
+    // Fetch via API route — service role bypasses RLS regardless of client JWT state.
+    const res = await fetch(`/api/transactions/list?offset=0&limit=${PAGE_SIZE}`);
+    if (!res.ok) {
+      console.error("[load] API error:", res.status);
       toast.error(lang === "en" ? "Error loading transactions. Reload the page." : "Erro ao carregar transações. Recarregue a página.");
-    } else {
-      console.log(`[load] user=${user.id.slice(0, 8)} transactions=${txRes.data?.length ?? 0} total=${txRes.count}`);
-    }
-    if (catRes.error) {
-      console.error("[load] categories query error:", catRes.error.code, catRes.error.message);
+      setLoading(false);
+      return;
     }
 
-    const cats = catRes.data ?? [];
-    categoriesRef.current = cats;
-    const catMap = new Map(cats.map(c => [c.id, c]));
-    const txsWithCats = (txRes.data ?? []).map(t => ({
+    const json = await res.json() as { transactions: Transaction[]; total: number; categories: Category[] };
+    const catMap = new Map(json.categories.map(c => [c.id, c]));
+    const txsWithCats: Transaction[] = json.transactions.map(t => ({
       ...t,
-      category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+      category: t.category_id ? catMap.get(t.category_id) : undefined,
     }));
 
+    console.log(`[load] transactions=${json.transactions.length} total=${json.total}`);
+    categoriesRef.current = json.categories;
     setTransactions(txsWithCats);
-    setTotalCount(txRes.count ?? 0);
+    setTotalCount(json.total);
     setDbOffset(PAGE_SIZE);
-    setCategories(cats);
+    setCategories(json.categories);
     setLoading(false);
     setTotalsKey(k => k + 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,19 +144,13 @@ export function TransactionsClient() {
   const loadMore = useCallback(async () => {
     if (loadingMore) return;
     setLoadingMore(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoadingMore(false); return; }
-    const { data } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("date", { ascending: false })
-      .range(dbOffset, dbOffset + PAGE_SIZE - 1);
+    const res = await fetch(`/api/transactions/list?offset=${dbOffset}&limit=${PAGE_SIZE}`);
+    if (!res.ok) { setLoadingMore(false); return; }
+    const json = await res.json() as { transactions: Transaction[] };
     const catMap = new Map(categoriesRef.current.map(c => [c.id, c]));
-    const withCats = (data ?? []).map(t => ({
+    const withCats: Transaction[] = json.transactions.map(t => ({
       ...t,
-      category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+      category: t.category_id ? catMap.get(t.category_id) : undefined,
     }));
     setTransactions(prev => [...prev, ...withCats]);
     setDbOffset(prev => prev + PAGE_SIZE);
@@ -181,26 +160,20 @@ export function TransactionsClient() {
   const loadAll = useCallback(async () => {
     if (loadAllLoading) return;
     setLoadAllLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoadAllLoading(false); return; }
     const BATCH = 1000;
     const allRows: Transaction[] = [];
     const catMap = new Map(categoriesRef.current.map(c => [c.id, c]));
     let from = dbOffset;
     while (true) {
-      const { data } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("date", { ascending: false })
-        .range(from, from + BATCH - 1);
-      if (!data || data.length === 0) break;
-      allRows.push(...data.map(t => ({
+      const res = await fetch(`/api/transactions/list?offset=${from}&limit=${BATCH}`);
+      if (!res.ok) break;
+      const json = await res.json() as { transactions: Transaction[] };
+      if (!json.transactions || json.transactions.length === 0) break;
+      allRows.push(...json.transactions.map((t): Transaction => ({
         ...t,
-        category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
-      })) as Transaction[]);
-      if (data.length < BATCH) break;
+        category: t.category_id ? catMap.get(t.category_id) : undefined,
+      })));
+      if (json.transactions.length < BATCH) break;
       from += BATCH;
     }
     setTransactions(prev => [...prev, ...allRows]);
@@ -213,31 +186,23 @@ export function TransactionsClient() {
   useEffect(() => {
     let cancelled = false;
     async function fetchDbTotals() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
       const effectiveStart = dateFrom || dateRange?.start || null;
       const effectiveEnd   = dateTo   || dateRange?.end   || null;
-      // eslint-disable-next-line prefer-const
-      let q = supabase.from("transactions").select("type, amount").eq("user_id", user.id).limit(100_000);
-      if (effectiveStart)            q = q.gte("date", effectiveStart);
-      if (effectiveEnd)              q = q.lte("date", effectiveEnd);
-      if (tab !== "all")             q = q.eq("type", tab);
-      if (catFilter !== "__all__")   q = q.eq("category_id", catFilter);
-      if (search)                    q = q.ilike("title", `%${search}%`);
+      const params = new URLSearchParams();
+      if (effectiveStart)                params.set("dateFrom", effectiveStart);
+      if (effectiveEnd)                  params.set("dateTo", effectiveEnd);
+      if (tab !== "all")                 params.set("type", tab);
+      if (catFilter !== "__all__")       params.set("categoryId", catFilter);
+      if (search)                        params.set("search", search);
       const minV = parseFloat(minValue.replace(",", "."));
       const maxV = parseFloat(maxValue.replace(",", "."));
-      if (!isNaN(minV) && minV > 0)  q = q.gte("amount", minV);
-      if (!isNaN(maxV) && maxV > 0)  q = q.lte("amount", maxV);
-      const { data, error: totalsErr } = await q;
-      if (totalsErr) console.error("[totals] query error:", totalsErr.code, totalsErr.message);
-      if (cancelled || !data) return;
-      let income = 0, expense = 0;
-      for (const t of data) {
-        if (t.type === "income") income += Number(t.amount);
-        else expense += Number(t.amount);
-      }
-      setDbTotals({ income, expense, count: data.length });
+      if (!isNaN(minV) && minV > 0)      params.set("minValue", String(minV));
+      if (!isNaN(maxV) && maxV > 0)      params.set("maxValue", String(maxV));
+      const res = await fetch(`/api/transactions/totals?${params}`);
+      if (cancelled || !res.ok) return;
+      const json = await res.json() as { income: number; expense: number; count: number };
+      if (cancelled) return;
+      setDbTotals(json);
     }
     fetchDbTotals();
     return () => { cancelled = true; };
@@ -427,47 +392,39 @@ export function TransactionsClient() {
     if (exporting) return;
     setExporting(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Resolve effective date range: custom date inputs override period pills
       const effectiveStart = dateFrom || dateRange?.start || null;
       const effectiveEnd   = dateTo   || dateRange?.end   || null;
 
-      // Fetch ALL matching transactions from DB in 1 000-row batches.
-      // We push every filter to the DB so we never miss records that haven't
-      // been loaded into the paginated UI yet.
+      const baseParams = new URLSearchParams();
+      if (effectiveStart)                  baseParams.set("dateFrom", effectiveStart);
+      if (effectiveEnd)                    baseParams.set("dateTo", effectiveEnd);
+      if (tab !== "all")                   baseParams.set("type", tab);
+      if (catFilter !== "__all__")         baseParams.set("categoryId", catFilter);
+      if (search)                          baseParams.set("search", search);
+      const minV = parseFloat(minValue.replace(",", "."));
+      const maxV = parseFloat(maxValue.replace(",", "."));
+      if (!isNaN(minV) && minV > 0)        baseParams.set("minValue", String(minV));
+      if (!isNaN(maxV) && maxV > 0)        baseParams.set("maxValue", String(maxV));
+
       const BATCH = 1000;
       const allRows: Transaction[] = [];
+      let catMapExport = new Map(categoriesRef.current.map(c => [c.id, c]));
       let from = 0;
       while (true) {
-        // eslint-disable-next-line prefer-const
-        let q = supabase
-          .from("transactions")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("date", { ascending: false })
-          .range(from, from + BATCH - 1);
-
-        if (effectiveStart) q = q.gte("date", effectiveStart);
-        if (effectiveEnd)   q = q.lte("date", effectiveEnd);
-        if (tab !== "all")  q = q.eq("type", tab);
-        if (catFilter !== "__all__") q = q.eq("category_id", catFilter);
-        if (search) q = q.ilike("title", `%${search}%`);
-        const minV = parseFloat(minValue.replace(",", "."));
-        const maxV = parseFloat(maxValue.replace(",", "."));
-        if (!isNaN(minV) && minV > 0) q = q.gte("amount", minV);
-        if (!isNaN(maxV) && maxV > 0) q = q.lte("amount", maxV);
-
-        const { data, error } = await q;
-        if (error || !data || data.length === 0) break;
-        const catMapExport = new Map(categoriesRef.current.map(c => [c.id, c]));
-        allRows.push(...data.map(t => ({
+        baseParams.set("offset", String(from));
+        baseParams.set("limit", String(BATCH));
+        const res = await fetch(`/api/transactions/list?${baseParams}`);
+        if (!res.ok) break;
+        const json = await res.json() as { transactions: Transaction[]; categories: Category[] };
+        if (from === 0 && json.categories.length > 0) {
+          catMapExport = new Map(json.categories.map(c => [c.id, c]));
+        }
+        if (!json.transactions || json.transactions.length === 0) break;
+        allRows.push(...json.transactions.map((t): Transaction => ({
           ...t,
-          category: t.category_id ? (catMapExport.get(t.category_id) ?? null) : null,
-        })) as Transaction[]);
-        if (data.length < BATCH) break;
+          category: t.category_id ? catMapExport.get(t.category_id) : undefined,
+        })));
+        if (json.transactions.length < BATCH) break;
         from += BATCH;
       }
 
