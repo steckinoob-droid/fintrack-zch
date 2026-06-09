@@ -40,7 +40,14 @@ export function useDashboard(monthOffset = 0) {
         if (!user) return;
 
         await seedDefaultCategories(supabase, user.id);
-        await generateRecurringTransactions(supabase, user.id);
+
+        // Guard: generateRecurringTransactions can throw on malformed parent
+        // dates (date-fns throws on Invalid Date passed to format()).
+        try {
+          await generateRecurringTransactions(supabase, user.id);
+        } catch (err) {
+          console.error("[dashboard] generateRecurringTransactions threw:", err);
+        }
 
         const now    = new Date();
         const target = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
@@ -49,7 +56,10 @@ export function useDashboard(monthOffset = 0) {
         const currentMonthEnd = new Date(target.getFullYear(), target.getMonth() + 1, 0)
           .toISOString().slice(0, 10);
 
-        // Parallel fetch: scoped queries + optional RPC aggregates
+        // Parallel fetch: scoped queries + optional RPC aggregates.
+        // Transactions are fetched WITHOUT the embedded category join to avoid
+        // PGRST200 errors from a stale PostgREST schema cache.  Categories are
+        // fetched separately and joined client-side.
         const [
           totalsResult,
           monthlyStatsResult,
@@ -57,12 +67,13 @@ export function useDashboard(monthOffset = 0) {
           budgetResult,
           goalResult,
           recentTxResult,
+          catResult,
         ] = await Promise.all([
           supabase.rpc("get_all_time_totals", { p_user_id: user.id }),
           supabase.rpc("get_monthly_stats", { p_user_id: user.id }),
           supabase
             .from("transactions")
-            .select("*, category:categories(*)")
+            .select("*")
             .eq("user_id", user.id)
             .gte("date", currentMonthStart)
             .lte("date", currentMonthEnd)
@@ -79,16 +90,29 @@ export function useDashboard(monthOffset = 0) {
             .order("created_at", { ascending: false }),
           supabase
             .from("transactions")
-            .select("*, category:categories(*)")
+            .select("*")
             .eq("user_id", user.id)
             .order("date", { ascending: false })
             .limit(8),
+          supabase
+            .from("categories")
+            .select("*")
+            .eq("user_id", user.id),
         ]);
 
-        const currentMonthTx: Transaction[]     = monthTxResult.data   ?? [];
+        if (monthTxResult.error)   console.error("[dashboard] monthTx error:", monthTxResult.error.code, monthTxResult.error.message);
+        if (recentTxResult.error)  console.error("[dashboard] recentTx error:", recentTxResult.error.code, recentTxResult.error.message);
+
+        const catMap = new Map((catResult.data ?? []).map(c => [c.id, c]));
+        const attachCat = (t: Record<string, unknown>) => ({
+          ...t,
+          category: t.category_id ? (catMap.get(t.category_id as string) ?? null) : null,
+        });
+
+        const currentMonthTx: Transaction[]     = (monthTxResult.data  ?? []).map(attachCat) as Transaction[];
         const budgets: Budget[]                 = budgetResult.data     ?? [];
         const goals: SavingsGoal[]              = goalResult.data       ?? [];
-        const recentTransactions: Transaction[] = recentTxResult.data   ?? [];
+        const recentTransactions: Transaction[] = (recentTxResult.data  ?? []).map(attachCat) as Transaction[];
 
         // Month-level aggregates
         const monthIncome   = currentMonthTx.filter(t => t.type === "income") .reduce((s, t) => s + t.amount, 0);

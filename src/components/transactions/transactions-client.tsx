@@ -49,6 +49,9 @@ export function TransactionsClient() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalCount, setTotalCount]     = useState(0);
   const [categories, setCategories]     = useState<Category[]>([]);
+  // Ref so loadMore / loadAll always join against the latest categories
+  // without needing to add `categories` to their useCallback deps.
+  const categoriesRef = useRef<Category[]>([]);
   const [loading, setLoading]           = useState(true);
   const [loadingMore, setLoadingMore]   = useState(false);
   const [dbOffset, setDbOffset]         = useState(PAGE_SIZE);
@@ -113,9 +116,13 @@ export function TransactionsClient() {
       console.error("[load] generateRecurringTransactions threw:", err);
     }
 
+    // Fetch transactions and categories in parallel.
+    // Intentionally NO embedded join (category:categories(*)) — if the FK is
+    // absent from PostgREST's schema cache it returns PGRST200 silently
+    // (data = null) and the list appears empty.  We join client-side instead.
     const [txRes, catRes] = await Promise.all([
       supabase.from("transactions")
-        .select("*, category:categories(*)", { count: "exact" })
+        .select("*", { count: "exact" })
         .eq("user_id", user.id)
         .order("date", { ascending: false })
         .limit(PAGE_SIZE),
@@ -132,10 +139,18 @@ export function TransactionsClient() {
       console.error("[load] categories query error:", catRes.error.code, catRes.error.message);
     }
 
-    setTransactions(txRes.data ?? []);
+    const cats = catRes.data ?? [];
+    categoriesRef.current = cats;
+    const catMap = new Map(cats.map(c => [c.id, c]));
+    const txsWithCats = (txRes.data ?? []).map(t => ({
+      ...t,
+      category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+    }));
+
+    setTransactions(txsWithCats);
     setTotalCount(txRes.count ?? 0);
     setDbOffset(PAGE_SIZE);
-    setCategories(catRes.data ?? []);
+    setCategories(cats);
     setLoading(false);
     setTotalsKey(k => k + 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,11 +164,16 @@ export function TransactionsClient() {
     if (!user) { setLoadingMore(false); return; }
     const { data } = await supabase
       .from("transactions")
-      .select("*, category:categories(*)")
+      .select("*")
       .eq("user_id", user.id)
       .order("date", { ascending: false })
       .range(dbOffset, dbOffset + PAGE_SIZE - 1);
-    setTransactions(prev => [...prev, ...(data ?? [])]);
+    const catMap = new Map(categoriesRef.current.map(c => [c.id, c]));
+    const withCats = (data ?? []).map(t => ({
+      ...t,
+      category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+    }));
+    setTransactions(prev => [...prev, ...withCats]);
     setDbOffset(prev => prev + PAGE_SIZE);
     setLoadingMore(false);
   }, [loadingMore, dbOffset]);
@@ -166,16 +186,20 @@ export function TransactionsClient() {
     if (!user) { setLoadAllLoading(false); return; }
     const BATCH = 1000;
     const allRows: Transaction[] = [];
+    const catMap = new Map(categoriesRef.current.map(c => [c.id, c]));
     let from = dbOffset;
     while (true) {
       const { data } = await supabase
         .from("transactions")
-        .select("*, category:categories(*)")
+        .select("*")
         .eq("user_id", user.id)
         .order("date", { ascending: false })
         .range(from, from + BATCH - 1);
       if (!data || data.length === 0) break;
-      allRows.push(...(data as Transaction[]));
+      allRows.push(...data.map(t => ({
+        ...t,
+        category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+      })) as Transaction[]);
       if (data.length < BATCH) break;
       from += BATCH;
     }
@@ -420,7 +444,7 @@ export function TransactionsClient() {
         // eslint-disable-next-line prefer-const
         let q = supabase
           .from("transactions")
-          .select("*, category:categories(*)")
+          .select("*")
           .eq("user_id", user.id)
           .order("date", { ascending: false })
           .range(from, from + BATCH - 1);
@@ -437,7 +461,11 @@ export function TransactionsClient() {
 
         const { data, error } = await q;
         if (error || !data || data.length === 0) break;
-        allRows.push(...(data as Transaction[]));
+        const catMapExport = new Map(categoriesRef.current.map(c => [c.id, c]));
+        allRows.push(...data.map(t => ({
+          ...t,
+          category: t.category_id ? (catMapExport.get(t.category_id) ?? null) : null,
+        })) as Transaction[]);
         if (data.length < BATCH) break;
         from += BATCH;
       }

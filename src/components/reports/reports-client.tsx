@@ -76,13 +76,20 @@ export function ReportsClient() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
-      const [txRes, goalsRes] = await Promise.all([
-        supabase.from("transactions").select("*, category:categories(*)")
+      const [txRes, goalsRes, catRes] = await Promise.all([
+        supabase.from("transactions").select("*")
           .eq("user_id", user.id).order("date", { ascending: true }),
         supabase.from("savings_goals").select("*")
           .eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("categories").select("*").eq("user_id", user.id),
       ]);
-      setTransactions(txRes.data ?? []);
+      if (txRes.error) console.error("[reports] transactions error:", txRes.error.code, txRes.error.message);
+      const catMap = new Map((catRes.data ?? []).map(c => [c.id, c]));
+      const txsWithCats = (txRes.data ?? []).map(t => ({
+        ...t,
+        category: t.category_id ? (catMap.get(t.category_id) ?? null) : null,
+      }));
+      setTransactions(txsWithCats as Transaction[]);
       setGoals(goalsRes.data ?? []);
       setLoading(false);
     }
