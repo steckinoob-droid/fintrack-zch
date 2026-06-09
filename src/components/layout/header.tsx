@@ -74,6 +74,9 @@ export function Header({ user, profile }: HeaderProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-1.5">
+          {/* Plan CTA — compact pill */}
+          <UpgradeCta compact />
+
           {/* Search */}
           <button
             onClick={() => setSearchOpen(true)}
@@ -86,9 +89,6 @@ export function Header({ user, profile }: HeaderProps) {
               ⌘K
             </kbd>
           </button>
-
-          {/* Plan CTA — compact pill */}
-          <UpgradeCta compact />
 
           {/* Language toggle */}
           <button
