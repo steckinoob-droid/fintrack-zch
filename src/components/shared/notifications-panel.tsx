@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 import Link from "next/link";
 import type { Budget, SavingsGoal } from "@/lib/types";
@@ -24,7 +25,10 @@ interface Notification {
 
 export function NotificationsPanel() {
   const { lang, fc } = useLang();
+  const tx = appT[lang].notifications;
+
   const [open, setOpen]                   = useState(false);
+  const [loading, setLoading]             = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [read, setRead]                   = useState<Set<string>>(new Set());
   const [mounted, setMounted]             = useState(false);
@@ -36,105 +40,101 @@ export function NotificationsPanel() {
   // ── Data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setLoading(true);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const now        = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        const now        = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-      const [bRes, gRes, tRes] = await Promise.all([
-        supabase.from("budgets").select("*, category:categories(*)").eq("user_id", user.id).eq("month", monthStart),
-        supabase.from("savings_goals").select("*").eq("user_id", user.id),
-        supabase.from("transactions").select("amount, type, category_id").eq("user_id", user.id).gte("date", monthStart).lte("date", monthEnd),
-      ]);
+        const [bRes, gRes, tRes] = await Promise.all([
+          supabase.from("budgets").select("*, category:categories(*)").eq("user_id", user.id).eq("month", monthStart),
+          supabase.from("savings_goals").select("*").eq("user_id", user.id),
+          supabase.from("transactions").select("amount, type, category_id").eq("user_id", user.id).gte("date", monthStart).lte("date", monthEnd),
+        ]);
 
-      const budgets: Budget[]      = bRes.data ?? [];
-      const goals: SavingsGoal[]   = gRes.data ?? [];
-      const txs                    = tRes.data ?? [];
-      const notes: Notification[]  = [];
-      const pt                     = lang === "pt";
+        const budgets: Budget[]      = bRes.data ?? [];
+        const goals: SavingsGoal[]   = gRes.data ?? [];
+        const txs                    = tRes.data ?? [];
+        const notes: Notification[]  = [];
+        const pt                     = lang === "pt";
 
-      for (const b of budgets) {
-        const spent = txs
-          .filter((t: any) => t.type === "expense" && t.category_id === b.category_id)
-          .reduce((s: number, t: any) => s + t.amount, 0);
-        const pct = (spent / b.amount) * 100;
-        if (pct >= 100) {
-          notes.push({
-            id: `budget-over-${b.id}`,
-            icon: <XCircle size={15} className="text-red-400" />,
-            title: pt ? `Limite excedido — ${b.category?.name}` : `Over budget — ${b.category?.name}`,
-            description: pt
-              ? `Você gastou ${fc(spent - b.amount)} acima do orçado de ${fc(b.amount)}.`
-              : `Spent ${fc(spent - b.amount)} over the ${fc(b.amount)} budget.`,
-            href: "/budgets", urgency: "danger", read: false,
-          });
-        } else if (pct >= 80) {
-          notes.push({
-            id: `budget-warn-${b.id}`,
-            icon: <AlertTriangle size={15} className="text-amber-400" />,
-            title: pt ? `Quase no limite — ${b.category?.name}` : `Approaching limit — ${b.category?.name}`,
-            description: pt
-              ? `${Math.round(pct)}% do orçamento de ${fc(b.amount)} utilizado.`
-              : `${Math.round(pct)}% of the ${fc(b.amount)} budget used.`,
-            href: "/budgets", urgency: "warning", read: false,
-          });
+        for (const b of budgets) {
+          const spent = txs
+            .filter((t: any) => t.type === "expense" && t.category_id === b.category_id)
+            .reduce((s: number, t: any) => s + t.amount, 0);
+          const pct = (spent / b.amount) * 100;
+          if (pct >= 100) {
+            notes.push({
+              id: `budget-over-${b.id}`,
+              icon: <XCircle size={15} className="text-red-400" />,
+              title: pt ? `Limite excedido — ${b.category?.name}` : `Over budget — ${b.category?.name}`,
+              description: pt
+                ? `Você gastou ${fc(spent - b.amount)} acima do orçado de ${fc(b.amount)}.`
+                : `Spent ${fc(spent - b.amount)} over the ${fc(b.amount)} budget.`,
+              href: "/budgets", urgency: "danger", read: false,
+            });
+          } else if (pct >= 80) {
+            notes.push({
+              id: `budget-warn-${b.id}`,
+              icon: <AlertTriangle size={15} className="text-amber-400" />,
+              title: pt ? `Quase no limite — ${b.category?.name}` : `Approaching limit — ${b.category?.name}`,
+              description: pt
+                ? `${Math.round(pct)}% do orçamento de ${fc(b.amount)} utilizado.`
+                : `${Math.round(pct)}% of the ${fc(b.amount)} budget used.`,
+              href: "/budgets", urgency: "warning", read: false,
+            });
+          }
         }
-      }
 
-      for (const g of goals) {
-        const pct = (g.current_amount / g.target_amount) * 100;
-        if (pct >= 100) {
+        for (const g of goals) {
+          const pct = (g.current_amount / g.target_amount) * 100;
+          if (pct >= 100) {
+            notes.push({
+              id: `goal-done-${g.id}`,
+              icon: <CheckCircle size={15} className="text-emerald-400" />,
+              title: pt ? `Meta atingida! — ${g.name}` : `Goal reached! — ${g.name}`,
+              description: pt
+                ? `Parabéns! Você alcançou ${fc(g.target_amount)}.`
+                : `Congratulations! You reached ${fc(g.target_amount)}.`,
+              href: "/goals", urgency: "success", read: false,
+            });
+          } else if (pct >= 75) {
+            notes.push({
+              id: `goal-close-${g.id}`,
+              icon: <Target size={15} className="text-indigo-400" />,
+              title: pt ? `Quase lá! — ${g.name}` : `Almost there! — ${g.name}`,
+              description: pt
+                ? `${Math.round(pct)}% da meta concluída. Faltam ${fc(g.target_amount - g.current_amount)}.`
+                : `${Math.round(pct)}% of goal reached. ${fc(g.target_amount - g.current_amount)} to go.`,
+              href: "/goals", urgency: "info", read: false,
+            });
+          }
+        }
+
+        const income      = txs.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + t.amount, 0);
+        const expenses    = txs.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
+        const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
+        if (savingsRate > 20 && income > 0) {
           notes.push({
-            id: `goal-done-${g.id}`,
-            icon: <CheckCircle size={15} className="text-emerald-400" />,
-            title: pt ? `Meta atingida! — ${g.name}` : `Goal reached! — ${g.name}`,
+            id: "savings-good",
+            icon: <TrendingUp size={15} className="text-emerald-400" />,
+            title: pt ? "Bom saldo mensal!" : "Great monthly balance!",
             description: pt
-              ? `Parabéns! Você alcançou ${fc(g.target_amount)}.`
-              : `Congratulations! You reached ${fc(g.target_amount)}.`,
+              ? `${Math.round(savingsRate)}% da renda ainda não foi gasta. Considere mover para suas metas.`
+              : `${Math.round(savingsRate)}% of income is unspent. Consider moving it to your goals.`,
             href: "/goals", urgency: "success", read: false,
           });
-        } else if (pct >= 75) {
-          notes.push({
-            id: `goal-close-${g.id}`,
-            icon: <Target size={15} className="text-indigo-400" />,
-            title: pt ? `Quase lá! — ${g.name}` : `Almost there! — ${g.name}`,
-            description: pt
-              ? `${Math.round(pct)}% da meta concluída. Faltam ${fc(g.target_amount - g.current_amount)}.`
-              : `${Math.round(pct)}% of goal reached. ${fc(g.target_amount - g.current_amount)} to go.`,
-            href: "/goals", urgency: "info", read: false,
-          });
         }
-      }
 
-      const income      = txs.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + t.amount, 0);
-      const expenses    = txs.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
-      const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
-      if (savingsRate > 20 && income > 0) {
-        notes.push({
-          id: "savings-good",
-          icon: <TrendingUp size={15} className="text-emerald-400" />,
-          title: pt ? "Bom saldo mensal!" : "Great monthly balance!",
-          description: pt
-            ? `${Math.round(savingsRate)}% da renda ainda não foi gasta. Considere mover para suas metas.`
-            : `${Math.round(savingsRate)}% of income is unspent. Consider moving it to your goals.`,
-          href: "/goals", urgency: "success", read: false,
-        });
+        // Empty state is handled in PanelBody — no placeholder item needed
+        setNotifications(notes);
+      } finally {
+        setLoading(false);
       }
-
-      if (notes.length === 0) {
-        notes.push({
-          id: "all-good",
-          icon: <CheckCircle size={15} className="text-emerald-400" />,
-          title: pt ? "Tudo em ordem!" : "All clear!",
-          description: pt ? "Nenhum alerta no momento. Continue assim!" : "No alerts right now. Keep it up!",
-          href: "/dashboard", urgency: "success", read: false,
-        });
-      }
-
-      setNotifications(notes);
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,17 +158,24 @@ export function NotificationsPanel() {
     return () => document.removeEventListener("keydown", handler);
   }, [open]);
 
-  // ── Body scroll lock while the mobile sheet is open ──────────────────────
+  // ── Body scroll lock — mobile only (lg breakpoint = 1024px) ─────────────
   useEffect(() => {
-    if (open) document.body.style.overflow = "hidden";
+    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
+    if (open && isMobile) document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  const unread = notifications.filter((n) => !read.has(n.id)).length;
-  const pt     = lang === "pt";
+  const unread    = notifications.filter((n) => !read.has(n.id)).length;
+  const readCount = notifications.filter((n) =>  read.has(n.id)).length;
+  const pt        = lang === "pt";
 
   function markAllRead() {
     setRead(new Set(notifications.map((n) => n.id)));
+  }
+
+  function clearRead() {
+    setNotifications((prev) => prev.filter((n) => !read.has(n.id)));
+    setRead(new Set());
   }
 
   const urgencyStyles = {
@@ -184,25 +191,34 @@ export function NotificationsPanel() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-2">
           <Bell size={15} className="text-foreground" />
-          <span className="text-sm font-semibold text-foreground">
-            {pt ? "Notificações" : "Notifications"}
-          </span>
+          <span className="text-sm font-semibold text-foreground">{tx.title}</span>
           {unread > 0 && (
             <span className="h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center px-1">
               {unread}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {readCount > 0 && (
+            <button
+              onClick={clearRead}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+            >
+              {tx.clearRead}
+            </button>
+          )}
           {unread > 0 && (
-            <button onClick={markAllRead} className="text-xs text-primary hover:underline whitespace-nowrap">
-              {pt ? "Marcar tudo como lido" : "Mark all read"}
+            <button
+              onClick={markAllRead}
+              className="text-xs text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
+            >
+              {tx.markAllRead}
             </button>
           )}
           <button
             onClick={() => setOpen(false)}
             className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label={pt ? "Fechar" : "Close"}
+            aria-label={tx.close}
           >
             <X size={15} />
           </button>
@@ -240,15 +256,49 @@ export function NotificationsPanel() {
     );
   }
 
+  function PanelBody({ compact = false }: { compact?: boolean }) {
+    if (loading) {
+      return (
+        <div className="p-4 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-start gap-3 animate-pulse">
+              <div className="h-7 w-7 rounded-lg bg-muted/40 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-muted/40 rounded w-3/4" />
+                <div className="h-2.5 bg-muted/30 rounded w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (notifications.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
+          <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-3">
+            <CheckCircle size={20} className="text-emerald-400" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">{tx.emptyTitle}</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-[200px]">{tx.emptyDesc}</p>
+        </div>
+      );
+    }
+    return (
+      <div className="divide-y divide-border/30">
+        {notifications.map((n) => <NotificationItem key={n.id} n={n} compact={compact} />)}
+      </div>
+    );
+  }
+
   function PanelFooter() {
     return (
       <div className="px-4 py-3 border-t border-border/50 shrink-0">
         <Link
           href="/reports"
           onClick={() => setOpen(false)}
-          className="text-xs text-primary hover:underline"
+          className="text-xs text-primary hover:text-primary/80 transition-colors"
         >
-          {pt ? "Ver relatórios completos →" : "View full reports →"}
+          {tx.viewReports}
         </Link>
       </div>
     );
@@ -308,8 +358,8 @@ export function NotificationsPanel() {
 
             <PanelHeader />
 
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y divide-border/30 scrollbar-thin">
-              {notifications.map((n) => <NotificationItem key={n.id} n={n} />)}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
+              <PanelBody />
             </div>
 
             <PanelFooter />
@@ -336,8 +386,8 @@ export function NotificationsPanel() {
         >
           <div className="rounded-xl border border-border/60 shadow-2xl bg-card flex flex-col overflow-hidden">
             <PanelHeader />
-            <div className="max-h-96 overflow-y-auto overscroll-contain divide-y divide-border/30 scrollbar-thin">
-              {notifications.map((n) => <NotificationItem key={n.id} n={n} compact />)}
+            <div className="max-h-96 overflow-y-auto overscroll-contain scrollbar-thin">
+              <PanelBody compact />
             </div>
             <PanelFooter />
           </div>

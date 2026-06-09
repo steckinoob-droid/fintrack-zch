@@ -385,6 +385,10 @@ export const appT = {
       budgetOver: "Budget exceeded", budgetWarn: "Approaching limit",
       goalDone: "Goal reached!", goalClose: "Almost there!",
       savingsGood: "Great savings rate!",
+      emptyTitle: "No notifications yet",
+      emptyDesc: "When something important happens, it'll show up here.",
+      clearRead: "Clear read",
+      close: "Close",
     },
     billing: {
       title: "Plan & Billing",
@@ -961,6 +965,10 @@ export const appT = {
       budgetOver: "Limite excedido", budgetWarn: "Quase no limite",
       goalDone: "Meta atingida!", goalClose: "Quase lá!",
       savingsGood: "Ótima taxa de poupança!",
+      emptyTitle: "Nenhuma notificação por enquanto",
+      emptyDesc: "Quando algo importante acontecer, aparecerá aqui.",
+      clearRead: "Limpar lidas",
+      close: "Fechar",
     },
     billing: {
       title: "Plano & Cobrança",
