@@ -67,24 +67,32 @@ export function SettingsClient() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setEmail(user.email ?? "");
-      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (data?.name) profileForm.setValue("name", data.name);
-      // Sync currency from DB → context (cross-device persistence)
-      if (data?.currency) setCurrency(data.currency);
+
+      // Use the server-side API (service role) to guarantee the profile is always
+      // readable regardless of browser-client session hydration state.
+      const res = await fetch("/api/profile");
+      if (!res.ok) return;
+      const json = await res.json() as { profile: { name?: string; currency?: string } | null };
+      if (json.profile?.name) profileForm.setValue("name", json.profile.name);
+      if (json.profile?.currency) setCurrency(json.profile.currency);
     }
     load();
   }, [profileForm, setCurrency]);
 
   async function onUpdateProfile(data: ProfileData) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase
-      .from("profiles")
-      .update({ name: data.name, currency })
-      .eq("id", user.id);
-    if (error) { toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil"); return; }
+    const res = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: data.name, currency }),
+    });
+    if (!res.ok) {
+      toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil");
+      return;
+    }
     toast.success(tx.profileUpdated);
+    // Refresh server components (layout.tsx → Sidebar + Header) so the new
+    // name is reflected immediately without a manual page reload.
+    router.refresh();
   }
 
   async function onChangePassword(data: PasswordData) {
@@ -98,10 +106,11 @@ export function SettingsClient() {
   /** Immediately persists currency to DB + localStorage (no need to click Save). */
   async function handleCurrencyChange(c: string) {
     setCurrency(c); // updates context + localStorage right away
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("profiles").update({ currency: c }).eq("id", user.id);
+    await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currency: c }),
+    });
   }
 
   async function handleLogout() {
@@ -111,27 +120,21 @@ export function SettingsClient() {
   }
 
   async function handleExportData() {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    // Use the server-side API (service role) so the export always contains the
+    // full data regardless of browser-client session state.
+    const res = await fetch("/api/backup");
+    if (!res.ok) {
+      toast.error(lang === "en" ? "Error exporting backup" : "Erro ao exportar backup");
+      return;
+    }
 
-    const [txRes, budgetsRes, goalsRes, catsRes, profileRes] = await Promise.all([
-      // 100 k is a safe ceiling for a personal finance app; without an explicit
-      // limit PostgREST would silently truncate at the project's row-limit setting (default 1 000).
-      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(100_000),
-      supabase.from("budgets").select("*").eq("user_id", user.id),
-      supabase.from("savings_goals").select("*").eq("user_id", user.id),
-      supabase.from("categories").select("*").eq("user_id", user.id),
-      supabase.from("profiles").select("name, currency").eq("id", user.id).single(),
-    ]);
-
-    const backup = {
-      exported_at: new Date().toISOString(),
-      profile: profileRes.data,
-      transactions: txRes.data ?? [],
-      budgets: budgetsRes.data ?? [],
-      goals: goalsRes.data ?? [],
-      categories: catsRes.data ?? [],
+    const backup = await res.json() as {
+      exported_at: string;
+      transactions: unknown[];
+      budgets: unknown[];
+      goals: unknown[];
+      categories: unknown[];
+      profile: unknown;
     };
 
     const json = JSON.stringify(backup, null, 2);
@@ -146,8 +149,8 @@ export function SettingsClient() {
     toast.success(
       lang === "en" ? "Backup downloaded!" : "Backup baixado!",
       lang === "en"
-        ? `${(txRes.data ?? []).length} transactions exported.`
-        : `${(txRes.data ?? []).length} transações exportadas.`
+        ? `${backup.transactions.length} transactions exported.`
+        : `${backup.transactions.length} transações exportadas.`
     );
   }
 
