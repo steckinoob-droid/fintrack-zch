@@ -63,7 +63,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // 2. Parse body
+  // 2. Plan check — Free users limited to 1 successful import per calendar month.
+  //    This guard runs before parsing the body to fail fast.
+  const { data: planData } = await supabase.rpc("get_my_plan");
+  const userPlan = (planData as string | null) ?? "free";
+
+  if (userPlan !== "pro") {
+    // Use admin client so the count is unaffected by RLS / stale JWT
+    const adminForPlan = createAdminClient();
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const { count: monthlyImports } = await adminForPlan
+      .from("import_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gt("transaction_count", 0)
+      .gte("created_at", firstOfMonth);
+
+    if ((monthlyImports ?? 0) >= 1) {
+      return NextResponse.json({ error: "import_limit_reached" }, { status: 403 });
+    }
+  }
+
+  // 3. Parse body
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -218,6 +241,19 @@ export async function POST(request: Request) {
     console.error("[import] post-insert verify failed:", verifyErr.message);
   } else {
     console.log(`[import] done — imported=${newOnly.length} skipped=${skipped} db_visible=${verifiedCount}`);
+  }
+
+  // 7. Log the import for rate-limiting.
+  //    Only when newOnly.length > 0 so all-duplicate batches don't consume the
+  //    Free user's monthly slot.
+  const { error: logError } = await admin.from("import_logs").insert({
+    user_id:           user.id,
+    transaction_count: newOnly.length,
+    file_mode:         fileMode,
+  });
+  if (logError) {
+    // Non-fatal — the import succeeded; just warn so we can investigate.
+    console.error("[import] import_log insert failed:", logError.message);
   }
 
   return NextResponse.json({ ok: true, imported: newOnly.length, skipped, examples });

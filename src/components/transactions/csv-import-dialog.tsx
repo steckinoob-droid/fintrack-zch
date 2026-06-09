@@ -16,6 +16,10 @@ import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 import type { Category } from "@/lib/types";
+import { usePlan } from "@/lib/hooks/use-plan";
+import { canUseFeature } from "@/lib/utils/plan-limits";
+import { UpgradeModal } from "@/components/shared/upgrade-modal";
+import { Star } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -40,6 +44,8 @@ type FileMode = "csv" | "pdf" | "ofx";
 export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: Props) {
   const { lang, fc } = useLang();
   const tx = appT[lang].transactions;
+  const plan = usePlan();
+  const importUnlimited = canUseFeature("import_unlimited", plan);
 
   const [step, setStep]             = useState<Step>("upload");
   const [fileMode, setFileMode]     = useState<FileMode>("csv");
@@ -59,6 +65,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     skipped: number;
     examples: { date: string; title: string; amount: number }[];
   } | null>(null);
+  // Monthly import count for Free users
+  const [monthlyCount,      setMonthlyCount]      = useState<number | null>(null);
+  const [importUpgradeOpen, setImportUpgradeOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Load goals once (for saving type picker)
@@ -71,6 +80,17 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
       setGoals(data ?? []);
     }
     if (open) loadGoals();
+  }, [open]);
+
+  // Fetch monthly import count when dialog opens (only matters for Free users)
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/imports/count")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { count: number; isPro: boolean } | null) => {
+        if (d) setMonthlyCount(d.isPro ? 0 : d.count);
+      })
+      .catch(() => { /* non-fatal — fail open */ });
   }, [open]);
 
   function reset() {
@@ -281,6 +301,14 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
   async function handleImport(force = false) {
     const toImportRows = rows.filter(r => !r.skip);
     if (!toImportRows.length) return;
+
+    // Client-side gate: block Free users who have already used their monthly slot.
+    // The server enforces this as well (returns 403), this just improves UX.
+    if (!importUnlimited && plan !== null && (monthlyCount ?? 0) >= 1) {
+      setImportUpgradeOpen(true);
+      return;
+    }
+
     setImporting(true);
 
     // All DB work (dedup + insert) runs server-side via the import API.
@@ -313,6 +341,13 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     if (!importRes.ok) {
       const detail = resJson.error ?? "";
       console.error("[csv-import] Import API failed:", importRes.status, detail);
+
+      // Server-side paywall guard (belt-and-suspenders)
+      if (importRes.status === 403 && detail === "import_limit_reached") {
+        setImportUpgradeOpen(true);
+        return;
+      }
+
       toast.error(
         lang === "en" ? "Import error. Please try again." : "Erro ao importar. Tente novamente.",
         detail || undefined,
@@ -853,7 +888,21 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
           {step === "preview" && (
             <>
               <Button variant="outline" onClick={reset}>← {lang === "en" ? "Back" : "Voltar"}</Button>
-              <Button onClick={() => handleImport()} disabled={importing || toImport === 0}>
+
+              {/* Free plan: show limit badge + gate the import button */}
+              {!importUnlimited && plan !== null && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[10px] font-medium">
+                  <Star size={9} className="fill-current shrink-0" />
+                  {(monthlyCount ?? 0) >= 1
+                    ? tx.import.limitReached
+                    : tx.import.limitRemaining}
+                </div>
+              )}
+
+              <Button
+                onClick={() => handleImport()}
+                disabled={importing || toImport === 0}
+              >
                 {importing
                   ? <><Loader2 size={14} className="animate-spin" /> {lang === "en" ? "Importing..." : "Importando..."}</>
                   : lang === "en"
@@ -874,6 +923,14 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
           )}
         </DialogFooter>
       </DialogContent>
+
+      <UpgradeModal
+        open={importUpgradeOpen}
+        onOpenChange={setImportUpgradeOpen}
+        title={tx.import.limitModalTitle}
+        description={tx.import.limitModalDesc}
+        cta={tx.import.limitModalCta}
+      />
     </Dialog>
   );
 }

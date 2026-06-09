@@ -33,11 +33,14 @@ export type ProFeature =
 
 /**
  * Features that are actively enforced right now.
- * Expand this Set when shipping Parts 2 & 3.
+ * Expand this Set when shipping Part 3.
  */
 const ENFORCED_PRO_FEATURES = new Set<ProFeature>([
   "export_csv",
   "backup_json",
+  // Part 2 (active)
+  "import_unlimited",
+  "reports_full",
 ]);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

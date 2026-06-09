@@ -17,9 +17,12 @@ import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import type { Transaction, SavingsGoal, Category } from "@/lib/types";
 import { ChartSkeleton } from "@/components/shared/skeleton";
-import { Target, CalendarDays } from "lucide-react";
+import { Target, CalendarDays, Lock } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils/cn";
+import { usePlan } from "@/lib/hooks/use-plan";
+import { canUseFeature } from "@/lib/utils/plan-limits";
+import { UpgradeModal } from "@/components/shared/upgrade-modal";
 
 const COLORS = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 
@@ -58,11 +61,14 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
 export function ReportsClient() {
   const { lang, fc, fck } = useLang();
   const tx = appT[lang].reports;
+  const plan = usePlan();
+  const reportsFull = canUseFeature("reports_full", plan);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals,        setGoals]        = useState<SavingsGoal[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("6m");
+  const [upgradeOpen,  setUpgradeOpen]  = useState(false);
   const [customFrom,   setCustomFrom]   = useState<string>(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 3);
     return d.toISOString().slice(0, 7); // YYYY-MM
@@ -70,6 +76,13 @@ export function ReportsClient() {
   const [customTo, setCustomTo] = useState<string>(
     new Date().toISOString().slice(0, 7) // current YYYY-MM
   );
+
+  // Clamp period to 3m once plan resolves as "free"
+  useEffect(() => {
+    if (plan === "free") {
+      setReportPeriod(prev => (prev === "3m" ? prev : "3m"));
+    }
+  }, [plan]);
 
   useEffect(() => {
     async function load() {
@@ -193,23 +206,48 @@ export function ReportsClient() {
     <div className="space-y-6">
       <PageHeader title={tx.title} description={dynamicDesc} />
 
+      {/* ── Free plan gate banner ─────────────────────────────────────── */}
+      {plan === "free" && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/8 border border-primary/20 -mt-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Lock size={14} className="text-primary shrink-0" />
+            <p className="text-xs text-foreground/80 truncate">{tx.gate.banner}</p>
+          </div>
+          <button
+            onClick={() => setUpgradeOpen(true)}
+            className="shrink-0 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
+          >
+            {tx.gate.bannerCta} →
+          </button>
+        </div>
+      )}
+
       {/* ── Period selector ───────────────────────────────────────────── */}
       <div className="space-y-2 -mt-2">
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {PERIOD_OPTIONS.map(p => (
-            <button
-              key={p.value}
-              onClick={() => setReportPeriod(p.value)}
-              className={cn(
-                "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                reportPeriod === p.value
-                  ? "bg-primary/15 text-primary border border-primary/30"
-                  : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              )}
-            >
-              {lang === "en" ? p.labelEn : p.labelPt}
-            </button>
-          ))}
+          {PERIOD_OPTIONS.map(p => {
+            const locked = !reportsFull && p.value !== "3m";
+            return (
+              <button
+                key={p.value}
+                onClick={() => {
+                  if (locked) { setUpgradeOpen(true); return; }
+                  setReportPeriod(p.value);
+                }}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1",
+                  reportPeriod === p.value
+                    ? "bg-primary/15 text-primary border border-primary/30"
+                    : locked
+                    ? "bg-muted/30 text-muted-foreground/50 cursor-pointer"
+                    : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                )}
+              >
+                {lang === "en" ? p.labelEn : p.labelPt}
+                {locked && <Lock size={9} className="opacity-60" />}
+              </button>
+            );
+          })}
         </div>
 
         {/* Custom date range pickers */}
@@ -447,6 +485,14 @@ export function ReportsClient() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onOpenChange={setUpgradeOpen}
+        title={tx.gate.modalTitle}
+        description={tx.gate.modalDesc}
+        cta={tx.gate.modalCta}
+      />
     </div>
   );
 }

@@ -244,6 +244,12 @@ export const appT = {
         unsupported:  "Could not automatically import this file. Use a supported format: PDF is only supported for Santander — for other banks, export as CSV or OFX.",
         headerBadgePdf: "PDF: Santander only",
         headerBadgeOther: "Other banks: CSV / OFX",
+        limitBadge:    "1 import / month",
+        limitRemaining: "1 remaining this month",
+        limitReached:   "Monthly import limit reached",
+        limitModalTitle: "Unlimited imports",
+        limitModalDesc:  "Free users can import 1 file per month. Upgrade to Pro for unlimited CSV, OFX and PDF imports.",
+        limitModalCta:   "Unlock unlimited imports",
       },
       dialog: {
         new: "New Transaction", edit: "Edit Transaction",
@@ -345,6 +351,13 @@ export const appT = {
       incomeLabel: "Income", expenses_label: "Expenses",
       balance: "Balance", savings_label: "Net rate",
       total: "Total",
+      gate: {
+        banner: "Free plan · Last 3 months only",
+        bannerCta: "Upgrade for full history",
+        modalTitle: "Full reports history",
+        modalDesc: "Free plan shows the last 3 months. Upgrade to Pro to access your complete financial history.",
+        modalCta: "Unlock full history",
+      },
     },
     settings: {
       title: "Settings", description: "Manage your profile and account preferences",
@@ -843,6 +856,12 @@ export const appT = {
         unsupported:  "Não foi possível importar este arquivo automaticamente. Use um formato suportado: PDF apenas para Santander — para outros bancos, exporte como CSV ou OFX.",
         headerBadgePdf: "PDF: apenas Santander",
         headerBadgeOther: "Outros bancos: CSV / OFX",
+        limitBadge:    "1 importação / mês",
+        limitRemaining: "1 restante este mês",
+        limitReached:   "Limite mensal de importações atingido",
+        limitModalTitle: "Importações ilimitadas",
+        limitModalDesc:  "Usuários do plano grátis podem importar 1 arquivo por mês. Faça upgrade para importações ilimitadas de CSV, OFX e PDF.",
+        limitModalCta:   "Importações ilimitadas",
       },
       dialog: {
         new: "Nova Transação", edit: "Editar Transação",
@@ -946,6 +965,13 @@ export const appT = {
       incomeLabel: "Receitas", expenses_label: "Despesas",
       balance: "Saldo", savings_label: "Saldo %",
       total: "Total",
+      gate: {
+        banner: "Plano grátis · Apenas últimos 3 meses",
+        bannerCta: "Upgrade para histórico completo",
+        modalTitle: "Histórico completo de relatórios",
+        modalDesc: "O plano grátis exibe os últimos 3 meses. Faça upgrade para ver todo o seu histórico financeiro.",
+        modalCta: "Desbloquear histórico completo",
+      },
     },
     settings: {
       title: "Configurações", description: "Gerencie seu perfil e preferências da conta",

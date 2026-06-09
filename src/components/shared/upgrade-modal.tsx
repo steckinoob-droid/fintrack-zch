@@ -12,12 +12,22 @@ import { appT } from "@/lib/i18n/app";
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** Override the modal title (falls back to the generic paywall title) */
+  title?: string;
+  /** Override the modal description (falls back to the generic paywall description) */
+  description?: string;
+  /** Override the CTA button label (falls back to the generic "View plans") */
+  cta?: string;
 }
 
-export function UpgradeModal({ open, onOpenChange }: Props) {
+export function UpgradeModal({ open, onOpenChange, title, description, cta }: Props) {
   const { lang } = useLang();
   const tx = appT[lang].paywall;
   const router = useRouter();
+
+  const modalTitle = title ?? tx.title;
+  const modalDesc  = description ?? tx.description;
+  const modalCta   = cta ?? tx.cta;
 
   function handleCta() {
     onOpenChange(false);
@@ -45,10 +55,10 @@ export function UpgradeModal({ open, onOpenChange }: Props) {
             </span>
           </div>
           <DialogTitle className="text-xl leading-snug">
-            {tx.title}
+            {modalTitle}
           </DialogTitle>
           <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-            {tx.description}
+            {modalDesc}
           </p>
         </DialogHeader>
 
@@ -78,7 +88,7 @@ export function UpgradeModal({ open, onOpenChange }: Props) {
             className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/25 hover:shadow-lg hover:shadow-primary/35 transition-all"
           >
             <Star size={13} className="fill-current" />
-            {tx.cta}
+            {modalCta}
           </Button>
           <Button
             variant="ghost"
