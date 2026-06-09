@@ -179,8 +179,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
 
       if (!parsed.length) {
         setError(lang === "en"
-          ? "No transactions found in the PDF. Make sure the file is a valid bank statement exported directly from your bank's app."
-          : "Nenhuma transação encontrada no PDF. Verifique se o arquivo é um extrato bancário válido e exportado diretamente pelo app do banco."
+          ? "No transactions found. Only the Santander 'Extrato Consolidado Inteligente' (PDF) is supported — for other banks use CSV or OFX."
+          : "Nenhuma transação encontrada. Apenas o extrato Santander 'Extrato Consolidado Inteligente' (PDF) é suportado — para outros bancos use CSV ou OFX."
         );
         setPdfLoading(false);
         return;
@@ -206,8 +206,8 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     } catch (err) {
       console.error("PDF parse error:", err);
       setError(lang === "en"
-        ? "Could not read the PDF. Make sure you're sending the statement file exported directly from your bank's app or website."
-        : "Não foi possível ler o PDF. Certifique-se de enviar o arquivo de extrato exportado diretamente pelo app ou site do seu banco."
+        ? "Could not read this PDF. Only the Santander 'Extrato Consolidado Inteligente' (PDF) is supported — for other banks use CSV or OFX."
+        : "Não foi possível ler este PDF. Apenas o extrato Santander 'Extrato Consolidado Inteligente' (PDF) é suportado — para outros bancos use CSV ou OFX."
       );
     }
     setPdfLoading(false);
@@ -233,23 +233,27 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const { headers, rows, suggestedMap } = parseCSV(content);
-        setHeaders(headers);
-        setRawRows(rows);
-        setColMap(suggestedMap);
-        setStep("preview");
+        const { headers: parsedHeaders, rows: parsedRows, suggestedMap } = parseCSV(content);
 
         const allDetected =
-          suggestedMap.dateCol !== undefined &&
+          suggestedMap.dateCol  !== undefined &&
           suggestedMap.titleCol !== undefined &&
           suggestedMap.amountCol !== undefined;
 
-        setAutoMapped(allDetected);
-        setShowMapping(!allDetected);
-
-        if (allDetected) {
-          buildPreview(rows, suggestedMap as ColumnMap);
+        // If columns can't be identified automatically, stay on the upload step
+        // and show a clear error. The manual-mapping UI is NOT shown to end users.
+        if (!allDetected) {
+          setError(tx.import.unsupported);
+          return;
         }
+
+        setHeaders(parsedHeaders);
+        setRawRows(parsedRows);
+        setColMap(suggestedMap);
+        setAutoMapped(true);
+        setShowMapping(false);
+        buildPreview(parsedRows, suggestedMap as ColumnMap);
+        setStep("preview");
       } catch {
         setError(lang === "en"
           ? "Could not read the file. Please check it is a valid CSV."
@@ -338,7 +342,18 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{lang === "en" ? "Import Statement" : "Importar Extrato"}</DialogTitle>
+          {/* Title + format hint in one flex row; pr-10 keeps clear of the close button */}
+          <div className="flex items-center gap-3 pr-10 flex-wrap">
+            <DialogTitle className="shrink-0">
+              {lang === "en" ? "Import Statement" : "Importar Extrato"}
+            </DialogTitle>
+            <div className="flex items-center gap-1 rounded-md border border-amber-500/25 bg-amber-500/8 px-2 py-1 text-[11px] font-medium text-amber-400 leading-none shrink-0">
+              <Info size={11} className="shrink-0" />
+              <span className="ml-1">{tx.import.headerBadgePdf}</span>
+              <span className="mx-1 text-amber-400/40">•</span>
+              <span>{tx.import.headerBadgeOther}</span>
+            </div>
+          </div>
         </DialogHeader>
 
         {/* ── STEP 1: UPLOAD ── */}
@@ -385,9 +400,9 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {lang === "en" ? (
-                    <>Accepts <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">PDF</span> or <span className="font-medium text-foreground">OFX</span> — format auto-detected</>
+                    <>Accepts <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">OFX</span> and Santander <span className="font-medium text-foreground">PDF</span> — format auto-detected</>
                   ) : (
-                    <>Aceita <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">PDF</span> ou <span className="font-medium text-foreground">OFX</span> — formato detectado automaticamente</>
+                    <>Aceita <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">OFX</span> e PDF do Santander — formato detectado automaticamente</>
                   )}
                 </p>
                 <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf,application/x-ofx,text/x-ofx" className="hidden"
@@ -401,22 +416,23 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { bank: "Santander", steps: "Extrato Consolidado Inteligente → PDF", tag: "PDF" },
-                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",      tag: "CSV" },
-                  { bank: "Inter",     steps: "Extrato → Exportar → CSV",              tag: "CSV" },
-                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha",           tag: "CSV" },
-                  { bank: "BB / CEF",  steps: "Internet Banking → Extrato → OFX",      tag: "OFX" },
-                  { bank: "Bradesco",  steps: "Extrato → Gerar CSV",                   tag: "CSV" },
+                  { bank: "Santander", steps: "Extrato Consolidado Inteligente → PDF", tag: "PDF"     },
+                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",      tag: "CSV/OFX" },
+                  { bank: "Inter",     steps: "Extrato → Exportar",                    tag: "CSV/OFX" },
+                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha",           tag: "CSV/OFX" },
+                  { bank: "Bradesco",  steps: "Extrato → Gerar arquivo",               tag: "CSV/OFX" },
+                  { bank: "BB / CEF",  steps: "Internet Banking → Extrato → Exportar", tag: "CSV/OFX" },
                 ].map(({ bank, steps, tag }) => (
                   <div key={bank} className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2">
                     <span className="text-xs font-semibold text-foreground shrink-0 w-16">{bank}</span>
                     <span className="text-xs text-muted-foreground leading-relaxed flex-1">{steps}</span>
                     <span className={cn(
                       "text-[10px] font-bold shrink-0 mt-0.5",
-                      tag === "PDF" ? "text-red-400"
+                      tag === "PDF"     ? "text-red-400"
                         : tag === "OFX" ? "text-blue-400"
+                        : tag === "CSV/OFX" ? "text-emerald-400"
                         : "text-muted-foreground/60"
-                    )}>{tag}</span>
+                    )}>{tag === "CSV/OFX" ? "CSV / OFX" : tag}</span>
                   </div>
                 ))}
               </div>
