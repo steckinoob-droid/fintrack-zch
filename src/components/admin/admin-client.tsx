@@ -22,7 +22,7 @@ interface Props {
 }
 
 type GrantStatus = null | "loading" | "success" | "error";
-type RevokeStep  = null | "confirming" | "loading" | "success" | "error";
+type RevokeStep  = null | "confirming" | "loading" | "success" | "error" | "warning";
 
 type Duration        = "30d" | "1y" | "lifetime";
 type ReconcileStatus = null | "loading" | "success" | "not_approved" | "not_found" | "error";
@@ -240,12 +240,20 @@ export function AdminClient({ adminEmail }: Props) {
       };
 
       if (!res.ok) {
-        setRevokeStep("error");
-        if (json.error === "user_not_found")  setRevokeMsg(tx.errorUserNotFound);
-        else if (json.error === "no_active_grant") setRevokeMsg(tx.errorNoGrant);
-        else if (json.error === "forbidden")  setRevokeMsg(tx.errorForbidden);
-        else if (json.error === "email_required") setRevokeMsg(tx.errorEmailRequired);
-        else                                  setRevokeMsg(tx.errorInternal);
+        if (json.error === "pro_via_pix") {
+          setRevokeStep("warning");
+          setRevokeMsg(tx.errorProViaPix);
+        } else if (json.error === "pro_via_subscription") {
+          setRevokeStep("warning");
+          setRevokeMsg(tx.errorProViaSubscription);
+        } else {
+          setRevokeStep("error");
+          if (json.error === "user_not_found")       setRevokeMsg(tx.errorUserNotFound);
+          else if (json.error === "no_active_grant") setRevokeMsg(tx.errorNoGrant);
+          else if (json.error === "forbidden")       setRevokeMsg(tx.errorForbidden);
+          else if (json.error === "email_required")  setRevokeMsg(tx.errorEmailRequired);
+          else                                       setRevokeMsg(tx.errorInternal);
+        }
         return;
       }
 
@@ -468,6 +476,12 @@ export function AdminClient({ adminEmail }: Props) {
               )}
               {revokeStep === "error" && (
                 <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400">
+                  <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                  <span>{revokeMsg}</span>
+                </div>
+              )}
+              {revokeStep === "warning" && (
+                <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 text-xs text-amber-400">
                   <AlertCircle size={13} className="shrink-0 mt-0.5" />
                   <span>{revokeMsg}</span>
                 </div>

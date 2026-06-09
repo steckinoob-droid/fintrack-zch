@@ -61,15 +61,18 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
 
-  // ── Find active manual grants (exclude automated Pix grants) ───────────────
-  // We do NOT revoke mercado_pago_pix grants — those are managed by the Pix flow.
+  // ── Find active manual grants ──────────────────────────────────────────────
+  // Excludes Pix grants (granted_by = 'mercado_pago_pix').
+  // NOTE: must use .or() instead of .neq() because in PostgreSQL
+  //   NULL != 'mercado_pago_pix' evaluates to NULL (not TRUE),
+  //   so .neq() silently drops rows where granted_by IS NULL.
   const { data: grants, error: fetchError } = await admin
     .from("plan_grants")
     .select("id, expires_at, granted_by")
     .eq("user_id", targetUser.id)
     .eq("plan_id", "pro")
     .is("revoked_at", null)
-    .neq("granted_by", "mercado_pago_pix");
+    .or("granted_by.is.null,granted_by.neq.mercado_pago_pix");
 
   if (fetchError) {
     console.error("[admin/revoke-pro] fetch grants failed:", fetchError.message);
@@ -81,6 +84,39 @@ export async function POST(req: NextRequest) {
   );
 
   if (activeManualGrants.length === 0) {
+    // No manual grant — check if user has Pro via other means so the UI
+    // can show a more informative message instead of a generic error.
+
+    const nowIso = now.toISOString();
+
+    const { data: pixGrant } = await admin
+      .from("plan_grants")
+      .select("id")
+      .eq("user_id", targetUser.id)
+      .eq("plan_id", "pro")
+      .eq("granted_by", "mercado_pago_pix")
+      .is("revoked_at", null)
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (pixGrant) {
+      return NextResponse.json({ error: "pro_via_pix" }, { status: 409 });
+    }
+
+    const { data: activeSub } = await admin
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", targetUser.id)
+      .in("status", ["active", "trialing"])
+      .neq("plan_id", "free")
+      .limit(1)
+      .maybeSingle();
+
+    if (activeSub) {
+      return NextResponse.json({ error: "pro_via_subscription" }, { status: 409 });
+    }
+
     return NextResponse.json({ error: "no_active_grant" }, { status: 404 });
   }
 
