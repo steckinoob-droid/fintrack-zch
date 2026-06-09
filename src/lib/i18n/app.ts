@@ -260,6 +260,7 @@ export const appT = {
       emptyExpenses: "expenses", emptyIncome: "income",
       create: "Create",
       badge: { income: "Income", expense: "Expense" },
+      viewTransactions: "View transactions",
       dialog: {
         new: "New Category", edit: "Edit Category",
         type: "Type", expense: "Expense", income: "Income",
@@ -267,6 +268,13 @@ export const appT = {
         nameRequired: "Name is required",
         color: "Color", icon: "Icon",
         save: "Save", create: "Create",
+      },
+      detail: {
+        totalSpent: "Total spent",
+        totalReceived: "Total received",
+        txCount: "transactions", txCountSingular: "transaction",
+        average: "Avg.",
+        noTransactions: "No transactions in this category for this period.",
       },
     },
     budgets: {
@@ -797,6 +805,7 @@ export const appT = {
       emptyExpenses: "despesas", emptyIncome: "receitas",
       create: "Criar",
       badge: { income: "Receita", expense: "Despesa" },
+      viewTransactions: "Ver transações",
       dialog: {
         new: "Nova Categoria", edit: "Editar Categoria",
         type: "Tipo", expense: "Despesa", income: "Receita",
@@ -804,6 +813,13 @@ export const appT = {
         nameRequired: "Nome obrigatório",
         color: "Cor", icon: "Ícone",
         save: "Salvar", create: "Criar",
+      },
+      detail: {
+        totalSpent: "Total gasto",
+        totalReceived: "Total recebido",
+        txCount: "transações", txCountSingular: "transação",
+        average: "Média",
+        noTransactions: "Nenhuma transação nesta categoria para este período.",
       },
     },
     budgets: {

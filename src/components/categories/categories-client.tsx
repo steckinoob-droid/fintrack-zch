@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Tag, Search, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Search, X, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { CategoryDialog } from "./category-dialog";
+import { CategoryDetailSheet } from "./category-detail-sheet";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -27,12 +28,14 @@ export function CategoriesClient() {
   const tx = appT[lang].categories;
   const common = appT[lang].common;
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [tab, setTab]               = useState<"expense" | "income">("expense");
-  const [editCat, setEditCat]       = useState<Category | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [search, setSearch]         = useState("");
+  const [categories, setCategories]     = useState<Category[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [tab, setTab]                   = useState<"expense" | "income">("expense");
+  const [editCat, setEditCat]           = useState<Category | null>(null);
+  const [dialogOpen, setDialogOpen]     = useState(false);
+  const [search, setSearch]             = useState("");
+  const [detailCat, setDetailCat]       = useState<Category | null>(null);
+  const [detailOpen, setDetailOpen]     = useState(false);
 
   const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -115,17 +118,33 @@ export function CategoriesClient() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map(cat => (
             <div key={cat.id} className="glass-card-hover p-4 flex items-center gap-3 group">
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-                style={{ backgroundColor: cat.color + "20" }}>
+              <button
+                className="h-10 w-10 rounded-xl flex items-center justify-center text-lg shrink-0 transition-opacity hover:opacity-80"
+                style={{ backgroundColor: cat.color + "20" }}
+                onClick={() => { setDetailCat(cat); setDetailOpen(true); }}
+                title={tx.viewTransactions}
+              >
                 <span>{ICON_LABELS[cat.icon] ?? "📌"}</span>
-              </div>
+              </button>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground text-sm">{cat.name}</p>
+                <button
+                  className="font-medium text-foreground text-sm hover:text-primary transition-colors text-left truncate w-full"
+                  onClick={() => { setDetailCat(cat); setDetailOpen(true); }}
+                >
+                  {cat.name}
+                </button>
                 <Badge variant={cat.type === "income" ? "income" : "expense"} className="mt-1">
                   {cat.type === "income" ? tx.badge.income : tx.badge.expense}
                 </Badge>
               </div>
               <div className="card-actions">
+                <button
+                  onClick={() => { setDetailCat(cat); setDetailOpen(true); }}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  title={tx.viewTransactions}
+                >
+                  <ChevronRight size={13} />
+                </button>
                 <button onClick={() => { setEditCat(cat); setDialogOpen(true); }}
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   title={common.edit}>
@@ -144,6 +163,12 @@ export function CategoriesClient() {
 
       <CategoryDialog open={dialogOpen} onOpenChange={setDialogOpen} category={editCat}
         onSuccess={() => { setDialogOpen(false); load(); }} />
+
+      <CategoryDetailSheet
+        category={detailCat}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+      />
     </div>
   );
 }
