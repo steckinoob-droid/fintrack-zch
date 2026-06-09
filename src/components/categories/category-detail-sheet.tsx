@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, ArrowUpRight, ArrowDownRight, PiggyBank, RefreshCw } from "lucide-react";
 import type { Category, Transaction } from "@/lib/types";
 import { useLang } from "@/lib/i18n/context";
@@ -38,6 +39,9 @@ export function CategoryDetailSheet({ category, open, onClose }: Props) {
   const [period, setPeriod]             = useState<Period>("this_month");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading]           = useState(false);
+  const [mounted, setMounted]           = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const load = useCallback(async () => {
     if (!category) return;
@@ -80,7 +84,7 @@ export function CategoryDetailSheet({ category, open, onClose }: Props) {
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  if (!category) return null;
+  if (!category || !mounted) return null;
 
   const isIncome  = category.type === "income";
   const total     = transactions.reduce((s, t) => s + t.amount, 0);
@@ -98,7 +102,7 @@ export function CategoryDetailSheet({ category, open, onClose }: Props) {
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
   })();
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -275,6 +279,7 @@ export function CategoryDetailSheet({ category, open, onClose }: Props) {
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
