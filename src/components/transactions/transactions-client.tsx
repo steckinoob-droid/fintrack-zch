@@ -300,14 +300,15 @@ export function TransactionsClient() {
   async function handleDeleteAll() {
     if (deleteConfirm.toUpperCase() !== tx.deleteAllWord) return;
     setDeleting(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setDeleting(false); return; }
-    const { error } = await supabase.from("transactions").delete().eq("user_id", user.id);
+    // Use the server-side API route so the delete runs via service role,
+    // bypassing the anon-client stale-JWT issue that silently deletes 0 rows.
+    const res = await fetch("/api/transactions/delete-all", { method: "DELETE" });
     setDeleting(false);
-    if (error) { toast.error(tx.deleteAllError); return; }
-    const successMsg = totalCount === 1 ? tx.deleteAllSuccessSingle : tx.deleteAllSuccessPlural;
-    toast.success(successMsg.replace("{n}", String(totalCount)));
+    if (!res.ok) { toast.error(tx.deleteAllError); return; }
+    const json = await res.json().catch(() => ({})) as { deleted?: number };
+    const n = json.deleted ?? totalCount;
+    const successMsg = n === 1 ? tx.deleteAllSuccessSingle : tx.deleteAllSuccessPlural;
+    toast.success(successMsg.replace("{n}", String(n)));
     setTransactions([]);
     setTotalCount(0);
     setDbOffset(PAGE_SIZE);
