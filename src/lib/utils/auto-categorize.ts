@@ -80,11 +80,20 @@ const RULES: Rule[] = [
   // "99" alone is too generic ("99 Food", "99 Shop" etc.) — removed.
   // Bare "99" compound forms are handled by subs below.
   // "taxi" as a word covers "99 TAXI", "TAXI DA PRAÇA", "TAXIAPP" etc.
+  //
+  // IMPORTANT — Rule ordering: this block runs BEFORE the Housing rule.
+  // Any transaction that also contains "aluguel" but belongs to transport
+  // (e.g. "WHOOSH BR ALUGUEL DE PATINETES", "ALUGUEL DE CARRO LOCALIZA")
+  // will match here first, preventing a false-positive housing categorisation.
   {
     words: [
       "uber", "cabify", "buser", "indriver", "onibus", "metro", "trem",
       "vlt", "brt", "passagem", "bilhete", "sptrans", "bus", "metrô",
       "ladydriver", "taxi",
+      // Micro-mobility (exact word match)
+      "bicicleta", "bike", "scooter",
+      // Car (handles "ALUGUEL DE CARRO", maintenance, wash, etc.)
+      "carro",
     ],
     subs: [
       // Concatenated forms ("99APP", "99POP")
@@ -92,6 +101,12 @@ const RULES: Rule[] = [
       // Spaced forms ("99 POP", "99 TAXI") — norm keeps the space
       "99 pop", "99 taxi", "99 moto", "99 corrida",
       "ubertecnol", "ubereats", "uberdo", "uberbrasil", "ubermoto",
+      // Micro-mobility — substring match catches plurals ("patinetes", "scooters")
+      "patinete", "trotinete", "bikeshare",
+      // Micro-mobility brands active in Brazil
+      "whoosh", "yellowbike", "grinbr", "tembici", "bikeitau",
+      // Car rental brands
+      "localiza", "movida", "unidas",
     ],
     cats: [
       "transporte", "mobilidade", "locomocao", "uber", "taxi", "onibus",
@@ -292,6 +307,10 @@ const RULES: Rule[] = [
   },
 
   // ── HOUSING / UTILITIES ────────────────────────────────────────────────────
+  // "aluguel" here is an intentional fallback for housing-rent payments
+  // (e.g. a plain "ALUGUEL" transfer from an imobiliária). Scooter/bike/car
+  // rentals that also contain "aluguel" are caught by the Transport rule above
+  // before this rule is ever evaluated, so no false-positives occur.
   {
     words: [
       "aluguel", "condominio", "iptu", "enel", "cpfl", "cemig",
