@@ -104,10 +104,21 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
       is_recurring: isRecurring,
       recurrence_interval: isRecurring ? (data.recurrence_interval ?? "monthly") : null,
     };
-    const { error } = isEdit
-      ? await supabase.from("transactions").update(payload).eq("id", transaction!.id)
-      : await supabase.from("transactions").insert(payload);
-    if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+
+    if (isEdit) {
+      // Use server-side API so the update is guaranteed to persist regardless
+      // of the browser client's JWT state (stale token → 0 rows, no error).
+      const res = await fetch("/api/transactions/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: transaction!.id, ...payload }),
+      });
+      if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+    } else {
+      const { error } = await supabase.from("transactions").insert(payload);
+      if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+    }
+
     toast.success(isEdit
       ? (lang === "en" ? "Transaction updated" : "Transação atualizada")
       : (lang === "en" ? "Transaction added"   : "Transação adicionada"));

@@ -70,7 +70,9 @@ export function BudgetsClient() {
 
   async function handleDelete(id: string) {
     const supabase = createClient();
-    const { error } = await supabase.from("budgets").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("budgets").delete().eq("id", id).eq("user_id", user.id);
     if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
     toast.success(lang === "en" ? "Budget deleted" : "Orçamento excluído");
     setBudgets(prev => prev.filter(b => b.id !== id));
@@ -79,15 +81,20 @@ export function BudgetsClient() {
   /** Copy all budgets from previous month — skips categories already set */
   async function handleCopyPrevMonth() {
     setCopying(true);
+    const prevMonth = getPrevMonth(viewMonth);
+
+    // Read previous month's budgets via API route (service role bypasses RLS).
+    const prevRes = await fetch(`/api/budgets/list?month=${prevMonth}`);
+    if (!prevRes.ok) { setCopying(false); return; }
+    const prevJson = await prevRes.json() as { budgets: Budget[] };
+    const prev = prevJson.budgets ?? [];
+
+    // Need user id for the insert payload — browser client auth is fine for this.
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setCopying(false); return; }
 
-    const prevMonth = getPrevMonth(viewMonth);
-    const { data: prev } = await supabase.from("budgets")
-      .select("*").eq("user_id", user.id).eq("month", prevMonth);
-
-    if (!prev?.length) {
+    if (!prev.length) {
       toast.error(lang === "en" ? "No budgets found in previous month" : "Nenhum orçamento no mês anterior");
       setCopying(false); return;
     }

@@ -110,7 +110,9 @@ export function GoalsClient() {
 
   async function handleDelete(id: string) {
     const supabase = createClient();
-    const { error } = await supabase.from("savings_goals").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("savings_goals").delete().eq("id", id).eq("user_id", user.id);
     if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
     toast.success(lang === "en" ? "Goal deleted" : "Meta excluída");
     setGoals(prev => prev.filter(g => g.id !== id));

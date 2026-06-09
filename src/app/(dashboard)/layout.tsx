@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -7,13 +8,20 @@ import { DashboardProviders } from "@/components/layout/dashboard-providers";
 import { QuickAddFab } from "@/components/shared/quick-add-fab";
 import { isAdminEmail } from "@/lib/admin/is-admin";
 
+// Force dynamic rendering so router.refresh() always re-fetches from DB.
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  // Use service role so the profile is always readable regardless of
+  // the user's JWT state — avoids the silent null when the access token
+  // is stale and PostgREST evaluates auth.uid() as NULL.
+  const admin = createAdminClient();
+  const { data: profile } = await admin
     .from("profiles")
     .select("*")
     .eq("id", user.id)

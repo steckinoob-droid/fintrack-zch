@@ -256,12 +256,19 @@ export function TransactionsClient() {
 
   async function handleInlineCat(txId: string, catId: string) {
     const resolved = catId === "__none__" ? null : catId;
-    const supabase = createClient();
-    await supabase.from("transactions").update({ category_id: resolved }).eq("id", txId);
+    const res = await fetch("/api/transactions/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: txId, category_id: resolved }),
+    });
+    setInlineCatTxId(null);
+    if (!res.ok) {
+      toast.error(lang === "en" ? "Error updating category" : "Erro ao atualizar categoria");
+      return;
+    }
     setTransactions(prev => prev.map(t =>
       t.id !== txId ? t : { ...t, category_id: resolved, category: categories.find(c => c.id === resolved) }
     ));
-    setInlineCatTxId(null);
     refresh();
   }
 
@@ -271,9 +278,8 @@ export function TransactionsClient() {
     setTransactions(prev => prev.filter(t => t.id !== id));
     setTotalCount(prev => Math.max(0, prev - 1));
     const timeoutId = setTimeout(async () => {
-      const supabase = createClient();
-      const { error } = await supabase.from("transactions").delete().eq("id", id);
-      if (error) {
+      const res = await fetch(`/api/transactions/delete?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
         setTransactions(prev => [...prev, deleted].sort((a, b) => b.date.localeCompare(a.date)));
         setTotalCount(prev => prev + 1);
         toast.error(tx.errorDelete);
