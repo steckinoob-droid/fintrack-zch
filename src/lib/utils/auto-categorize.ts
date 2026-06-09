@@ -77,14 +77,20 @@ interface Rule {
 
 const RULES: Rule[] = [
   // ── TRANSPORT / RIDESHARE ──────────────────────────────────────────────────
+  // "99" alone is too generic ("99 Food", "99 Shop" etc.) — removed.
+  // Bare "99" compound forms are handled by subs below.
+  // "taxi" as a word covers "99 TAXI", "TAXI DA PRAÇA", "TAXIAPP" etc.
   {
     words: [
-      "uber", "99", "cabify", "buser", "indriver", "onibus", "metro", "trem",
+      "uber", "cabify", "buser", "indriver", "onibus", "metro", "trem",
       "vlt", "brt", "passagem", "bilhete", "sptrans", "bus", "metrô",
-      "ladydriver", "shopper",
+      "ladydriver", "taxi",
     ],
     subs: [
-      "99app", "99pop", "99taxi", "99tecnol", "99techno",
+      // Concatenated forms ("99APP", "99POP")
+      "99app", "99pop", "99taxi", "99moto", "99tecnol", "99techno",
+      // Spaced forms ("99 POP", "99 TAXI") — norm keeps the space
+      "99 pop", "99 taxi", "99 moto", "99 corrida",
       "ubertecnol", "ubereats", "uberdo", "uberbrasil", "ubermoto",
     ],
     cats: [
@@ -101,6 +107,8 @@ const RULES: Rule[] = [
     ],
     subs: [
       "ifood", "rappi", "deliverymuch", "jamesdelivery", "ubereat",
+      // "99 Food" / "99Food" are delivery, not transport
+      "99food", "99 food",
     ],
     cats: [
       "alimenta", "delivery", "comida", "food", "refeicao",
@@ -114,6 +122,8 @@ const RULES: Rule[] = [
       "mercado", "supermercado", "hipermercado", "atacado", "atacadao",
       "varejao", "feira", "hortifruti", "quitanda", "mercearia",
       "aldi", "assai", "bistek", "savegnago",
+      // Shopper (shopper.com.br) is an online grocery delivery app, not transport
+      "shopper",
     ],
     subs: [
       "paodeacucar", "extrahiper", "minimercado", "supermercad",
