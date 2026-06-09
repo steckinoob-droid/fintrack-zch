@@ -26,13 +26,22 @@ type RevokeStep  = null | "confirming" | "loading" | "success" | "error";
 
 type Duration        = "30d" | "1y" | "lifetime";
 type ReconcileStatus = null | "loading" | "success" | "not_approved" | "not_found" | "error";
+type SearchStatus    = null | "loading" | "found" | "not_found" | "no_payments" | "error";
 
 interface ReconcileResult {
-  userId?:       string;
-  mpStatus?:     string;
-  expiresAt?:    string | null;
+  userId?:        string;
+  mpStatus?:      string;
+  expiresAt?:     string | null;
   grantExtended?: boolean;
-  detail?:       string;
+  detail?:        string;
+}
+
+interface PixPaymentRow {
+  mp_payment_id: string;
+  status:        string;
+  amount:        number;
+  currency:      string;
+  created_at:    string;
 }
 
 function formatDate(iso: string | null | undefined, lang: string): string {
@@ -67,6 +76,10 @@ export function AdminClient({ adminEmail }: Props) {
   const [revokeMsg,    setRevokeMsg]    = useState("");
 
   // ── Reconcile Pix form ────────────────────────────────────────────────────
+  const [searchEmail,    setSearchEmail]    = useState("");
+  const [searchStatus,   setSearchStatus]   = useState<SearchStatus>(null);
+  const [searchPayments, setSearchPayments] = useState<PixPaymentRow[]>([]);
+
   const [reconcileId,     setReconcileId]     = useState("");
   const [reconcileStatus, setReconcileStatus] = useState<ReconcileStatus>(null);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
@@ -89,6 +102,31 @@ export function AdminClient({ adminEmail }: Props) {
   }, []);
 
   useEffect(() => { loadGrants(); }, [loadGrants]);
+
+  // ── Search Pix payments by email ──────────────────────────────────────────
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!searchEmail.trim()) return;
+    setSearchStatus("loading");
+    setSearchPayments([]);
+    try {
+      const res  = await fetch(`/api/admin/reconcile-pix?email=${encodeURIComponent(searchEmail.trim())}`);
+      const json = await res.json() as {
+        error?: string; userId?: string;
+        payments?: PixPaymentRow[];
+      };
+      if (!res.ok) {
+        setSearchStatus(json.error === "user_not_found" ? "not_found" : "error");
+        return;
+      }
+      const list = json.payments ?? [];
+      if (list.length === 0) { setSearchStatus("no_payments"); return; }
+      setSearchPayments(list);
+      setSearchStatus("found");
+    } catch {
+      setSearchStatus("error");
+    }
+  }
 
   // ── Reconcile Pix submit ───────────────────────────────────────────────────
   async function handleReconcile(e: React.FormEvent) {
@@ -462,6 +500,94 @@ export function AdminClient({ adminEmail }: Props) {
           </div>
         </div>
 
+        {/* Step 1: search by email */}
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <Input
+            type="email"
+            className="flex-1"
+            placeholder={tx.reconcileSearchPlaceholder}
+            value={searchEmail}
+            onChange={e => { setSearchEmail(e.target.value); setSearchStatus(null); setSearchPayments([]); }}
+            disabled={searchStatus === "loading"}
+          />
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={searchStatus === "loading" || !searchEmail.trim()}
+            className="shrink-0 gap-1.5"
+          >
+            {searchStatus === "loading"
+              ? <><Loader2 size={13} className="animate-spin" />{tx.reconcileSearching}</>
+              : tx.reconcileSearchBtn}
+          </Button>
+        </form>
+
+        {searchStatus === "not_found" && (
+          <p className="text-xs text-muted-foreground">{tx.reconcileUserNotFound}</p>
+        )}
+        {searchStatus === "no_payments" && (
+          <p className="text-xs text-muted-foreground">{tx.reconcileNoPayments}</p>
+        )}
+
+        {/* Payment list */}
+        {searchStatus === "found" && searchPayments.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border border-border/40">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border/30 bg-muted/20">
+                  {[tx.reconcileColId, tx.reconcileColStatus, tx.reconcileColAmount, tx.reconcileColDate, ""].map((h, i) => (
+                    <th key={i} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {searchPayments.map(p => (
+                  <tr key={p.mp_payment_id} className={cn(
+                    "border-b border-border/20 last:border-0",
+                    reconcileId === p.mp_payment_id && "bg-amber-500/8",
+                  )}>
+                    <td className="px-3 py-2 font-mono text-foreground/80">{p.mp_payment_id}</td>
+                    <td className="px-3 py-2">
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                        p.status === "approved"  && "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+                        p.status === "pending"   && "bg-amber-500/15 text-amber-400 border-amber-500/25",
+                        p.status === "rejected"  && "bg-red-500/10 text-red-400 border-red-500/20",
+                        !["approved","pending","rejected"].includes(p.status) && "bg-muted/50 text-muted-foreground border-border/30",
+                      )}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                      {p.currency} {p.amount.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                      {formatDate(p.created_at, lang)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => { setReconcileId(p.mp_payment_id); setReconcileStatus(null); setReconcileResult(null); }}
+                        className={cn(
+                          "px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors",
+                          reconcileId === p.mp_payment_id
+                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                            : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border/70",
+                        )}
+                      >
+                        {tx.reconcileUse}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Step 2: reconcile by ID */}
         <form onSubmit={handleReconcile} className="flex gap-2">
           <Input
             className="flex-1 font-mono text-sm"

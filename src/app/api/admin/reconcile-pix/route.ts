@@ -6,6 +6,42 @@ import { getMpPayment, mapPaymentStatus } from "@/lib/billing/mercadopago";
 import { applyPixGrant } from "@/lib/billing/pix-grant";
 
 /**
+ * GET /api/admin/reconcile-pix?email=...
+ *
+ * Lists all Pix billing_payments for the given user email.
+ * Used by the admin UI to find the right mp_payment_id before reconciling.
+ */
+export async function GET(req: NextRequest) {
+  const supabase = await createServerSupabase();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!isAdminEmail(user.email)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  const email = req.nextUrl.searchParams.get("email")?.trim().toLowerCase();
+  if (!email) return NextResponse.json({ error: "email_required" }, { status: 400 });
+
+  const admin = createAdminClient();
+
+  const { data: listData, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (listErr) return NextResponse.json({ error: "internal", detail: listErr.message }, { status: 500 });
+
+  const target = listData.users.find(u => u.email?.toLowerCase() === email);
+  if (!target) return NextResponse.json({ error: "user_not_found" }, { status: 404 });
+
+  const { data: payments, error: payErr } = await admin
+    .from("billing_payments")
+    .select("mp_payment_id, status, amount, currency, created_at")
+    .eq("user_id", target.id)
+    .eq("payment_method", "pix")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (payErr) return NextResponse.json({ error: "db_error", detail: payErr.message }, { status: 500 });
+
+  return NextResponse.json({ userId: target.id, payments: payments ?? [] });
+}
+
+/**
  * POST /api/admin/reconcile-pix
  *
  * Manually reconciles a Pix payment that was approved but never triggered
