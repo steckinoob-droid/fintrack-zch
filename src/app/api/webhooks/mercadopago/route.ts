@@ -9,27 +9,62 @@ import {
   mapSubStatus,
   mapPaymentStatus,
 } from "@/lib/billing/mercadopago";
+import { applyPixGrant } from "@/lib/billing/pix-grant";
 
-interface MpWebhookBody {
-  id:         number;          // MP notification ID — idempotency key
-  type:       string;          // "subscription_preapproval" | "payment"
-  action:     string;          // "updated" | "payment.created" | etc.
-  data:       { id: string };  // resource ID (preapproval ID or payment ID)
-  live_mode:  boolean;
+export const dynamic = "force-dynamic";
+
+// ── GET: healthcheck ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/webhooks/mercadopago
+ *
+ * Lightweight diagnostic — confirms the route is reachable and shows which
+ * env vars are configured. Never exposes secret values.
+ */
+export function GET() {
+  return NextResponse.json({
+    ok: true,
+    env: {
+      hasMpToken:       !!process.env.MERCADOPAGO_ACCESS_TOKEN,
+      hasWebhookSecret: !!process.env.MERCADOPAGO_WEBHOOK_SECRET,
+      mpMode:           getMpEnv(),
+      hasServiceRole:   !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      appUrl:           process.env.NEXT_PUBLIC_APP_URL ?? "(not set)",
+    },
+  });
 }
+
+// ── Webhook body shape ────────────────────────────────────────────────────────
+
+/**
+ * Both the modern webhook format and legacy IPN format are handled:
+ *
+ * Modern webhook (MP dashboard / notification_url, signed with x-signature):
+ *   { id: number, type: "payment", action: "payment.created", data: { id: "12345" } }
+ *
+ * Legacy IPN (notification_url without dashboard config, no x-signature):
+ *   { id: "12345", topic: "payment" }  — OR — query params ?id=12345&topic=payment
+ */
+interface MpNotificationBody {
+  id?:       number | string;
+  type?:     string;  // webhook format
+  topic?:    string;  // IPN format
+  action?:   string;
+  data?:     { id: string };
+  live_mode?: boolean;
+}
+
+// ── POST: receive notification ────────────────────────────────────────────────
 
 /**
  * POST /api/webhooks/mercadopago
  *
- * Receives Mercado Pago webhook notifications.
+ * Handles both signed webhooks (x-signature present) and unsigned IPN
+ * notifications (no x-signature, notification_url based).
  *
- * Idempotency: every notification is deduplicated via webhook_events
- * (provider, event_id) — ON CONFLICT returns 200 immediately.
- *
- * DB writes are service-role only; no user session involved.
- *
- * IMPORTANT: event_id = String(body.id) — the notification ID, NOT body.data.id
- * (which is the resource ID used to fetch details from the MP API).
+ * Idempotency: deduplicated via webhook_events(provider, event_id) UNIQUE.
+ * The event row is inserted BEFORE signature validation so every arriving
+ * notification is visible, even ones that fail validation.
  */
 export async function POST(req: NextRequest) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -37,50 +72,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
 
-  // Safe diagnostic: log mode without exposing token value
-  console.log("[webhook/mp] Received notification", {
-    mpMode:            getMpEnv(),
-    accessTokenPrefix: getTokenPrefix(process.env.MERCADOPAGO_ACCESS_TOKEN),
-    hasWebhookSecret:  !!process.env.MERCADOPAGO_WEBHOOK_SECRET,
-  });
-
-  // ── Parse body ────────────────────────────────────────────────────────────
-  let body: MpWebhookBody;
+  // ── Parse body ─────────────────────────────────────────────────────────────
+  let body: MpNotificationBody = {};
   try {
-    body = await req.json() as MpWebhookBody;
+    body = await req.json() as MpNotificationBody;
   } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    // Some IPN formats have no JSON body — fall through and rely on query params
   }
 
-  const dataId     = body.data?.id ?? "";
+  const qs         = req.nextUrl.searchParams;
+  const qsId       = qs.get("id");
+  const qsTopic    = qs.get("topic") ?? qs.get("type");
   const xSignature = req.headers.get("x-signature");
   const xRequestId = req.headers.get("x-request-id");
 
-  // ── Verify signature ──────────────────────────────────────────────────────
-  if (!verifyMpSignature(xSignature, xRequestId, dataId)) {
-    console.warn("[webhook/mp] Signature verification failed for notification", body.id);
-    return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
-  }
+  // Unified event type — modern webhook uses `type`, IPN uses `topic`
+  const eventType = body.type ?? body.topic ?? qsTopic ?? "unknown";
 
-  const supabase  = createAdminClient();
-  const eventId   = String(body.id);
-  const provider  = "mercado_pago";
+  // event_id for deduplication — modern webhook: body.id (notification ID)
+  // IPN: body.id or qsId (both resolve to the payment ID in IPN)
+  const rawId   = body.id ?? qsId;
+  const eventId = rawId ? String(rawId) : `malformed_${Date.now()}`;
 
-  // ── Idempotency: insert webhook_events ────────────────────────────────────
-  // uq_webhook_events_idempotency = UNIQUE(provider, event_id)
+  // resourceId = the ID passed to the MP payments/preapprovals API
+  // - Modern webhook: body.data.id
+  // - IPN:            body.id (IS the resource ID in IPN format)
+  const resourceId: string = body.data?.id ?? (body.id != null ? String(body.id) : (qsId ?? ""));
+
+  console.log("[webhook/mp] Notification received", {
+    eventId,
+    eventType,
+    resourceId,
+    hasSignature:     !!xSignature,
+    hasWebhookSecret: !!process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    mpMode:           getMpEnv(),
+    tokenPrefix:      getTokenPrefix(process.env.MERCADOPAGO_ACCESS_TOKEN),
+  });
+
+  const supabase = createAdminClient();
+  const provider = "mercado_pago";
+
+  // ── Idempotency: insert webhook_events FIRST ───────────────────────────────
+  // Must happen before signature check so every arriving notification is stored,
+  // including ones that fail validation (visible for debugging).
   const { error: insertErr } = await supabase
     .from("webhook_events")
     .insert({
       provider,
-      event_type: body.type,
+      event_type: eventType,
       event_id:   eventId,
-      payload:    body as unknown as Record<string, unknown>,
+      payload:    { ...body, _qs: Object.fromEntries(qs.entries()) } as unknown as Record<string, unknown>,
       processed:  false,
     });
 
   if (insertErr) {
     if (insertErr.code === "23505") {
-      // Already inserted — check if it was successfully processed
+      // Already seen this event_id — check if it was successfully processed
       const { data: existing } = await supabase
         .from("webhook_events")
         .select("processed")
@@ -91,28 +138,65 @@ export async function POST(req: NextRequest) {
       if (existing?.processed) {
         return NextResponse.json({ ok: true, status: "already_processed" });
       }
-      // Not yet processed (previous attempt may have errored) — fall through
+      // processed = false → previous attempt errored, fall through to retry
     } else {
-      console.error("[webhook/mp] DB insert error:", insertErr.message);
+      console.error("[webhook/mp] webhook_events insert error:", insertErr.message);
       return NextResponse.json({ error: "db_error" }, { status: 500 });
     }
   }
 
-  // ── Process event ─────────────────────────────────────────────────────────
-  let processingError: string | null = null;
-  try {
-    if (body.type === "subscription_preapproval") {
-      await handleSubscriptionEvent(supabase, dataId);
-    } else if (body.type === "payment") {
-      await handlePaymentEvent(supabase, dataId);
+  // ── Signature validation ───────────────────────────────────────────────────
+  //
+  // Three cases:
+  // 1. x-signature present + MERCADOPAGO_WEBHOOK_SECRET set → validate strictly.
+  // 2. x-signature present + secret NOT set → log error, continue anyway.
+  //    Reason: the real auth is the MP API re-fetch below; rejecting here
+  //    would silently break the webhook if the env var is missing.
+  // 3. No x-signature → IPN / notification_url without dashboard config → continue.
+
+  if (xSignature) {
+    if (!process.env.MERCADOPAGO_WEBHOOK_SECRET) {
+      console.error(
+        "[webhook/mp] x-signature received but MERCADOPAGO_WEBHOOK_SECRET is not set" +
+        " — skipping signature check. Set this env var to enable full validation.",
+      );
+    } else if (!verifyMpSignature(xSignature, xRequestId, resourceId)) {
+      console.warn("[webhook/mp] Signature INVALID — rejecting", { eventId, resourceId });
+      await supabase
+        .from("webhook_events")
+        .update({
+          processed:    false,
+          processed_at: new Date().toISOString(),
+          error:        "invalid_signature",
+        })
+        .eq("provider", provider)
+        .eq("event_id", eventId);
+      return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
     }
-    // Other event types are logged but not acted on
-  } catch (err) {
-    processingError = err instanceof Error ? err.message : String(err);
-    console.error("[webhook/mp] Processing error for event", eventId, ":", processingError);
+  } else {
+    console.warn("[webhook/mp] No x-signature — proceeding as unsigned IPN notification", {
+      eventType, eventId, resourceId,
+    });
   }
 
-  // ── Mark webhook_events as processed ─────────────────────────────────────
+  // ── Process event ──────────────────────────────────────────────────────────
+  let processingError: string | null = null;
+  try {
+    if (eventType === "payment") {
+      if (!resourceId) throw new Error("Payment event missing resource ID");
+      await handlePaymentEvent(supabase, resourceId);
+    } else if (eventType === "subscription_preapproval") {
+      if (!resourceId) throw new Error("Preapproval event missing resource ID");
+      await handleSubscriptionEvent(supabase, resourceId);
+    } else {
+      console.log("[webhook/mp] Unhandled event type (not an error):", eventType);
+    }
+  } catch (err) {
+    processingError = err instanceof Error ? err.message : String(err);
+    console.error("[webhook/mp] Processing error — event", eventId, ":", processingError);
+  }
+
+  // ── Mark webhook_events ────────────────────────────────────────────────────
   await supabase
     .from("webhook_events")
     .update({
@@ -124,10 +208,9 @@ export async function POST(req: NextRequest) {
     .eq("event_id", eventId);
 
   if (processingError) {
-    // Return 500 so MP retries; duplicate insert guard prevents infinite loops
+    // Return 500 so MP retries; dedup guard prevents infinite loops
     return NextResponse.json({ error: "processing_error" }, { status: 500 });
   }
-
   return NextResponse.json({ ok: true });
 }
 
@@ -142,7 +225,7 @@ async function handleSubscriptionEvent(
 
   const userId = pa.external_reference;
   if (!userId || !/^[0-9a-f-]{36}$/.test(userId)) {
-    throw new Error(`Invalid external_reference: ${userId}`);
+    throw new Error(`Invalid external_reference on preapproval ${preApprovalId}: ${userId}`);
   }
 
   const newStatus = mapSubStatus(pa.status ?? "");
@@ -154,37 +237,23 @@ async function handleSubscriptionEvent(
     updated_at:         new Date().toISOString(),
   };
 
-  // Only update plan_id for terminal state changes; leave it untouched for paused/incomplete
   if (newStatus === "active")   update.plan_id = "pro";
   if (newStatus === "canceled") update.plan_id = "free";
+  if (pa.payer_id)              update.mp_customer_id = String(pa.payer_id);
 
-  if (pa.payer_id)   update.mp_customer_id = String(pa.payer_id);
   if (newStatus === "canceled") {
     update.canceled_at   = new Date().toISOString();
     update.cancel_reason = "subscription_cancelled";
   }
-  if (newStatus === "active") {
-    // next_payment_date is the next billing date — use it as period end
-    if (pa.next_payment_date) {
-      update.current_period_end = pa.next_payment_date;
-    }
+  if (newStatus === "active" && pa.next_payment_date) {
+    update.current_period_end   = pa.next_payment_date;
     update.current_period_start = new Date().toISOString();
   }
 
-  // A stale "pending→incomplete" event must not overwrite an already-active subscription.
-  // Race: payment webhook arrives and sets active, then the original pending preapproval
-  // event is retried/replayed — without this guard it would downgrade to incomplete.
-  let query = supabase
-    .from("subscriptions")
-    .update(update)
-    .eq("user_id", userId);
-
-  if (newStatus === "incomplete") {
-    query = query.not("status", "eq", "active");
-  }
+  let query = supabase.from("subscriptions").update(update).eq("user_id", userId);
+  if (newStatus === "incomplete") query = query.not("status", "eq", "active");
 
   const { error } = await query;
-
   if (error) throw new Error(`subscriptions update failed: ${error.message}`);
 }
 
@@ -202,13 +271,34 @@ async function handlePaymentEvent(
     throw new Error(`Invalid external_reference on payment ${paymentId}: ${userId}`);
   }
 
-  // Pix payments: identified by payment_method_id or by the metadata we set in /api/billing/pix
-  const metadata    = p.metadata as Record<string, unknown> | undefined;
+  const metadata     = p.metadata as Record<string, unknown> | undefined;
   const isPixPayment =
     p.payment_method_id === "pix" ||
     metadata?.billing_reason === "pix_monthly";
 
-  // For card payments only: get the subscription row to link billing_payments.subscription_id
+  const mpStatus = mapPaymentStatus(p.status ?? "pending");
+  const amount   = p.transaction_amount ?? 0;
+  const currency = p.currency_id ?? "BRL";
+
+  console.log("[webhook/mp] Payment details", {
+    paymentId,
+    userId,
+    paymentMethodId: p.payment_method_id,
+    paymentStatus:   p.status,
+    mpStatus,
+    isPixPayment,
+    dateApproved:    p.date_approved ?? null,
+  });
+
+  // Must read billing_payments status BEFORE upsert to detect pending→approved.
+  const { data: existingRecord } = await supabase
+    .from("billing_payments")
+    .select("status")
+    .eq("mp_payment_id", String(p.id))
+    .maybeSingle();
+  const wasAlreadyApproved = existingRecord?.status === "approved";
+
+  // Only link to subscription for card payments
   let subId: string | null = null;
   if (!isPixPayment) {
     const { data: sub } = await supabase
@@ -219,21 +309,6 @@ async function handlePaymentEvent(
     subId = sub?.id ?? null;
   }
 
-  const mpStatus = mapPaymentStatus(p.status ?? "pending");
-  const amount   = p.transaction_amount ?? 0;
-  const currency = p.currency_id ?? "BRL";
-
-  // Check if this payment was already recorded as approved (for idempotent grant logic).
-  // Must happen BEFORE the upsert so we can detect a pending→approved transition.
-  const { data: existingRecord } = await supabase
-    .from("billing_payments")
-    .select("status")
-    .eq("mp_payment_id", String(p.id))
-    .maybeSingle();
-  const wasAlreadyApproved = existingRecord?.status === "approved";
-
-  // Upsert billing_payments — ignoreDuplicates: false so pending Pix records
-  // created by /api/billing/pix get their status updated to "approved" here.
   const { error: payUpsertErr } = await supabase
     .from("billing_payments")
     .upsert(
@@ -256,23 +331,19 @@ async function handlePaymentEvent(
     );
   if (payUpsertErr) throw new Error(`billing_payments upsert failed: ${payUpsertErr.message}`);
 
-  console.log("[webhook/mp] Payment processed", {
-    mpPaymentId:    String(p.id),
-    userId,
-    paymentMethod:  p.payment_method_id ?? "unknown",
-    paymentStatus:  mpStatus,
-    isPixPayment,
-  });
-
   if (mpStatus === "approved") {
     if (isPixPayment) {
-      // Pix path: grant Pro for 30 days via plan_grants.
-      // Skip if we already processed this payment (idempotency).
       if (!wasAlreadyApproved) {
-        await handlePixGrant(supabase, userId);
+        const result = await applyPixGrant(supabase, userId);
+        console.log("[webhook/mp] Pix grant applied", {
+          userId,
+          newExpiry: result.newExpiry,
+          extended:  result.extended,
+        });
+      } else {
+        console.log("[webhook/mp] Pix already approved — skipping duplicate grant", { userId });
       }
     } else {
-      // Card subscription path: update subscriptions table.
       const periodEnd = computePeriodEnd(p.date_approved);
       const { error } = await supabase
         .from("subscriptions")
@@ -290,7 +361,6 @@ async function handlePaymentEvent(
       if (error) throw new Error(`subscriptions update (approved) failed: ${error.message}`);
     }
   } else if (mpStatus === "rejected" && !isPixPayment) {
-    // Only downgrade for card subscriptions — Pix rejection doesn't affect subscriptions.
     const { error } = await supabase
       .from("subscriptions")
       .update({ status: "past_due", updated_at: new Date().toISOString() })
@@ -298,65 +368,6 @@ async function handlePaymentEvent(
       .in("status", ["incomplete", "past_due"]);
     if (error) throw new Error(`subscriptions update (rejected) failed: ${error.message}`);
   }
-}
-
-// ── Pix grant handler ─────────────────────────────────────────────────────────
-
-/**
- * Creates or extends a 30-day Pro grant via plan_grants when a Pix payment is approved.
- * If the user already has an active Pix grant, the new 30 days are stacked on top
- * (new expiry = max(now, current_expires_at) + 30 days).
- */
-async function handlePixGrant(
-  supabase: ReturnType<typeof createAdminClient>,
-  userId: string,
-) {
-  const now = new Date();
-
-  // Look for an existing unexpired Pix grant to stack on
-  const { data: existingGrant } = await supabase
-    .from("plan_grants")
-    .select("id, expires_at")
-    .eq("user_id", userId)
-    .eq("granted_by", "mercado_pago_pix")
-    .is("revoked_at", null)
-    .order("expires_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  // New expiry = max(now, current_expires_at) + 30 days
-  const base = existingGrant?.expires_at && new Date(existingGrant.expires_at) > now
-    ? new Date(existingGrant.expires_at)
-    : now;
-
-  const newExpiry = new Date(base);
-  newExpiry.setDate(newExpiry.getDate() + 30);
-
-  if (existingGrant) {
-    const { error } = await supabase
-      .from("plan_grants")
-      .update({ expires_at: newExpiry.toISOString(), granted_at: now.toISOString() })
-      .eq("id", existingGrant.id);
-    if (error) throw new Error(`plan_grants update failed: ${error.message}`);
-  } else {
-    const { error } = await supabase
-      .from("plan_grants")
-      .insert({
-        user_id:    userId,
-        plan_id:    "pro",
-        reason:     "Pro via Pix Mercado Pago",
-        granted_by: "mercado_pago_pix",
-        granted_at: now.toISOString(),
-        expires_at: newExpiry.toISOString(),
-      });
-    if (error) throw new Error(`plan_grants insert failed: ${error.message}`);
-  }
-
-  console.log("[webhook/mp] Pix grant applied", {
-    userId,
-    newExpiry: newExpiry.toISOString(),
-    extended: !!existingGrant,
-  });
 }
 
 function computePeriodEnd(dateApproved?: string | null): string {
