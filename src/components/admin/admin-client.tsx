@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Shield, UserCheck, UserX, RefreshCw, CheckCircle2,
-  AlertCircle, Loader2, Clock, Infinity,
+  AlertCircle, Loader2, Clock, Infinity, QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,16 @@ interface Props {
 type GrantStatus = null | "loading" | "success" | "error";
 type RevokeStep  = null | "confirming" | "loading" | "success" | "error";
 
-type Duration = "30d" | "1y" | "lifetime";
+type Duration        = "30d" | "1y" | "lifetime";
+type ReconcileStatus = null | "loading" | "success" | "not_approved" | "not_found" | "error";
+
+interface ReconcileResult {
+  userId?:       string;
+  mpStatus?:     string;
+  expiresAt?:    string | null;
+  grantExtended?: boolean;
+  detail?:       string;
+}
 
 function formatDate(iso: string | null | undefined, lang: string): string {
   if (!iso) return "—";
@@ -57,6 +66,11 @@ export function AdminClient({ adminEmail }: Props) {
   const [revokeStep,   setRevokeStep]   = useState<RevokeStep>(null);
   const [revokeMsg,    setRevokeMsg]    = useState("");
 
+  // ── Reconcile Pix form ────────────────────────────────────────────────────
+  const [reconcileId,     setReconcileId]     = useState("");
+  const [reconcileStatus, setReconcileStatus] = useState<ReconcileStatus>(null);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+
   // ── Grants list ────────────────────────────────────────────────────────────
   const [grants,        setGrants]       = useState<AdminGrant[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(true);
@@ -75,6 +89,53 @@ export function AdminClient({ adminEmail }: Props) {
   }, []);
 
   useEffect(() => { loadGrants(); }, [loadGrants]);
+
+  // ── Reconcile Pix submit ───────────────────────────────────────────────────
+  async function handleReconcile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reconcileId.trim()) return;
+    setReconcileStatus("loading");
+    setReconcileResult(null);
+    try {
+      const res  = await fetch("/api/admin/reconcile-pix", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ mp_payment_id: reconcileId.trim() }),
+      });
+      const json = await res.json() as {
+        ok?: boolean; error?: string; detail?: string; message?: string;
+        userId?: string; mpStatus?: string; expiresAt?: string | null; grantExtended?: boolean;
+      };
+
+      if (!res.ok) {
+        if (json.error === "payment_not_found") {
+          setReconcileStatus("not_found");
+        } else {
+          setReconcileStatus("error");
+          setReconcileResult({ detail: json.detail ?? json.error ?? "unknown" });
+        }
+        return;
+      }
+
+      if (!json.ok) {
+        setReconcileStatus("not_approved");
+        setReconcileResult({ mpStatus: json.mpStatus });
+        return;
+      }
+
+      setReconcileStatus("success");
+      setReconcileResult({
+        userId:        json.userId,
+        mpStatus:      json.mpStatus,
+        expiresAt:     json.expiresAt ?? null,
+        grantExtended: json.grantExtended,
+      });
+      void loadGrants();
+    } catch {
+      setReconcileStatus("error");
+      setReconcileResult({ detail: "Network error" });
+    }
+  }
 
   // ── Grant submit ───────────────────────────────────────────────────────────
   async function handleGrant(e: React.FormEvent) {
@@ -387,6 +448,79 @@ export function AdminClient({ adminEmail }: Props) {
             </form>
           )}
         </div>
+      </div>
+
+      {/* ── Reconciliar Pix ───────────────────────────────────────────────── */}
+      <div className="glass-card p-5 space-y-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10">
+            <QrCode size={15} className="text-amber-400" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-foreground">{tx.reconcileTitle}</p>
+            <p className="text-xs text-muted-foreground">{tx.reconcileSubtitle}</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleReconcile} className="flex gap-2">
+          <Input
+            className="flex-1 font-mono text-sm"
+            placeholder={tx.reconcileIdPlaceholder}
+            value={reconcileId}
+            onChange={e => { setReconcileId(e.target.value); setReconcileStatus(null); setReconcileResult(null); }}
+            disabled={reconcileStatus === "loading"}
+          />
+          <Button
+            type="submit"
+            disabled={reconcileStatus === "loading" || !reconcileId.trim()}
+            className="shrink-0 gap-1.5 bg-amber-600 hover:bg-amber-500 text-white"
+          >
+            {reconcileStatus === "loading"
+              ? <><Loader2 size={14} className="animate-spin" />{tx.reconciling}</>
+              : <><QrCode size={14} />{tx.reconcileBtn}</>}
+          </Button>
+        </form>
+
+        {/* Success */}
+        {reconcileStatus === "success" && reconcileResult && (
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-3 space-y-2 text-xs">
+            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <CheckCircle2 size={13} />
+              {reconcileResult.grantExtended ? tx.reconcileSuccessExtend : tx.reconcileSuccessGrant}
+            </div>
+            <div className="space-y-0.5 font-mono text-muted-foreground">
+              <p>userId: <span className="text-foreground/80 break-all">{reconcileResult.userId}</span></p>
+              <p>mpStatus: <span className="text-emerald-400">{reconcileResult.mpStatus}</span></p>
+              {reconcileResult.expiresAt && (
+                <p>expiresAt: <span className="text-foreground/80">{formatDate(reconcileResult.expiresAt, lang)}</span></p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Not approved */}
+        {reconcileStatus === "not_approved" && reconcileResult && (
+          <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3.5 py-3 text-xs text-amber-400">
+            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+            <span>{tx.reconcileNotApproved.replace("{status}", reconcileResult.mpStatus ?? "")}</span>
+          </div>
+        )}
+
+        {/* Not found */}
+        {reconcileStatus === "not_found" && (
+          <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3.5 py-3 text-xs text-red-400">
+            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+            <span>{tx.reconcileNotFound}</span>
+          </div>
+        )}
+
+        {/* API / network error */}
+        {reconcileStatus === "error" && reconcileResult && (
+          <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3.5 py-3 text-xs text-red-400">
+            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+            <span>{tx.reconcileApiError.replace("{detail}", reconcileResult.detail ?? "")}</span>
+          </div>
+        )}
       </div>
 
       {/* ── Recent Grants ──────────────────────────────────────────────────── */}
