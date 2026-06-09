@@ -33,12 +33,10 @@ export function CategoriesClient() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-    const { data } = await supabase.from("categories").select("*")
-      .eq("user_id", user.id).order("name");
-    setCategories(data ?? []);
+    const res = await fetch("/api/categories/list");
+    if (!res.ok) { setLoading(false); return; }
+    const json = await res.json() as { categories: Category[] };
+    setCategories(json.categories ?? []);
     setLoading(false);
   }, []);
 

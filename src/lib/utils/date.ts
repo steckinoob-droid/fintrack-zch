@@ -17,6 +17,12 @@ export function formatShortMonth(date: string | Date, lang?: string): string {
   return format(d, "MMM", { locale: lang === "en" ? enUS : ptBR });
 }
 
+/** "mar/25" — use when displaying multi-year ranges to disambiguate months. */
+export function formatShortMonthYear(date: string | Date, lang?: string): string {
+  const d = typeof date === "string" ? parseISO(date) : date;
+  return format(d, "MMM/yy", { locale: lang === "en" ? enUS : ptBR });
+}
+
 /** Last N calendar months ending this month, ascending. */
 export function getLastNMonths(n: number): string[] {
   const months: string[] = [];

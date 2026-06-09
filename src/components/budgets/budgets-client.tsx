@@ -37,32 +37,28 @@ export function BudgetsClient() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-
     const { start, end } = getMonthRange(viewMonth);
 
-    const [bRes, cRes, tRes] = await Promise.all([
-      supabase.from("budgets").select("*, category:categories(*)")
-        .eq("user_id", user.id).eq("month", viewMonth),
-      supabase.from("categories").select("*")
-        .eq("user_id", user.id).eq("type", "expense").order("name"),
-      supabase.from("transactions").select("amount, type, category_id")
-        .eq("user_id", user.id).eq("type", "expense")
-        .gte("date", start).lte("date", end),
+    // All reads go through service-role API routes to bypass the anon-client
+    // stale-JWT / RLS issue (auth.uid() returns NULL in browser PostgREST).
+    const [budgetsJson, txRes] = await Promise.all([
+      fetch(`/api/budgets/list?month=${viewMonth}`)
+        .then(r => r.ok ? r.json() as Promise<{ budgets: Budget[]; categories: Category[] }> : { budgets: [], categories: [] })
+        .catch(() => ({ budgets: [], categories: [] })),
+      fetch(`/api/transactions/list?type=expense&dateFrom=${start}&dateTo=${end}&limit=5000`)
+        .then(r => r.ok ? r.json() as Promise<{ transactions: Array<{ category_id: string | null; amount: number }> }> : { transactions: [] })
+        .catch(() => ({ transactions: [] })),
     ]);
 
-    const bs  = bRes.data ?? [];
-    const txs = tRes.data ?? [];
-    const withSpent = bs.map((b: Budget) => ({
+    const txs = txRes.transactions ?? [];
+    const withSpent = (budgetsJson.budgets ?? []).map((b: Budget) => ({
       ...b,
       spent: txs
-        .filter((t: any) => t.category_id === b.category_id)
-        .reduce((s: number, t: any) => s + Number(t.amount), 0),
+        .filter((t) => t.category_id === b.category_id)
+        .reduce((s, t) => s + Number(t.amount), 0),
     }));
     setBudgets(withSpent);
-    setCategories(cRes.data ?? []);
+    setCategories(budgetsJson.categories ?? []);
     setLoading(false);
   }, [viewMonth]);
 

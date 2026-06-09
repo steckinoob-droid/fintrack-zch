@@ -34,26 +34,14 @@ export function GoalsClient() {
   const [autoDeposits, setAutoDeposits]     = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-    const [goalsRes, autoRes] = await Promise.all([
-      supabase.from("savings_goals").select("*")
-        .eq("user_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("transactions").select("notes, amount")
-        .eq("user_id", user.id).eq("type", "saving").eq("is_recurring", true)
-        .is("recurrence_parent_id", null),
-    ]);
-    setGoals(goalsRes.data ?? []);
-    // Build map: goalId → deposit amount
-    const map: Record<string, number> = {};
-    for (const t of autoRes.data ?? []) {
-      if (t.notes?.startsWith("goal_id:")) {
-        const gid = t.notes.replace("goal_id:", "").trim();
-        map[gid] = t.amount;
-      }
-    }
-    setAutoDeposits(map);
+    const res = await fetch("/api/goals/list");
+    if (!res.ok) { setLoading(false); return; }
+    const json = await res.json() as {
+      goals: SavingsGoal[];
+      autoDeposits: Record<string, number>;
+    };
+    setGoals(json.goals ?? []);
+    setAutoDeposits(json.autoDeposits ?? {});
     setLoading(false);
   }, []);
 

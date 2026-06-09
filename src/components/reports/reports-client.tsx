@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import {
   getLastNMonths, getMonthsBetween, getMonthRange,
-  formatShortMonth,
+  formatShortMonth, formatShortMonthYear,
 } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -129,13 +129,21 @@ export function ReportsClient() {
   }, [transactions, reportMonths]);
 
   // ── Monthly bar data ─────────────────────────────────────────────────────
+  // Use "mar/25" labels whenever the report spans multiple calendar years so
+  // months like "mar" don't appear twice with different data behind them.
+  const spansMultipleYears = useMemo(() => {
+    if (reportMonths.length < 2) return false;
+    return reportMonths[0].slice(0, 4) !== reportMonths[reportMonths.length - 1].slice(0, 4);
+  }, [reportMonths]);
+
   const monthlyData = useMemo(() => reportMonths.map(m => {
     const { start, end } = getMonthRange(m);
     const mTx = transactions.filter(t => t.date >= start && t.date <= end);
     const income   = mTx.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
     const expenses = mTx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses };
-  }), [reportMonths, transactions, lang]);
+    const month = spansMultipleYears ? formatShortMonthYear(m, lang) : formatShortMonth(m, lang);
+    return { month, income, expenses, balance: income - expenses };
+  }), [reportMonths, transactions, lang, spansMultipleYears]);
 
   // ── Category breakdowns (scoped to period) ───────────────────────────────
   const categoryData = useMemo(() => {

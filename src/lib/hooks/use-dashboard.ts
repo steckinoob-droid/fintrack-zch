@@ -2,19 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { DashboardData, Transaction, Budget, SavingsGoal, MonthlyStats } from "@/lib/types";
+import type { DashboardData, Transaction, Budget, SavingsGoal, MonthlyStats, Category } from "@/lib/types";
 import { getLast6Months, getMonthRange, formatShortMonth } from "@/lib/utils/date";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { seedDefaultCategories } from "@/lib/utils/seed-categories";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import { generateRecurringTransactions } from "@/lib/utils/recurring";
 import { useLang } from "@/lib/i18n/context";
-
-interface AllTimeTotals {
-  total_income:   number;
-  total_expenses: number;
-  total_savings:  number;
-}
 
 interface MonthlyStatRow {
   month_start:   string;
@@ -41,8 +35,6 @@ export function useDashboard(monthOffset = 0) {
 
         await seedDefaultCategories(supabase, user.id);
 
-        // Guard: generateRecurringTransactions can throw on malformed parent
-        // dates (date-fns throws on Invalid Date passed to format()).
         try {
           await generateRecurringTransactions(supabase, user.id);
         } catch (err) {
@@ -56,90 +48,99 @@ export function useDashboard(monthOffset = 0) {
         const currentMonthEnd = new Date(target.getFullYear(), target.getMonth() + 1, 0)
           .toISOString().slice(0, 10);
 
-        // Parallel fetch: RPCs + scoped queries.
-        // Transaction SELECTs go through the API route (service role) to bypass
-        // the anon-client JWT issue that makes auth.uid() return NULL in PostgREST.
-        type TxListJson = { transactions: Record<string, unknown>[]; categories: Record<string, unknown>[] };
-        const emptyTxList: TxListJson = { transactions: [], categories: [] };
+        // All reads go through API routes (service role) to bypass the
+        // anon-client stale-JWT issue that makes auth.uid() return NULL in PostgREST.
+        type TxListJson   = { transactions: Record<string, unknown>[]; categories: Record<string, unknown>[] };
+        type TotalsJson   = { income: number; expense: number; savings: number };
+        type BudgetsJson  = { budgets: Budget[]; categories: Category[] };
+        type GoalsJson    = { goals: SavingsGoal[] };
+        type CatsJson     = { categories: Category[] };
+
+        const emptyTxList:  TxListJson  = { transactions: [], categories: [] };
+        const emptyTotals:  TotalsJson  = { income: 0, expense: 0, savings: 0 };
+        const emptyBudgets: BudgetsJson = { budgets: [], categories: [] };
+        const emptyGoals:   GoalsJson   = { goals: [] };
+        const emptyCats:    CatsJson    = { categories: [] };
 
         const [
-          totalsResult,
           monthlyStatsResult,
-          budgetResult,
-          goalResult,
-          catResult,
+          totalsJson,
+          budgetsJson,
+          goalsJson,
+          catsJson,
           monthTxJson,
           recentTxJson,
         ] = await Promise.all([
-          supabase.rpc("get_all_time_totals", { p_user_id: user.id }),
+          // Monthly stats via RPC (SECURITY INVOKER — works when JWT is valid;
+          // falls back to API route below if it returns an empty array).
           supabase.rpc("get_monthly_stats", { p_user_id: user.id }),
-          supabase
-            .from("budgets")
-            .select("*, category:categories(*)")
-            .eq("user_id", user.id)
-            .eq("month", currentMonthStart),
-          supabase
-            .from("savings_goals")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("categories")
-            .select("*")
-            .eq("user_id", user.id),
+
+          // All-time totals — always use the service-role API route so we get
+          // the real numbers even when auth.uid() is null in the RPC context.
+          fetch("/api/transactions/totals")
+            .then(r => r.ok ? r.json() as Promise<TotalsJson> : emptyTotals)
+            .catch(() => emptyTotals),
+
+          // Budgets for current month (service role, no embedded join).
+          fetch(`/api/budgets/list?month=${currentMonthStart}`)
+            .then(r => r.ok ? r.json() as Promise<BudgetsJson> : emptyBudgets)
+            .catch(() => emptyBudgets),
+
+          // Savings goals (service role).
+          fetch("/api/goals/list")
+            .then(r => r.ok ? r.json() as Promise<GoalsJson> : emptyGoals)
+            .catch(() => emptyGoals),
+
+          // Categories (service role) — needed for catMap.
+          fetch("/api/categories/list")
+            .then(r => r.ok ? r.json() as Promise<CatsJson> : emptyCats)
+            .catch(() => emptyCats),
+
+          // Current-month transactions (service role).
           fetch(`/api/transactions/list?dateFrom=${currentMonthStart}&dateTo=${currentMonthEnd}&limit=5000`)
             .then(r => r.ok ? r.json() as Promise<TxListJson> : emptyTxList)
             .catch(() => emptyTxList),
-          fetch(`/api/transactions/list?limit=8`)
+
+          // Recent transactions (service role).
+          fetch("/api/transactions/list?limit=8")
             .then(r => r.ok ? r.json() as Promise<TxListJson> : emptyTxList)
             .catch(() => emptyTxList),
         ]);
 
-        const catMap = new Map((catResult.data ?? []).map(c => [c.id, c]));
+        const catMap = new Map((catsJson.categories ?? []).map(c => [c.id, c]));
         const attachCat = (t: Record<string, unknown>) => ({
           ...t,
           category: t.category_id ? (catMap.get(t.category_id as string) ?? null) : null,
         });
 
-        const currentMonthTx: Transaction[]     = ((monthTxJson  as TxListJson).transactions ?? []).map(attachCat) as Transaction[];
-        const budgets: Budget[]                 = budgetResult.data ?? [];
-        const goals: SavingsGoal[]              = goalResult.data   ?? [];
-        const recentTransactions: Transaction[] = ((recentTxJson as TxListJson).transactions ?? []).map(attachCat) as Transaction[];
+        const currentMonthTx: Transaction[]     = ((monthTxJson   as TxListJson).transactions ?? []).map(attachCat) as Transaction[];
+        const recentTransactions: Transaction[] = ((recentTxJson  as TxListJson).transactions ?? []).map(attachCat) as Transaction[];
+        const budgets: Budget[]                 = budgetsJson.budgets  ?? [];
+        const goals: SavingsGoal[]              = goalsJson.goals      ?? [];
 
         // Month-level aggregates
         const monthIncome   = currentMonthTx.filter(t => t.type === "income") .reduce((s, t) => s + t.amount, 0);
         const monthExpenses = currentMonthTx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
         const monthSavings  = currentMonthTx.filter(t => t.type === "saving") .reduce((s, t) => s + t.amount, 0);
 
-        // All-time totals — use RPC when available, otherwise fall back to a
-        // direct query so the dashboard works before migration 005 is applied.
-        let allIncome = 0, allExpenses = 0, allSavings = 0;
-        if (!totalsResult.error && totalsResult.data) {
-          const row = (totalsResult.data as AllTimeTotals[])[0];
-          allIncome   = Number(row?.total_income   ?? 0);
-          allExpenses = Number(row?.total_expenses ?? 0);
-          allSavings  = Number(row?.total_savings  ?? 0);
-        } else {
-          // RPC not available — load all transactions for totals via API route.
-          const fallbackRes = await fetch("/api/transactions/list?limit=100000")
-            .then(r => r.ok ? r.json() as Promise<{ transactions: Array<{ type: string; amount: number }> }> : { transactions: [] })
-            .catch(() => ({ transactions: [] }));
-          for (const t of fallbackRes.transactions ?? []) {
-            if (t.type === "income")  allIncome   += Number(t.amount);
-            if (t.type === "expense") allExpenses += Number(t.amount);
-            if (t.type === "saving")  allSavings  += Number(t.amount);
-          }
-        }
+        // All-time totals — straight from the service-role API (always correct).
+        const allIncome   = Number(totalsJson.income   ?? 0);
+        const allExpenses = Number(totalsJson.expense  ?? 0);
+        const allSavings  = Number(totalsJson.savings  ?? 0);
         const totalBalance = allIncome - allExpenses - allSavings;
 
-        // 6-month chart — use RPC rows when available, otherwise compute from a
-        // direct query so the chart renders before migration 005 is applied.
+        // 6-month chart: use RPC rows when they contain data, otherwise fall
+        // back to the service-role API.  Empty-array is TRUTHY in JS so we
+        // must check .length > 0, not just truthiness.
         const months = getLast6Months();
         let monthlyStats: MonthlyStats[];
 
-        const rpcRows = (!monthlyStatsResult.error && monthlyStatsResult.data)
-          ? (monthlyStatsResult.data as MonthlyStatRow[])
-          : null;
+        const rpcRows =
+          !monthlyStatsResult.error &&
+          Array.isArray(monthlyStatsResult.data) &&
+          (monthlyStatsResult.data as MonthlyStatRow[]).length > 0
+            ? (monthlyStatsResult.data as MonthlyStatRow[])
+            : null;
 
         if (rpcRows) {
           monthlyStats = months.map((m) => {
@@ -154,7 +155,8 @@ export function useDashboard(monthOffset = 0) {
             return { month: formatShortMonth(m, lang), income, expenses, balance: income - expenses, daysOfData };
           });
         } else {
-          // RPC not available — load 6-month window of transactions via API route.
+          // RPC returned empty (auth.uid() null or no data) — compute from the
+          // service-role transactions API route.
           const sixMonthsAgo = months[0];
           const { start: chartStart } = getMonthRange(sixMonthsAgo);
           const chartRes = await fetch(`/api/transactions/list?dateFrom=${encodeURIComponent(chartStart)}&limit=100000`)

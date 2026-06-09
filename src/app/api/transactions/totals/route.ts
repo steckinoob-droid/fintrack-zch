@@ -39,11 +39,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  let income = 0, expense = 0;
+  let income = 0, expense = 0, savings = 0;
   for (const t of data ?? []) {
-    if (t.type === "income") income += Number(t.amount);
-    else expense += Number(t.amount);
+    if (t.type === "income")  income  += Number(t.amount);
+    else if (t.type === "expense") expense += Number(t.amount);
+    else if (t.type === "saving")  savings += Number(t.amount);
   }
 
-  return NextResponse.json({ income, expense, count: data?.length ?? 0 });
+  return NextResponse.json({ income, expense, savings, count: data?.length ?? 0 });
 }
