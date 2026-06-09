@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, PieChart, ChevronLeft, ChevronRight, Copy, Loader2, Bell } from "lucide-react";
+import { Plus, Pencil, Trash2, PieChart, ChevronLeft, ChevronRight, Copy, Loader2, Bell, Search, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -30,6 +31,9 @@ export function BudgetsClient() {
   const [copying, setCopying]       = useState(false);
   const [editBudget, setEditBudget] = useState<Budget | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch]         = useState("");
+
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
   // Navigable month — starts at current month
   const [viewMonth, setViewMonth] = useState(getCurrentMonth());
@@ -106,6 +110,10 @@ export function BudgetsClient() {
       : `${toCreate.length} orçamentos copiados do mês anterior!`);
     load();
   }
+
+  const filteredBudgets = search
+    ? budgets.filter(b => norm(b.category?.name ?? "").includes(norm(search)))
+    : budgets;
 
   const totalBudgeted = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent    = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
@@ -188,6 +196,24 @@ export function BudgetsClient() {
         </div>
       </div>
 
+      {/* Search */}
+      {!loading && budgets.length > 0 && (
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={lang === "en" ? "Search by category..." : "Buscar por categoria..."}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8 h-9"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Budget alerts (80% / 100% threshold) — same component as dashboard */}
       <BudgetAlerts budgets={budgets} />
 
@@ -233,9 +259,16 @@ export function BudgetsClient() {
             }
           />
         </div>
+      ) : filteredBudgets.length === 0 && search ? (
+        <div className="glass-card">
+          <EmptyState icon={Search} title={lang === "en" ? "No results" : "Sem resultados"}
+            description={lang === "en" ? `No budgets matching "${search}"` : `Nenhum orçamento para "${search}"`}
+            action={<Button size="sm" variant="outline" onClick={() => setSearch("")}><X size={14} /> {lang === "en" ? "Clear search" : "Limpar busca"}</Button>}
+          />
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {budgets.map(b => {
+          {filteredBudgets.map(b => {
             const spent = b.spent ?? 0;
             const pct   = Math.min(100, Math.round((spent / b.amount) * 100));
             const over  = pct >= 100;

@@ -30,6 +30,8 @@ export async function GET(request: Request) {
     .order("date", { ascending })
     .range(offset, offset + limit - 1);
 
+  const isRecurring = searchParams.get("isRecurring");
+
   if (dateFrom)                               q = q.gte("date", dateFrom);
   if (dateTo)                                 q = q.lte("date", dateTo);
   if (type && type !== "all")                 q = q.eq("type", type);
@@ -37,6 +39,7 @@ export async function GET(request: Request) {
   if (search)                                 q = q.ilike("title", `%${search}%`);
   if (!isNaN(minValue) && minValue > 0)       q = q.gte("amount", minValue);
   if (!isNaN(maxValue) && maxValue > 0)       q = q.lte("amount", maxValue);
+  if (isRecurring === "true")                 q = q.eq("is_recurring", true).is("recurrence_parent_id", null);
 
   const [txRes, catRes] = await Promise.all([
     q,

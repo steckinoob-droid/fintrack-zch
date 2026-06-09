@@ -57,6 +57,11 @@ export function TransactionsClient() {
   const [dbOffset, setDbOffset]         = useState(PAGE_SIZE);
 
   const [search, setSearch]       = useState("");
+  // When a search query is active, fetch ALL matching rows from the DB (not just the first 200).
+  // null = no search active; array = server results ready.
+  const [serverSearchTxs, setServerSearchTxs]   = useState<Transaction[] | null>(null);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
+
   const [tab, setTab]             = useState<"all" | "income" | "expense" | "saving">("all");
   // Read last-used period from sessionStorage so navigating away and back
   // (e.g. after an import) doesn't reset to "this_month" and hide transactions.
@@ -183,6 +188,32 @@ export function TransactionsClient() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Server-side search: fires when search query changes (350ms debounce).
+  // Fetches up to 2000 matching rows from the full DB so filtering by period /
+  // category works on the complete result set, not just the first 200 loaded.
+  useEffect(() => {
+    if (!search.trim()) {
+      setServerSearchTxs(null);
+      setServerSearchLoading(false);
+      return;
+    }
+    setServerSearchLoading(true);
+    const t = setTimeout(async () => {
+      const res = await fetch(
+        `/api/transactions/list?search=${encodeURIComponent(search)}&limit=2000`
+      );
+      setServerSearchLoading(false);
+      if (!res.ok) return;
+      const json = await res.json() as { transactions: Transaction[]; categories: Category[] };
+      const catMap = new Map(json.categories.map(c => [c.id, c]));
+      setServerSearchTxs(json.transactions.map(t => ({
+        ...t,
+        category: t.category_id ? catMap.get(t.category_id) : undefined,
+      })));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   useEffect(() => {
     let cancelled = false;
     async function fetchDbTotals() {
@@ -284,26 +315,37 @@ export function TransactionsClient() {
 
   const dateRange = useMemo(() => getDateRange(period), [period]);
 
-  const filtered = useMemo(() => transactions.filter(t => {
-    // Date: custom range (dateFrom/dateTo) overrides period pills
-    if (dateFrom || dateTo) {
-      if (dateFrom && t.date < dateFrom) return false;
-      if (dateTo   && t.date > dateTo)   return false;
-    } else if (dateRange) {
-      if (t.date < dateRange.start || t.date > dateRange.end) return false;
-    }
-    if (tab === "income"  && t.type !== "income")  return false;
-    if (tab === "expense" && t.type !== "expense") return false;
-    if (tab === "saving"  && t.type !== "saving")  return false;
-    if (catFilter !== "__all__" && t.category_id !== catFilter) return false;
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-    // Value filters
-    const minV = parseFloat(minValue.replace(",", "."));
-    const maxV = parseFloat(maxValue.replace(",", "."));
-    if (!isNaN(minV) && t.amount < minV) return false;
-    if (!isNaN(maxV) && t.amount > maxV) return false;
-    return true;
-  }), [transactions, dateRange, tab, catFilter, search, dateFrom, dateTo, minValue, maxValue]);
+  const filtered = useMemo(() => {
+    // When a server search is active, use server results (covers full DB).
+    // Otherwise fall back to the locally loaded page.
+    const base = serverSearchTxs ?? transactions;
+    const normStr = (s: string) =>
+      s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+    return base.filter(t => {
+      // Date: custom range (dateFrom/dateTo) overrides period pills
+      if (dateFrom || dateTo) {
+        if (dateFrom && t.date < dateFrom) return false;
+        if (dateTo   && t.date > dateTo)   return false;
+      } else if (dateRange) {
+        if (t.date < dateRange.start || t.date > dateRange.end) return false;
+      }
+      if (tab === "income"  && t.type !== "income")  return false;
+      if (tab === "expense" && t.type !== "expense") return false;
+      if (tab === "saving"  && t.type !== "saving")  return false;
+      if (catFilter !== "__all__" && t.category_id !== catFilter) return false;
+      // Title search: server already filtered when serverSearchTxs is active.
+      // For the locally loaded fallback, apply accent-normalised client filter.
+      if (search && !serverSearchTxs && !normStr(t.title).includes(normStr(search))) return false;
+      // Value filters
+      const minV = parseFloat(minValue.replace(",", "."));
+      const maxV = parseFloat(maxValue.replace(",", "."));
+      if (!isNaN(minV) && t.amount < minV) return false;
+      if (!isNaN(maxV) && t.amount > maxV) return false;
+      return true;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSearchTxs, transactions, dateRange, tab, catFilter, search, dateFrom, dateTo, minValue, maxValue]);
 
   // ── Group by date ─────────────────────────────────────────────────────────
   const grouped = useMemo(() => {
@@ -386,6 +428,7 @@ export function TransactionsClient() {
   function clearFilters() {
     setSearch(""); setTab("all"); setPeriod("this_month"); setCatFilter("__all__");
     setDateFrom(""); setDateTo(""); setMinValue(""); setMaxValue("");
+    setServerSearchTxs(null);
   }
 
   async function handleExportCsv() {
@@ -636,9 +679,19 @@ export function TransactionsClient() {
       <div className="space-y-2">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            {serverSearchLoading
+              ? <RefreshCw size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+              : <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />}
             <Input placeholder={tx.search} value={search}
               onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
+            {search && !serverSearchLoading && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
           <Button
             variant="outline" size="sm"
@@ -951,8 +1004,8 @@ export function TransactionsClient() {
         )}
       </div>
 
-      {/* ── Pagination banner ─────────────────────────────────────────── */}
-      {!loading && transactions.length < totalCount && (
+      {/* ── Pagination banner — hidden during server search (results are complete) */}
+      {!loading && !serverSearchTxs && transactions.length < totalCount && (
         <div className="glass-card border border-amber-500/20 p-4 space-y-3">
           <div>
             <p className="text-sm font-medium text-foreground">
@@ -996,8 +1049,12 @@ export function TransactionsClient() {
         <p className="text-xs text-muted-foreground text-center">
           {filtered.length} {filtered.length === 1 ? tx.txSingular : tx.txPlural}
           {(activeFilters > 0 || search) ? ` ${tx.matchingFilters}` : ""}
-          {search && transactions.length < totalCount && (
-            <> — <span className="text-amber-400/70">{tx.searchLoadedOnly.replace("{n}", String(transactions.length))}</span></>
+          {search && (
+            serverSearchTxs
+              ? <> — <span className="text-primary/70">{lang === "en" ? "Searched all records" : "Buscou em todos os registros"}</span></>
+              : transactions.length < totalCount
+                ? <> — <span className="text-amber-400/70">{tx.searchLoadedOnly.replace("{n}", String(transactions.length))}</span></>
+                : null
           )}
         </p>
       )}

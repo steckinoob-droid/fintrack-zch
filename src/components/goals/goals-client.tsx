@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper } from "lucide-react";
+import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper, Search, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -24,6 +25,7 @@ export function GoalsClient() {
 
   const [goals, setGoals]                   = useState<SavingsGoal[]>([]);
   const [loading, setLoading]               = useState(true);
+  const [search, setSearch]                 = useState("");
   const [editGoal, setEditGoal]             = useState<SavingsGoal | null>(null);
   const [depositGoal, setDepositGoal]       = useState<SavingsGoal | null>(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
@@ -114,8 +116,12 @@ export function GoalsClient() {
     setGoals(prev => prev.filter(g => g.id !== id));
   }
 
-  const totalTarget  = goals.reduce((s, g) => s + g.target_amount, 0);
-  const totalSaved   = goals.reduce((s, g) => s + g.current_amount, 0);
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const filteredGoals = search ? goals.filter(g => norm(g.name).includes(norm(search))) : goals;
+
+  // Summary stats always reflect ALL goals, not just the filtered subset
+  const totalTarget    = goals.reduce((s, g) => s + g.target_amount, 0);
+  const totalSaved     = goals.reduce((s, g) => s + g.current_amount, 0);
   const completedGoals = goals.filter(g => g.current_amount >= g.target_amount).length;
 
   return (
@@ -143,6 +149,24 @@ export function GoalsClient() {
         </div>
       </div>
 
+      {/* Search input */}
+      {!loading && goals.length > 0 && (
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={lang === "en" ? "Search goals..." : "Buscar metas..."}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8 h-9"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card h-40 shimmer" />)}
@@ -152,9 +176,16 @@ export function GoalsClient() {
           <EmptyState icon={Target} title={tx.empty} description={tx.emptyDesc}
             action={<Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={15} /> {tx.create}</Button>} />
         </div>
+      ) : filteredGoals.length === 0 && search ? (
+        <div className="glass-card">
+          <EmptyState icon={Search} title={lang === "en" ? "No results" : "Sem resultados"}
+            description={lang === "en" ? `No goals matching "${search}"` : `Nenhuma meta para "${search}"`}
+            action={<Button size="sm" variant="outline" onClick={() => setSearch("")}><X size={14} /> {lang === "en" ? "Clear search" : "Limpar busca"}</Button>}
+          />
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {goals.map(goal => {
+          {filteredGoals.map(goal => {
             const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
             const completed  = pct >= 100;
             const daysLeft   = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;

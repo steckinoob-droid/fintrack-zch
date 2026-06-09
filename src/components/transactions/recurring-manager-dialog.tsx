@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  RefreshCw, Trash2, Pencil, CalendarDays, Loader2,
+  RefreshCw, Trash2, Pencil, CalendarDays, Loader2, Search, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
@@ -51,22 +52,28 @@ export function RecurringManagerDialog({ open, onOpenChange, categories, onSucce
   const [loading, setLoading]   = useState(true);
   const [editTx, setEditTx]     = useState<Transaction | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [search, setSearch]     = useState("");
+
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const filteredParents = search
+    ? parents.filter(p =>
+        norm(p.title).includes(norm(search)) ||
+        (p.category?.name && norm(p.category.name).includes(norm(search))) ||
+        (p.recurrence_interval && norm(p.recurrence_interval).includes(norm(search)))
+      )
+    : parents;
 
   const load = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-
-    const { data } = await supabase
-      .from("transactions")
-      .select("*, category:categories(*)")
-      .eq("user_id", user.id)
-      .eq("is_recurring", true)
-      .is("recurrence_parent_id", null)
-      .order("created_at", { ascending: false });
-
-    setParents(data ?? []);
+    // Use the server-side API (service role) to bypass browser client RLS issue.
+    const res = await fetch("/api/transactions/list?isRecurring=true&limit=500");
+    if (!res.ok) { setLoading(false); return; }
+    const json = await res.json() as { transactions: Transaction[]; categories: Category[] };
+    const catMap = new Map(json.categories.map(c => [c.id, c]));
+    setParents(json.transactions.map(t => ({
+      ...t,
+      category: t.category_id ? catMap.get(t.category_id) : undefined,
+    })));
     setLoading(false);
   }, []);
 
@@ -114,6 +121,24 @@ export function RecurringManagerDialog({ open, onOpenChange, categories, onSucce
           </DialogHeader>
 
           <div className="px-6 pb-4 space-y-2">
+            {/* Search input */}
+            {!loading && parents.length > 0 && (
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder={lang === "en" ? "Filter by name, category..." : "Filtrar por nome, categoria..."}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                />
+                {search && (
+                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+
             {loading ? (
               <div className="flex items-center justify-center py-10">
                 <Loader2 size={22} className="animate-spin text-muted-foreground" />
@@ -134,7 +159,12 @@ export function RecurringManagerDialog({ open, onOpenChange, categories, onSucce
               </div>
             ) : (
               <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                {parents.map(p => {
+                {filteredParents.length === 0 && search && (
+                  <p className="text-center text-xs text-muted-foreground py-6">
+                    {lang === "en" ? `No results for "${search}"` : `Nenhum resultado para "${search}"`}
+                  </p>
+                )}
+                {filteredParents.map(p => {
                   const nextDate = getNextExpected(p);
                   const typeColor =
                     p.type === "income"  ? "text-emerald-400" :
@@ -207,7 +237,7 @@ export function RecurringManagerDialog({ open, onOpenChange, categories, onSucce
 
             {!loading && parents.length > 0 && (
               <p className="text-xs text-muted-foreground text-center pt-1">
-                {parents.length} {lang === "en"
+                {search ? filteredParents.length : parents.length}{search ? ` / ${parents.length}` : ""} {lang === "en"
                   ? `recurring transaction${parents.length !== 1 ? "s" : ""} active`
                   : `transação${parents.length !== 1 ? "ões" : ""} recorrente${parents.length !== 1 ? "s" : ""} ativa${parents.length !== 1 ? "s" : ""}`}
               </p>

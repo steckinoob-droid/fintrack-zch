@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Search, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
@@ -31,6 +32,9 @@ export function CategoriesClient() {
   const [tab, setTab]               = useState<"expense" | "income">("expense");
   const [editCat, setEditCat]       = useState<Category | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch]         = useState("");
+
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/categories/list");
@@ -50,7 +54,9 @@ export function CategoriesClient() {
     setCategories(prev => prev.filter(c => c.id !== id));
   }
 
-  const filtered = categories.filter(c => c.type === tab);
+  const filtered = categories.filter(c =>
+    c.type === tab && (!search || norm(c.name).includes(norm(search)))
+  );
 
   return (
     <div className="space-y-6">
@@ -62,12 +68,28 @@ export function CategoriesClient() {
         }
       />
 
-      <Tabs value={tab} onValueChange={v => setTab(v as typeof tab)}>
-        <TabsList>
-          <TabsTrigger value="expense">{tx.expensesTab}</TabsTrigger>
-          <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Tabs value={tab} onValueChange={v => { setTab(v as typeof tab); setSearch(""); }}>
+          <TabsList>
+            <TabsTrigger value="expense">{tx.expensesTab}</TabsTrigger>
+            <TabsTrigger value="income">{tx.incomeTab}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative flex-1 min-w-40">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={lang === "en" ? "Search categories..." : "Buscar categorias..."}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8 h-8 text-xs"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -75,10 +97,17 @@ export function CategoriesClient() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="glass-card">
-          <EmptyState icon={Tag} title={tx.empty}
-            description={`${tx.emptyDesc} ${tab === "expense" ? tx.emptyExpenses : tx.emptyIncome}.`}
-            action={<Button size="sm" onClick={() => { setEditCat(null); setDialogOpen(true); }}><Plus size={15} /> {tx.create}</Button>}
-          />
+          {search ? (
+            <EmptyState icon={Search} title={lang === "en" ? "No results" : "Sem resultados"}
+              description={lang === "en" ? `No categories matching "${search}"` : `Nenhuma categoria para "${search}"`}
+              action={<Button size="sm" variant="outline" onClick={() => setSearch("")}><X size={14} /> {lang === "en" ? "Clear search" : "Limpar busca"}</Button>}
+            />
+          ) : (
+            <EmptyState icon={Tag} title={tx.empty}
+              description={`${tx.emptyDesc} ${tab === "expense" ? tx.emptyExpenses : tx.emptyIncome}.`}
+              action={<Button size="sm" onClick={() => { setEditCat(null); setDialogOpen(true); }}><Plus size={15} /> {tx.create}</Button>}
+            />
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

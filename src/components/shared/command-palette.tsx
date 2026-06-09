@@ -3,11 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowUpRight, ArrowDownRight, PiggyBank, Tag, Target, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 import { useLang } from "@/lib/i18n/context";
-import type { Transaction, Category, SavingsGoal, TransactionType } from "@/lib/types";
+import type { TransactionType } from "@/lib/types";
 
 interface SearchResult {
   id: string;
@@ -38,25 +37,30 @@ export function CommandPalette({ open, onClose }: Props) {
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); return; }
     setLoading(true);
-    const supabase = createClient();
-    const [txRes, catRes, goalRes] = await Promise.all([
-      supabase.from("transactions").select("*, category:categories(*)").ilike("title", `%${q}%`).limit(5),
-      supabase.from("categories").select("*").ilike("name", `%${q}%`).limit(4),
-      supabase.from("savings_goals").select("*").ilike("name", `%${q}%`).limit(3),
-    ]);
+
+    // Use the server-side search API (service role) so results are never empty
+    // due to the browser client's auth.uid()=null RLS issue.
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) { setLoading(false); return; }
+
+    const json = await res.json() as {
+      transactions: Array<{ id: string; title: string; amount: number; type: TransactionType; date: string; categoryName: string | null }>;
+      categories:   Array<{ id: string; name: string; type: string; color: string }>;
+      goals:        Array<{ id: string; name: string; current_amount: number; target_amount: number; color: string }>;
+    };
 
     const noCategory = pt ? "Sem categoria" : "No category";
 
-    const txResults: SearchResult[] = (txRes.data ?? []).map((t: Transaction) => ({
+    const txResults: SearchResult[] = json.transactions.map(t => ({
       id: t.id, type: "transaction",
       title: t.title,
-      subtitle: `${t.category?.name ?? noCategory} · ${formatDate(t.date)}`,
+      subtitle: `${t.categoryName ?? noCategory} · ${formatDate(t.date)}`,
       href: "/transactions",
       amount: t.amount,
       transactionType: t.type,
     }));
 
-    const catResults: SearchResult[] = (catRes.data ?? []).map((c: Category) => ({
+    const catResults: SearchResult[] = json.categories.map(c => ({
       id: c.id, type: "category",
       title: c.name,
       subtitle: c.type === "income"
@@ -66,7 +70,7 @@ export function CommandPalette({ open, onClose }: Props) {
       color: c.color,
     }));
 
-    const goalResults: SearchResult[] = (goalRes.data ?? []).map((g: SavingsGoal) => ({
+    const goalResults: SearchResult[] = json.goals.map(g => ({
       id: g.id, type: "goal",
       title: g.name,
       subtitle: `${fc(g.current_amount)} / ${fc(g.target_amount)}`,
@@ -77,7 +81,7 @@ export function CommandPalette({ open, onClose }: Props) {
     setResults([...txResults, ...catResults, ...goalResults]);
     setSelected(0);
     setLoading(false);
-  }, [lang, pt, fc]); // fc must be in deps — it changes when currency changes
+  }, [pt, fc]);
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 200);
