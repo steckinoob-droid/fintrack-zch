@@ -10,6 +10,8 @@ export interface Toast {
   description?: string;
   variant?: ToastVariant;
   action?: { label: string; onClick: () => void };
+  /** Auto-dismiss delay in ms. Defaults to 4000. */
+  duration?: number;
 }
 
 let toastCounter = 0;
@@ -49,7 +51,7 @@ export function useToastState() {
   const add = useCallback((data: Omit<Toast, "id">) => {
     const id = String(++toastCounter);
     setToasts((prev) => [...prev, { ...data, id }]);
-    setTimeout(() => dismiss(id), 4000);
+    setTimeout(() => dismiss(id), data.duration ?? 4000);
   }, [dismiss]);
 
   return { toasts, add, dismiss, addListener };

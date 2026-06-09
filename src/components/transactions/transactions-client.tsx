@@ -255,7 +255,10 @@ export function TransactionsClient() {
   }, []);
 
   async function handleInlineCat(txId: string, catId: string) {
-    const resolved = catId === "__none__" ? null : catId;
+    const resolved  = catId === "__none__" ? null : catId;
+    // Capture the source transaction BEFORE any state updates
+    const txSource  = transactions.find(t => t.id === txId);
+
     const res = await fetch("/api/transactions/update", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -276,6 +279,67 @@ export function TransactionsClient() {
     setTransactions(prev => prev.map(applyUpdate));
     setServerSearchTxs(prev => prev ? prev.map(applyUpdate) : prev);
     refresh();
+
+    // ── "Apply to similar" offer ────────────────────────────────────────────
+    // Skip if removing a category, if no transaction found, or if it is a
+    // savings/goal deposit (type="saving" — not subject to bulk categorization).
+    if (!resolved || !txSource || txSource.type === "saving") return;
+
+    try {
+      const params = new URLSearchParams({
+        title:     txSource.title,
+        type:      txSource.type,
+        excludeId: txId,
+      });
+      const countRes = await fetch(`/api/transactions/categorize-similar?${params}`);
+      if (!countRes.ok) return;
+      const { count } = await countRes.json() as { count: number };
+      if (count <= 0) return;
+
+      toast({
+        title: count === 1
+          ? tx.similarFoundSingular
+          : tx.similarFoundPlural.replace("{n}", String(count)),
+        action: {
+          label: tx.similarApply,
+          onClick: async () => {
+            const applyRes = await fetch("/api/transactions/categorize-similar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title:      txSource.title,
+                type:       txSource.type,
+                categoryId: resolved,
+                excludeId:  txId,
+              }),
+            });
+            if (!applyRes.ok) {
+              toast.error(tx.similarError);
+              return;
+            }
+            const { updated, ids } = await applyRes.json() as { updated: number; ids: string[] };
+            // Apply to local state directly (no full reload — avoids flicker)
+            if (ids && ids.length > 0) {
+              const idSet = new Set(ids);
+              const bulkUpdate = (t: Transaction) =>
+                idSet.has(t.id) ? { ...t, category_id: resolved, category: updatedCategory } : t;
+              setTransactions(prev => prev.map(bulkUpdate));
+              setServerSearchTxs(prev => prev ? prev.map(bulkUpdate) : prev);
+              refresh();
+            }
+            toast.success(
+              updated === 1
+                ? tx.similarAppliedSingular
+                : tx.similarAppliedPlural.replace("{n}", String(updated))
+            );
+          },
+        },
+        duration: 8000,
+      });
+    } catch {
+      // Silently ignore — the similar suggestion is non-critical.
+      // The original category change already succeeded.
+    }
   }
 
   function handleDelete(id: string) {
