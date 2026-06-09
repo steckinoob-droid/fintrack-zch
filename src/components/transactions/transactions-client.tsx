@@ -266,9 +266,15 @@ export function TransactionsClient() {
       toast.error(lang === "en" ? "Error updating category" : "Erro ao atualizar categoria");
       return;
     }
-    setTransactions(prev => prev.map(t =>
-      t.id !== txId ? t : { ...t, category_id: resolved, category: categories.find(c => c.id === resolved) }
-    ));
+    const updatedCategory = categories.find(c => c.id === resolved);
+    const applyUpdate = (t: Transaction) =>
+      t.id !== txId ? t : { ...t, category_id: resolved, category: updatedCategory };
+    // Update both arrays: `transactions` (normal list) and `serverSearchTxs`
+    // (active search results). The displayed list is derived from whichever is
+    // non-null, so both must be kept in sync or the category appears to vanish
+    // immediately after assignment while search is active.
+    setTransactions(prev => prev.map(applyUpdate));
+    setServerSearchTxs(prev => prev ? prev.map(applyUpdate) : prev);
     refresh();
   }
 
