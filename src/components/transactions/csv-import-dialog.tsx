@@ -416,23 +416,24 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { bank: "Santander", steps: "Extrato Consolidado Inteligente → PDF", tag: "PDF"     },
-                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",      tag: "CSV/OFX" },
-                  { bank: "Inter",     steps: "Extrato → Exportar",                    tag: "CSV/OFX" },
-                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha",           tag: "CSV/OFX" },
-                  { bank: "Bradesco",  steps: "Extrato → Gerar arquivo",               tag: "CSV/OFX" },
-                  { bank: "BB / CEF",  steps: "Internet Banking → Extrato → Exportar", tag: "CSV/OFX" },
+                  { bank: "Santander", steps: "Extrato Consolidado Inteligente",        tag: "PDF"     },
+                  { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",       tag: "CSV/OFX" },
+                  { bank: "Inter",     steps: "Extrato → Exportar",                     tag: "CSV/OFX" },
+                  { bank: "Itaú",      steps: "Extrato → Baixar → Planilha",            tag: "CSV/OFX" },
+                  { bank: "Bradesco",  steps: "Extrato → Gerar arquivo",                tag: "CSV/OFX" },
+                  { bank: "BB / CEF",  steps: "Internet Banking → Extrato → Exportar",  tag: "CSV/OFX" },
                 ].map(({ bank, steps, tag }) => (
-                  <div key={bank} className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2">
-                    <span className="text-xs font-semibold text-foreground shrink-0 w-16">{bank}</span>
-                    <span className="text-xs text-muted-foreground leading-relaxed flex-1">{steps}</span>
-                    <span className={cn(
-                      "text-[10px] font-bold shrink-0 mt-0.5",
-                      tag === "PDF"     ? "text-red-400"
-                        : tag === "OFX" ? "text-blue-400"
-                        : tag === "CSV/OFX" ? "text-emerald-400"
-                        : "text-muted-foreground/60"
-                    )}>{tag === "CSV/OFX" ? "CSV / OFX" : tag}</span>
+                  <div key={bank} className="rounded-lg bg-muted/20 px-3 py-2 space-y-0.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-semibold text-foreground leading-none">{bank}</span>
+                      <span className={cn(
+                        "text-[10px] font-bold leading-none shrink-0",
+                        tag === "PDF"        ? "text-red-400"
+                          : tag === "CSV/OFX" ? "text-emerald-400"
+                          : "text-blue-400"
+                      )}>{tag === "CSV/OFX" ? "CSV / OFX" : tag}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">{steps}</p>
                   </div>
                 ))}
               </div>
