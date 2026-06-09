@@ -15,6 +15,14 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // Server-side plan check — backup is a Pro-only feature.
+  // This prevents API-level bypass even if the client-side gate is circumvented.
+  const { data: planData } = await supabase.rpc("get_my_plan");
+  const userPlan = (planData as string | null) ?? "free";
+  if (userPlan !== "pro") {
+    return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+  }
+
   const admin = createAdminClient();
 
   const [txRes, budgetsRes, goalsRes, catsRes, profileRes] = await Promise.all([

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff, DollarSign, AlertTriangle, Moon, Sun, Download, Upload, Info } from "lucide-react";
+import { Loader2, User, LogOut, Trash2, Shield, Globe, Eye, EyeOff, DollarSign, AlertTriangle, Moon, Sun, Download, Upload, Info, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,9 @@ import { getCurrencySymbol } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils/cn";
 import { BackupImportDialog } from "./backup-import-dialog";
 import { BillingSection } from "./billing-section";
+import { usePlan } from "@/lib/hooks/use-plan";
+import { canUseFeature, isPro } from "@/lib/utils/plan-limits";
+import { UpgradeModal } from "@/components/shared/upgrade-modal";
 
 const CURRENCIES = [
   { code: "BRL", label: "Real Brasileiro",     flag: "🇧🇷" },
@@ -46,6 +49,9 @@ export function SettingsClient() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting]         = useState(false);
   const [importOpen, setImportOpen]     = useState(false);
+
+  const plan = usePlan();
+  const [backupUpgradeOpen, setBackupUpgradeOpen] = useState(false);
 
   const CONFIRM_WORD = lang === "en" ? "DELETE" : "APAGAR";
 
@@ -120,6 +126,11 @@ export function SettingsClient() {
   }
 
   async function handleExportData() {
+    // Gate: Free users see the upgrade modal instead of downloading
+    if (!canUseFeature("backup_json", plan)) {
+      if (plan !== null) setBackupUpgradeOpen(true); // null = still loading, wait silently
+      return;
+    }
     // Use the server-side API (service role) so the export always contains the
     // full data regardless of browser-client session state.
     const res = await fetch("/api/backup");
@@ -305,10 +316,17 @@ export function SettingsClient() {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={handleExportData}
-            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
+            disabled={plan === null}
+            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download size={14} />
             {lang === "en" ? "Export backup (JSON)" : "Exportar backup (JSON)"}
+            {!isPro(plan) && plan !== null && (
+              <span className="ml-1 inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-primary/12 px-1.5 py-0.5 text-[9px] font-bold text-primary leading-none">
+                <Star size={7} className="fill-current shrink-0" />
+                Pro
+              </span>
+            )}
           </button>
           <button
             onClick={() => setImportOpen(true)}
@@ -326,6 +344,9 @@ export function SettingsClient() {
         onOpenChange={setImportOpen}
         onSuccess={() => {}}
       />
+
+      {/* Paywall modal — JSON backup */}
+      <UpgradeModal open={backupUpgradeOpen} onOpenChange={setBackupUpgradeOpen} />
 
       {/* ── Security ──────────────────────────────────────────────────── */}
       <section className="glass-card p-6 space-y-4">

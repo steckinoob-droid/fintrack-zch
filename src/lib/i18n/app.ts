@@ -583,6 +583,21 @@ export const appT = {
         refreshPage: "Reload",
       },
     },
+    paywall: {
+      title: "Unlock FinTrack Pro",
+      description: "Take full control with unlimited imports, complete history, and backup for your data.",
+      badge: "Pro",
+      notNow: "Not now",
+      cta: "View plans",
+      benefits: [
+        "Unlimited CSV, OFX & PDF imports",
+        "Complete history & reports",
+        "Unlimited goals, recurring & budgets",
+        "CSV export",
+        "JSON data backup",
+        "Advanced filters & analytics",
+      ],
+    },
   },
 
   pt: {
@@ -1168,6 +1183,21 @@ export const appT = {
         successDesc: "Seu acesso Pro está ativo por 30 dias.",
         refreshPage: "Recarregar",
       },
+    },
+    paywall: {
+      title: "Desbloqueie o FinTrack Pro",
+      description: "Controle tudo sem limites com importações ilimitadas, histórico completo e backup dos seus dados.",
+      badge: "Pro",
+      notNow: "Agora não",
+      cta: "Ver planos",
+      benefits: [
+        "Importações CSV, OFX e PDF ilimitadas",
+        "Histórico e relatórios completos",
+        "Metas, recorrentes e orçamentos ilimitados",
+        "Exportação CSV",
+        "Backup JSON",
+        "Filtros avançados e análises completas",
+      ],
     },
   },
 } as const;

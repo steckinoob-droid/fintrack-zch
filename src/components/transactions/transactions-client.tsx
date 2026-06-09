@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Search, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
   PiggyBank, Pencil, Trash2, RefreshCw, Upload, Zap, Check,
-  SlidersHorizontal, X, AlertTriangle, MoreVertical, Calendar, Download,
+  SlidersHorizontal, X, AlertTriangle, MoreVertical, Calendar, Download, Star,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,9 @@ import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
+import { usePlan } from "@/lib/hooks/use-plan";
+import { canUseFeature, isPro } from "@/lib/utils/plan-limits";
+import { UpgradeModal } from "@/components/shared/upgrade-modal";
 
 const PERIODS: { value: Period; label: string; labelEn: string }[] = [
   { value: "this_month",  label: "Este mês",     labelEn: "This month"   },
@@ -102,6 +105,9 @@ export function TransactionsClient() {
   const [quickCatId, setQuickCatId]   = useState("__auto__");
   const [quickLoading, setQuickLoading] = useState(false);
   const [exporting, setExporting]       = useState(false);
+
+  const plan = usePlan();
+  const [csvUpgradeOpen, setCsvUpgradeOpen] = useState(false);
   const [dbTotals, setDbTotals]         = useState<{ income: number; expense: number; count: number } | null>(null);
   const [loadAllLoading, setLoadAllLoading] = useState(false);
   const [totalsKey, setTotalsKey]       = useState(0);
@@ -508,6 +514,11 @@ export function TransactionsClient() {
   }
 
   async function handleExportCsv() {
+    // Gate: Free users see the upgrade modal instead of downloading
+    if (!canUseFeature("export_csv", plan)) {
+      if (plan !== null) setCsvUpgradeOpen(true); // null = still loading, wait silently
+      return;
+    }
     if (exporting) return;
     setExporting(true);
     try {
@@ -620,13 +631,20 @@ export function TransactionsClient() {
               <Button
                 variant="outline" size="sm"
                 onClick={handleExportCsv}
-                disabled={filtered.length === 0 || exporting}
+                disabled={filtered.length === 0 || exporting || plan === null}
                 title={tx.exportTooltip.replace("{n}", String(filtered.length))}
               >
                 {exporting
                   ? <RefreshCw size={14} className="animate-spin" />
                   : <Download size={14} />
-                } CSV
+                }
+                {" "}CSV
+                {!isPro(plan) && plan !== null && (
+                  <span className="ml-1 inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-primary/12 px-1.5 py-0.5 text-[9px] font-bold text-primary leading-none">
+                    <Star size={7} className="fill-current shrink-0" />
+                    Pro
+                  </span>
+                )}
               </Button>
               <Button
                 variant={quickOpen ? "default" : "outline"} size="sm"
@@ -654,8 +672,14 @@ export function TransactionsClient() {
                   <DropdownMenuItem onClick={() => setQuickOpen(v => !v)}>
                     <Zap size={14} className="mr-2" /> {tx.quick}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportCsv} disabled={filtered.length === 0 || exporting}>
-                    <Download size={14} className="mr-2" /> {tx.exportCsvMobile.replace("{n}", String(filtered.length))}
+                  <DropdownMenuItem onClick={handleExportCsv} disabled={filtered.length === 0 || exporting || plan === null}>
+                    <Download size={14} className="mr-2" />
+                    {tx.exportCsvMobile.replace("{n}", String(filtered.length))}
+                    {!isPro(plan) && plan !== null && (
+                      <span className="ml-auto inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-primary/12 px-1.5 py-0.5 text-[9px] font-bold text-primary leading-none">
+                        Pro
+                      </span>
+                    )}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -1156,6 +1180,9 @@ export function TransactionsClient() {
 
       <RecurringManagerDialog open={recurringOpen} onOpenChange={setRecurringOpen}
         categories={categories} onSuccess={() => { load(); refresh(); }} />
+
+      {/* Paywall modal — CSV export */}
+      <UpgradeModal open={csvUpgradeOpen} onOpenChange={setCsvUpgradeOpen} />
 
       {/* Delete all dialog */}
       <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>
