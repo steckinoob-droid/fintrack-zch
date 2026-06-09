@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CreditCard, Loader2, Star, ExternalLink,
-  AlertCircle, CheckCircle2, Clock, Zap, ArrowRight, QrCode,
+  AlertCircle, CheckCircle2, Clock, Zap, ArrowRight, QrCode, Check,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -234,6 +234,27 @@ export function BillingSection() {
                 {tx.statusPastDue}
               </div>
             )}
+
+            {/* Active Pro benefits — shown for all Pro sources */}
+            <div className="border-t border-primary/15 pt-3 space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">
+                {lang === "en" ? "Included in your plan" : "Incluído no seu plano"}
+              </p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {[
+                  pricingTx.features.proUnlocks[0],
+                  pricingTx.features.proExclusive[0],
+                  pricingTx.features.proUnlocks[1],
+                  pricingTx.features.proExclusive[1],
+                  pricingTx.features.proUnlocks[2],
+                ].map((benefit, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                    <Check size={10} className="text-primary/80 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{benefit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Manage link — only for recurring subscriptions */}
             {info.source === "mercado_pago" && (
