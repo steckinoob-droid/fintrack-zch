@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getMpPreApproval, getMpEnv, getTokenPrefix } from "@/lib/billing/mercadopago";
+import { checkRateLimit } from "@/lib/utils/rate-limit";
 
 /**
  * POST /api/billing/subscribe
@@ -66,6 +67,15 @@ export async function POST() {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const rl = checkRateLimit(`rl:billing-subscribe:${user.id}`, 5, 10 * 60_000);
+  if (!rl.allowed) {
+    console.warn("[billing/subscribe] Rate limit exceeded", { userId: user.id });
+    return NextResponse.json({ error: "too_many_requests" }, {
+      status: 429,
+      headers: { "Retry-After": String(rl.retryAfter) },
+    });
   }
 
   // ── Guard: already has active MP subscription ─────────────────────────────

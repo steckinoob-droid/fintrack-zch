@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limit";
 
 /**
  * POST /api/check-email
@@ -36,6 +37,16 @@ export async function POST(request: Request) {
   if (!serviceKey || !supabaseUrl) {
     // Not configured — return 503 so the client can fall back gracefully
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
+  }
+
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`rl:check-email:${ip}`, 10, 60_000);
+  if (!rl.allowed) {
+    console.warn("[check-email] Rate limit exceeded");
+    return NextResponse.json({ error: "too_many_requests" }, {
+      status: 429,
+      headers: { "Retry-After": String(rl.retryAfter) },
+    });
   }
 
   // Parse and validate input

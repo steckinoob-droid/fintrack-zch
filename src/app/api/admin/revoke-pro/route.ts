@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/admin/is-admin";
+import { checkRateLimit } from "@/lib/utils/rate-limit";
 
 /**
  * POST /api/admin/revoke-pro
@@ -24,6 +25,15 @@ export async function POST(req: NextRequest) {
   if (!isAdminEmail(user.email)) {
     console.warn("[admin/revoke-pro] Unauthorized attempt", { callerEmail: user.email });
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const rl = checkRateLimit(`rl:admin:${user.id}`, 20, 60_000);
+  if (!rl.allowed) {
+    console.warn("[admin/revoke-pro] Rate limit exceeded", { userId: user.id });
+    return NextResponse.json({ error: "too_many_requests" }, {
+      status: 429,
+      headers: { "Retry-After": String(rl.retryAfter) },
+    });
   }
 
   // ── Parse body ────────────────────────────────────────────────────────────

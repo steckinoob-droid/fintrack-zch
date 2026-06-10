@@ -204,10 +204,10 @@ export function ReportsClient() {
 
       {/* ── Free plan gate banner ─────────────────────────────────────── */}
       {plan === "free" && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/8 border border-primary/20 -mt-2">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex flex-col items-start gap-2 px-4 py-3 rounded-xl bg-primary/8 border border-primary/20 -mt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="flex items-center gap-2.5">
             <Lock size={14} className="text-primary shrink-0" />
-            <p className="text-xs text-foreground/80 truncate">{tx.gate.banner}</p>
+            <p className="text-xs text-foreground/80">{tx.gate.banner}</p>
           </div>
           <button
             onClick={() => setUpgradeOpen(true)}

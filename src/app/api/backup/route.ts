@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit } from "@/lib/utils/rate-limit";
 
 /**
  * GET /api/backup
@@ -21,6 +22,15 @@ export async function GET() {
   const userPlan = (planData as string | null) ?? "free";
   if (userPlan !== "pro") {
     return NextResponse.json({ error: "upgrade_required" }, { status: 403 });
+  }
+
+  const rl = checkRateLimit(`rl:backup:${user.id}`, 3, 5 * 60_000);
+  if (!rl.allowed) {
+    console.warn("[backup] Rate limit exceeded", { userId: user.id });
+    return NextResponse.json({ error: "too_many_requests" }, {
+      status: 429,
+      headers: { "Retry-After": String(rl.retryAfter) },
+    });
   }
 
   const admin = createAdminClient();
