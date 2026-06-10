@@ -241,13 +241,7 @@ export function BillingSection() {
                 {lang === "en" ? "Included in your plan" : "Incluído no seu plano"}
               </p>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {[
-                  pricingTx.features.proUnlocks[0],
-                  pricingTx.features.proExclusive[0],
-                  pricingTx.features.proUnlocks[1],
-                  pricingTx.features.proExclusive[1],
-                  pricingTx.features.proUnlocks[2],
-                ].map((benefit, i) => (
+                {(pricingTx.features.proUnlocks as readonly string[]).map((benefit, i) => (
                   <div key={i} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
                     <Check size={10} className="text-primary/80 shrink-0 mt-0.5" />
                     <span className="leading-snug">{benefit}</span>

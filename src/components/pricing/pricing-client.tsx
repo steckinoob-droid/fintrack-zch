@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Check, Star, ArrowLeft, Loader2, Shield, RefreshCw, Zap,
-  Unlock, Sparkles, CreditCard, UploadCloud, BarChart2, Database,
+  Unlock, CreditCard, UploadCloud, BarChart2, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/hooks/use-toast";
@@ -224,6 +224,9 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
               >
                 {!isPro ? tx.currentPlan : tx.ctaFree}
               </Button>
+              <p className="text-[11px] text-muted-foreground/40 text-center -mt-1">
+                {tx.freeNoCard}
+              </p>
             </div>
 
             {/* ── PRO card ──────────────────────────────────────────── */}
@@ -263,41 +266,20 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
                 <p className="text-sm font-semibold text-foreground/80">{tx.proDesc}</p>
               </div>
 
-              {/* ── Feature lists ────────────────────────────────────── */}
-              <div className="flex-1 space-y-4">
-                {/* Unlocks (limits removed) */}
-                <div className="space-y-2">
-                  <p className="text-[9px] font-bold text-primary/50 uppercase tracking-[0.14em] flex items-center gap-1">
-                    <Unlock size={7} strokeWidth={2.5} />
-                    {tx.proUnlocksLabel}
-                  </p>
-                  {(tx.features.proUnlocks as readonly string[]).map((f) => (
-                    <div key={f} className="flex items-start gap-2.5 text-[13px]">
-                      <span className="flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full bg-primary/18 mt-px ring-1 ring-primary/25">
-                        <Unlock size={7} className="text-primary" strokeWidth={2.5} />
-                      </span>
-                      <span className="text-foreground/90 leading-snug">{f}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t border-primary/10" />
-
-                {/* Exclusive features (2-col grid for compactness) */}
-                <div className="space-y-2">
-                  <p className="text-[9px] font-bold text-primary/50 uppercase tracking-[0.14em] flex items-center gap-1">
-                    <Sparkles size={7} strokeWidth={2.5} />
-                    {tx.proExclusiveLabel}
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    {(tx.features.proExclusive as readonly string[]).map((f) => (
-                      <div key={f} className="flex items-center gap-1.5 text-[12px] text-foreground/85">
-                        <Sparkles size={7} className="text-primary/70 shrink-0" strokeWidth={2.5} />
-                        <span className="leading-snug">{f}</span>
-                      </div>
-                    ))}
+              {/* ── Pro features (unified list) ─────────────────────── */}
+              <div className="flex-1 space-y-2.5">
+                <p className="text-[9px] font-bold text-primary/50 uppercase tracking-[0.14em] flex items-center gap-1">
+                  <Unlock size={7} strokeWidth={2.5} />
+                  {tx.proUnlocksLabel}
+                </p>
+                {(tx.features.proUnlocks as readonly string[]).map((f) => (
+                  <div key={f} className="flex items-start gap-2.5 text-[13px]">
+                    <span className="flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full bg-primary/18 mt-px ring-1 ring-primary/25">
+                      <Unlock size={7} className="text-primary" strokeWidth={2.5} />
+                    </span>
+                    <span className="text-foreground/90 leading-snug">{f}</span>
                   </div>
-                </div>
+                ))}
               </div>
 
               {/* ── CTA area ─────────────────────────────────────────── */}
@@ -357,7 +339,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
                     <Button
                       onClick={handleCardUpgrade}
                       disabled={upgrading}
-                      className="pbtn w-full gap-2 font-bold text-sm h-10 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                      className="pbtn w-full gap-2 font-bold text-sm h-10 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors active:scale-[0.98]"
                     >
                       {upgrading
                         ? <><Loader2 size={14} className="animate-spin" />{billingTx.upgrading}</>
@@ -367,7 +349,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
                     <Button
                       onClick={handlePixUpgrade}
                       disabled={pixLoading}
-                      className="pbtn w-full gap-2 font-bold text-sm h-10 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                      className="pbtn w-full gap-2 font-bold text-sm h-10 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors active:scale-[0.98]"
                     >
                       {pixLoading
                         ? <><Loader2 size={14} className="animate-spin" />{tx.pixDialog.generatingQr}</>
