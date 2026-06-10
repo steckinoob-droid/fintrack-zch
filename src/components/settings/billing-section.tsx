@@ -266,26 +266,25 @@ export function BillingSection() {
         </div>
       ) : (
         /* ── Free plan card ─────────────────────────────────────────── */
-        <div className="glass-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border/40 bg-card">
+
           {/* Current plan row */}
-          <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border/30">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/60">
-                <CreditCard size={14} className="text-muted-foreground" />
+          <div className="flex items-center justify-between gap-3 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 border border-border/40">
+                <CreditCard size={15} className="text-muted-foreground" />
               </span>
               <div>
                 <p className="text-sm font-semibold text-foreground">{tx.free}</p>
                 <p className="text-xs text-muted-foreground">{tx.sourceFree}</p>
               </div>
             </div>
-            <span className="text-sm font-semibold text-muted-foreground">
-              {pricingTx.freePrice}
-            </span>
+            <span className="text-sm font-bold text-muted-foreground/60 tabular-nums">{pricingTx.freePrice}</span>
           </div>
 
           {/* Pending Pix payment banner */}
           {info.pendingPixPayment && (
-            <div className="flex items-start gap-2.5 px-5 py-3.5 border-b border-border/30 bg-primary/5">
+            <div className="flex items-start gap-2.5 px-5 py-3 border-t border-border/30 bg-primary/5">
               <QrCode size={14} className="text-primary shrink-0 mt-0.5" />
               <div className="text-xs space-y-0.5">
                 <p className="font-semibold text-primary">{tx.pixPending}</p>
@@ -294,33 +293,49 @@ export function BillingSection() {
             </div>
           )}
 
-          {/* Upgrade block */}
-          <div className="px-5 py-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 mt-0.5">
-                <Zap size={12} className="text-primary fill-current" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">
-                  {pricingTx.upgrade}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  {tx.upgradeTeaser}
-                </p>
+          {/* Upgrade spotlight */}
+          <div className="relative overflow-hidden border-t border-primary/20 px-5 py-5 bg-gradient-to-br from-primary/10 via-primary/5 to-card">
+            {/* Ambient glow */}
+            <div className="pointer-events-none absolute -top-12 -right-12 h-44 w-44 rounded-full bg-primary/20 blur-3xl" />
+
+            {/* Pro badge + price row */}
+            <div className="relative flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/20 border border-primary/35 px-3 py-1 text-xs font-bold text-primary">
+                  <Zap size={10} className="fill-current" />
+                  Pro
+                </span>
+                <span className="text-xs text-muted-foreground">{pricingTx.proDesc}</span>
               </div>
+              <span className="text-sm font-bold text-foreground tabular-nums">
+                {pricingTx.proPrice}
+                <span className="text-xs font-normal text-muted-foreground">{pricingTx.perMonth}</span>
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                onClick={handleUpgrade}
-                disabled={upgrading}
-                size="sm"
-                className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-              >
-                {upgrading
-                  ? <><Loader2 size={13} className="animate-spin" />{tx.upgrading}</>
-                  : <><Star size={13} />{tx.upgradeBtn}</>}
-              </Button>
+            {/* Features grid */}
+            <div className="relative grid grid-cols-2 gap-x-4 gap-y-2 mb-5">
+              {(pricingTx.features.proUnlocks as readonly string[]).map((benefit, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <Check size={11} className="text-primary/80 shrink-0 mt-0.5" />
+                  <span className="text-xs text-muted-foreground leading-snug">{benefit}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <Button
+              onClick={handleUpgrade}
+              disabled={upgrading}
+              className="relative w-full h-11 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg shadow-primary/25 transition-all hover:shadow-primary/35"
+            >
+              {upgrading
+                ? <><Loader2 size={14} className="animate-spin" />{tx.upgrading}</>
+                : <><Star size={14} className="fill-current" />{tx.upgradeBtn}</>}
+            </Button>
+
+            {/* View pricing link */}
+            <div className="relative flex items-center justify-center mt-3">
               <a
                 href="/pricing"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -330,9 +345,9 @@ export function BillingSection() {
               </a>
             </div>
 
-            {/* Inline cancelled warning */}
+            {/* Cancelled warning */}
             {info.subscription?.status === "canceled" && (
-              <div className="flex items-center gap-1.5 text-xs text-amber-400 mt-1">
+              <div className="relative flex items-center gap-1.5 text-xs text-amber-400 mt-2">
                 <AlertCircle size={11} />
                 {tx.cancelledNote}
               </div>

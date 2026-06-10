@@ -82,30 +82,32 @@ export function PwaInstallButton({ variant = "sidebar" }: { variant?: "sidebar" 
     );
   }
 
-  // ── BANNER variant — mobile only ────────────────────────────────────────────
+  // ── BANNER variant — inline notification bar below header (mobile only) ────
   if (variant === "banner") {
     if (dismissed || (platform !== "android" && platform !== "ios")) return null;
     return (
       <>
-        <div className="lg:hidden fixed left-0 right-0 z-40 px-3 pb-2" style={{ bottom: "calc(57px + env(safe-area-inset-bottom, 0px))" }}>
-          <div className="flex items-center gap-3 rounded-2xl bg-card border border-primary/30 shadow-xl px-4 py-3">
-            <div className="h-9 w-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
-              <Download size={17} className="text-primary" />
+        <div className="lg:hidden shrink-0 border-b border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-3 px-4 py-2.5">
+            <div className="h-8 w-8 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+              <Download size={15} className="text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground leading-tight">{bannerTitle}</p>
-              <p className="text-xs text-muted-foreground">{bannerSubtitle}</p>
+              <p className="text-[13px] font-semibold text-foreground leading-tight">{bannerTitle}</p>
+              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{bannerSubtitle}</p>
             </div>
-            <button onClick={handleInstallClick}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold">
+            <button
+              onClick={handleInstallClick}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold"
+            >
               {installBtn}
             </button>
             <button
               onClick={() => { sessionStorage.setItem("pwa-dismissed", "1"); setDismissed(true); }}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
+              className="shrink-0 ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
               aria-label={lang === "en" ? "Dismiss" : "Fechar"}
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           </div>
         </div>

@@ -35,12 +35,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Sidebar user={user} profile={profile} isAdmin={adminAccess} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header user={user} profile={profile} />
+        <PwaInstallButton variant="banner" />
         <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
           <div className="p-4 pb-24 lg:p-6 lg:pb-6 max-w-[1400px] mx-auto animate-fade-in">
             <DashboardProviders>{children}</DashboardProviders>
           </div>
         </main>
-        <PwaInstallButton variant="banner" />
         <QuickAddFab />
         <MobileNav isAdmin={adminAccess} />
       </div>
