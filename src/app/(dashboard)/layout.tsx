@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { DashboardProviders } from "@/components/layout/dashboard-providers";
 import { QuickAddFab } from "@/components/shared/quick-add-fab";
+import { PwaInstallButton } from "@/components/shared/pwa-install-button";
 import { isAdminEmail } from "@/lib/admin/is-admin";
 
 // Force dynamic rendering so router.refresh() always re-fetches from DB.
@@ -39,6 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <DashboardProviders>{children}</DashboardProviders>
           </div>
         </main>
+        <PwaInstallButton variant="banner" />
         <QuickAddFab />
         <MobileNav isAdmin={adminAccess} />
       </div>

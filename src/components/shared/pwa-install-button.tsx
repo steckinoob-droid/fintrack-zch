@@ -86,7 +86,7 @@ export function PwaInstallButton({ variant = "sidebar" }: { variant?: "sidebar" 
     if (dismissed || (platform !== "android" && platform !== "ios")) return null;
     return (
       <>
-        <div className="lg:hidden fixed bottom-[57px] left-0 right-0 z-40 px-3 pb-2">
+        <div className="lg:hidden fixed left-0 right-0 z-40 px-3 pb-2" style={{ bottom: "calc(57px + env(safe-area-inset-bottom, 0px))" }}>
           <div className="flex items-center gap-3 rounded-2xl bg-card border border-primary/30 shadow-xl px-4 py-3">
             <div className="h-9 w-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
               <Download size={17} className="text-primary" />

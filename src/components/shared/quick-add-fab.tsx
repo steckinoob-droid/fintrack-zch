@@ -73,11 +73,12 @@ export function QuickAddFab() {
       <button
         onClick={() => setOpen(v => !v)}
         className={cn(
-          "lg:hidden fixed bottom-[72px] right-4 z-40 h-12 w-12 rounded-full shadow-xl flex items-center justify-center transition-all",
+          "lg:hidden fixed right-4 z-40 h-12 w-12 rounded-full shadow-xl flex items-center justify-center transition-all",
           open
             ? "bg-muted text-foreground rotate-45"
             : "bg-primary text-primary-foreground shadow-primary/30"
         )}
+        style={{ bottom: "calc(72px + env(safe-area-inset-bottom, 0px))" }}
         aria-label={lang === "en" ? "Quick add transaction" : "Adicionar transação"}
       >
         {open ? <X size={20} /> : <Plus size={22} />}
@@ -93,7 +94,10 @@ export function QuickAddFab() {
           />
 
           {/* Bottom sheet */}
-          <div className="lg:hidden fixed bottom-[57px] left-0 right-0 z-40 bg-card border-t border-border/50 rounded-t-2xl p-4 pb-6 space-y-4 shadow-2xl animate-slide-up">
+          <div
+            className="lg:hidden fixed left-0 right-0 z-40 bg-card border-t border-border/50 rounded-t-2xl p-4 pb-6 space-y-4 shadow-2xl animate-slide-up overflow-y-auto"
+            style={{ bottom: "calc(57px + env(safe-area-inset-bottom, 0px))", maxHeight: "calc(100svh - 80px)" }}
+          >
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-foreground">
                 {lang === "en" ? "Quick add" : "Adicionar rápido"}
@@ -166,7 +170,7 @@ export function QuickAddFab() {
                         ? "bg-primary/15 border-primary/40 text-primary"
                         : "border-border text-muted-foreground hover:text-foreground")}
                   >
-                    {c.name}
+                    <span className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]">{c.name}</span>
                   </button>
                 ))}
               </div>

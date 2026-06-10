@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { UpgradeCta } from "@/components/layout/upgrade-cta";
+import { PwaInstallButton } from "@/components/shared/pwa-install-button";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/types";
 import Image from "next/image";
@@ -108,6 +109,11 @@ export function Sidebar({ user, profile, isAdmin }: SidebarProps) {
           </div>
         )}
       </nav>
+
+      {/* PWA install prompt — desktop */}
+      <div className="px-3 pb-2">
+        <PwaInstallButton variant="sidebar" />
+      </div>
 
       {/* Upgrade CTA */}
       <UpgradeCta />

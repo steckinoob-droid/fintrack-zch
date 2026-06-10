@@ -59,7 +59,7 @@ export function UpgradeModal({ open, onOpenChange, title, description, cta, high
         }
       `}</style>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-sm border-primary/35">
+        <DialogContent className="max-w-sm border-primary/35 overflow-y-auto max-h-[90dvh]">
           {/* Top gradient accent line */}
           <div
             className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-primary/60 to-transparent"
@@ -134,7 +134,7 @@ export function UpgradeModal({ open, onOpenChange, title, description, cta, high
           <div className="px-6 pb-6 pt-1 flex flex-col gap-2">
             <Button
               onClick={handleCta}
-              className="um-cta-glow w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/25 hover:shadow-lg hover:shadow-primary/35 transition-all active:scale-[0.98]"
+              className="um-cta-glow w-full h-11 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/25 hover:shadow-lg hover:shadow-primary/35 transition-all active:scale-[0.98]"
             >
               <Star size={13} className="fill-current" />
               {modalCta}
@@ -142,7 +142,7 @@ export function UpgradeModal({ open, onOpenChange, title, description, cta, high
             <Button
               variant="ghost"
               onClick={() => onOpenChange(false)}
-              className="w-full text-sm text-muted-foreground hover:text-foreground"
+              className="w-full min-h-[44px] text-sm text-muted-foreground hover:text-foreground"
             >
               {tx.notNow}
             </Button>

@@ -455,7 +455,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 {lang === "en" ? "How to export by bank" : "Como exportar por banco"}
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { bank: "Santander", steps: "Extrato Consolidado Inteligente",        tag: "PDF"     },
                   { bank: "Nubank",    steps: "App → Perfil → Exportar planilha",       tag: "CSV/OFX" },
@@ -532,7 +532,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {(["dateCol", "titleCol", "amountCol"] as const).map(field => (
                     <div key={field} className="space-y-1">
                       <p className="text-xs text-muted-foreground">
