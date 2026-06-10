@@ -267,7 +267,7 @@ export const appT = {
         titleRequired: "Title is required", amountInvalid: "Invalid amount", dateRequired: "Date required",
         recurringGate: {
           limitBadge: "Pro",
-          limitReached: "Recurring limit reached · upgrade to add more",
+          limitReached: "Limit reached — upgrade for unlimited",
           modalTitle: "Unlimited recurring transactions",
           modalDesc: "Free plan allows up to 2 recurring transactions. Upgrade to Pro for unlimited automation.",
           modalCta: "Unlock unlimited recurring",
@@ -890,7 +890,7 @@ export const appT = {
         titleRequired: "Título obrigatório", amountInvalid: "Valor inválido", dateRequired: "Data obrigatória",
         recurringGate: {
           limitBadge: "Pro",
-          limitReached: "Limite de recorrentes atingido · faça upgrade para mais",
+          limitReached: "Limite atingido — Pro é ilimitado",
           modalTitle: "Recorrentes ilimitados são Pro",
           modalDesc: "No plano Free você pode criar até 2 recorrentes. Faça upgrade para automatizar tudo sem limites.",
           modalCta: "Desbloquear recorrentes ilimitados",

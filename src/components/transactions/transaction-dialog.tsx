@@ -11,7 +11,7 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, RefreshCw, PiggyBank, Lock } from "lucide-react";
+import { Loader2, RefreshCw, PiggyBank, Lock, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -262,7 +262,8 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
                 </p>
               </div>
               {recurringLimitReached ? (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-primary ring-1 ring-primary/25">
+                <span className="inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-primary/12 px-1.5 py-0.5 text-[9px] font-bold text-primary leading-none">
+                  <Star size={7} className="fill-current shrink-0" />
                   {tx.recurringGate.limitBadge}
                 </span>
               ) : (

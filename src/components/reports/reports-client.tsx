@@ -17,7 +17,7 @@ import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import type { Transaction, SavingsGoal, Category } from "@/lib/types";
 import { ChartSkeleton } from "@/components/shared/skeleton";
-import { Target, CalendarDays, Lock } from "lucide-react";
+import { Target, CalendarDays, Lock, ArrowRight } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { usePlan } from "@/lib/hooks/use-plan";
@@ -211,9 +211,9 @@ export function ReportsClient() {
           </div>
           <button
             onClick={() => setUpgradeOpen(true)}
-            className="shrink-0 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
           >
-            {tx.gate.bannerCta} →
+            {tx.gate.bannerCta} <ArrowRight size={10} />
           </button>
         </div>
       )}
@@ -240,7 +240,7 @@ export function ReportsClient() {
                 )}
               >
                 {lang === "en" ? p.labelEn : p.labelPt}
-                {locked && <Lock size={9} className="opacity-60" />}
+                {locked && <Lock size={9} className="opacity-75" />}
               </button>
             );
           })}

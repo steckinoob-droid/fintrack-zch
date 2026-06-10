@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper, Search, X, Lock } from "lucide-react";
+import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper, Search, X, Lock, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,7 +146,8 @@ export function GoalsClient() {
             {goalLimitReached ? <Lock size={13} /> : <Plus size={15} />}
             {tx.new}
             {goalLimitReached && (
-              <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary-foreground/15 text-primary-foreground/90">
+              <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-full border border-white/25 bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                <Star size={7} className="fill-current shrink-0" />
                 {tx.gate.limitBadge}
               </span>
             )}
