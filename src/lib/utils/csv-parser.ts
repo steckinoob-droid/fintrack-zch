@@ -11,6 +11,10 @@ export interface ColumnMap {
   titleCol: number;
   amountCol: number;
   typeCol?: number;       // optional "Tipo / Histórico / D|C" column
+  // Split-format fields used internally by parseCSV (C6 and similar banks).
+  // Cleared before suggestedMap is returned — buildParsedRows never sees them.
+  amountInCol?: number;
+  amountOutCol?: number;
 }
 
 // ── Normalization ────────────────────────────────────────────────────────────
@@ -219,6 +223,14 @@ function findHeaderRow(lines: string[]): { idx: number; delim: string } {
 export function detectColumns(headers: string[]): Partial<ColumnMap> {
   const map: Partial<ColumnMap> = {};
 
+  // Pre-scan: only enter split-column mode when BOTH "entrada" AND "saida" are
+  // present as separate headers. This avoids false positives on other banks that
+  // might have "entrada" in an unrelated column name.
+  const colNorms = headers.map(norm);
+  const hasSplitFormat =
+    colNorms.some(c => c.includes("entrada")) &&
+    colNorms.some(c => c.includes("saida"));
+
   for (let i = 0; i < headers.length; i++) {
     const l = norm(headers[i]);
     if (!l) continue;
@@ -228,10 +240,16 @@ export function detectColumns(headers: string[]): Partial<ColumnMap> {
     // Skip time-only columns
     if (TIME_KW.some(k => l === norm(k))) continue;
 
-    // Priority: TYPE → DATE → TITLE → AMOUNT
+    // Priority: TYPE → DATE → TITLE → SPLIT-AMOUNT → AMOUNT
     if (map.typeCol   === undefined && TYPE_KW.some(k  => l.includes(norm(k)))) { map.typeCol   = i; continue; }
     if (map.dateCol   === undefined && DATE_KW.some(k  => l.includes(norm(k)))) { map.dateCol   = i; continue; }
     if (map.titleCol  === undefined && TITLE_KW.some(k => l.includes(norm(k)))) { map.titleCol  = i; continue; }
+
+    // Split-format: "Entrada(R$)" and "Saída(R$)" (C6 and similar banks).
+    // Handled before AMT_KW so they don't accidentally set amountCol.
+    if (hasSplitFormat && l.includes("entrada") && map.amountInCol  === undefined) { map.amountInCol  = i; continue; }
+    if (hasSplitFormat && l.includes("saida")   && map.amountOutCol === undefined) { map.amountOutCol = i; continue; }
+
     if (map.amountCol === undefined && AMT_KW.some(k   => l.includes(norm(k)))) { map.amountCol = i; }
   }
 
@@ -282,6 +300,9 @@ export function isInternalTransfer(rawType: string, title: string): boolean {
     // e.g. OFX MEMO "Aplicação CDB", "Resgate CDB", "Aplicação Automática CDB"
     (d.includes("aplicacao") && d.includes("cdb"))        ||
     (d.includes("resgate")   && d.includes("cdb"))        ||
+    // C6 abbreviations: "RES DE CDB VENC" (vencimento) and "EMISSAO DE CDB"
+    (d.includes("res")    && d.includes("cdb"))           ||
+    (d.includes("emissao") && d.includes("cdb"))          ||
     (d.includes("aplicacao") && d.includes("automatica")) ||
     (d.includes("resgate")   && d.includes("automatico")) ||
     d.includes("reserva automatica")                      ||
@@ -316,13 +337,42 @@ export function parseCSV(content: string): {
   // Find the actual header row (may not be line 0 for Inter and similar)
   const { idx: headerIdx, delim } = findHeaderRow(lines);
 
-  const headers = splitLine(lines[headerIdx], delim);
-  const rows = lines
+  let headers = splitLine(lines[headerIdx], delim);
+  let rows = lines
     .slice(headerIdx + 1)
     .map(l => splitLine(l, delim))
     .filter(r => r.some(c => c.trim()));
 
-  return { headers, rows, suggestedMap: detectColumns(headers) };
+  const suggestedMap = detectColumns(headers);
+
+  // ── Split-format merge (C6 Bank and similar) ─────────────────────────────────
+  // When the bank uses separate "Entrada" / "Saída" columns with always-positive
+  // values, detectColumns sets amountInCol/amountOutCol but leaves amountCol
+  // undefined. We merge them into a single signed synthetic column so all
+  // downstream logic (allDetected gate, buildParsedRows, manual mapping UI)
+  // works without any changes.
+  if (
+    suggestedMap.amountInCol  !== undefined &&
+    suggestedMap.amountOutCol !== undefined &&
+    suggestedMap.amountCol    === undefined
+  ) {
+    const inIdx  = suggestedMap.amountInCol;
+    const outIdx = suggestedMap.amountOutCol;
+    const syntheticIdx = headers.length;
+    headers = [...headers, "Valor (auto)"];
+    rows = rows.map(row => {
+      const inVal  = parseAmount(row[inIdx]  ?? "") ?? 0;
+      const outVal = parseAmount(row[outIdx] ?? "") ?? 0;
+      // Positive = income (Entrada), negative = expense (Saída negated)
+      const net = inVal > 0 ? String(inVal) : outVal > 0 ? String(-outVal) : "0";
+      return [...row, net];
+    });
+    suggestedMap.amountCol   = syntheticIdx;
+    delete suggestedMap.amountInCol;
+    delete suggestedMap.amountOutCol;
+  }
+
+  return { headers, rows, suggestedMap };
 }
 
 export function buildParsedRows(rows: string[][], map: ColumnMap): ParsedRow[] {
