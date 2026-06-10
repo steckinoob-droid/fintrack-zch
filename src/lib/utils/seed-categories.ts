@@ -18,14 +18,22 @@ const DEFAULT_CATEGORIES = [
 ] as const;
 
 export async function seedDefaultCategories(supabase: SupabaseClient, userId: string) {
-  const { count } = await supabase
+  const { count, error: countError } = await supabase
     .from("categories")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId);
 
+  if (countError) {
+    console.error("[seed-categories] count query failed:", countError.message);
+    return; // don't attempt insert if we can't verify current state
+  }
+
   if (count && count > 0) return; // já tem categorias
 
-  await supabase.from("categories").insert(
+  const { error: insertError } = await supabase.from("categories").insert(
     DEFAULT_CATEGORIES.map((c) => ({ ...c, user_id: userId }))
   );
+  if (insertError) {
+    console.error("[seed-categories] insert failed:", insertError.message);
+  }
 }
