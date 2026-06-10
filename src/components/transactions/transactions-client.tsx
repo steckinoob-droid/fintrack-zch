@@ -1105,9 +1105,9 @@ export function TransactionsClient() {
         )}
       </div>
 
-      {/* ── Pagination banner — hidden during server search (results are complete) */}
-      {!loading && !serverSearchTxs && transactions.length < totalCount && (
-        <div className="glass-card border border-amber-500/20 p-4 space-y-3">
+      {/* ── Pagination banner — only when visible results exist */}
+      {!loading && !serverSearchTxs && transactions.length < totalCount && filtered.length > 0 && (
+        <div className="glass-card p-4 space-y-3">
           <div>
             <p className="text-sm font-medium text-foreground">
               {tx.partialLoad
@@ -1144,6 +1144,23 @@ export function TransactionsClient() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ── Subtle hint when filter hides all loaded records but more exist */}
+      {!loading && !serverSearchTxs && transactions.length < totalCount && filtered.length === 0 && (
+        <p className="text-center text-xs text-muted-foreground/55">
+          {tx.partialLoad
+            .replace("{n}", String(transactions.length))
+            .replace("{total}", String(totalCount))}
+          {" · "}
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="text-primary/70 hover:text-primary transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? tx.loadingMoreBtn : tx.loadMore}
+          </button>
+        </p>
       )}
 
       {!loading && filtered.length > 0 && (
