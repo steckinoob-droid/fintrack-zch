@@ -1,6 +1,7 @@
 "use client";
 
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+import { PieChart as PieChartIcon } from "lucide-react";
 import type { Transaction } from "@/lib/types";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
@@ -68,8 +69,34 @@ export function CategoryBreakdown({ transactions }: Props) {
 
   if (!data.length) {
     return (
-      <div className="glass-card p-5 flex flex-col items-center justify-center h-full min-h-[280px] text-center">
-        <p className="text-sm text-muted-foreground">{tx.noExpenses}</p>
+      <div className="glass-card p-6 flex flex-col items-center text-center gap-3">
+        <div className="h-12 w-12 rounded-2xl bg-muted/50 flex items-center justify-center">
+          <PieChartIcon size={22} className="text-muted-foreground/40" />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-foreground">
+            {lang === "en" ? "Nothing to show yet" : "Nada para mostrar ainda"}
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
+            {lang === "en"
+              ? "Add expenses or create budgets to see your category breakdown."
+              : "Registre despesas ou crie orçamentos para ver sua distribuição por categoria."}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+          <a
+            href="/transactions"
+            className="inline-flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary/10 border border-primary/25 px-3 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+          >
+            {lang === "en" ? "Add expense" : "Adicionar despesa"}
+          </a>
+          <a
+            href="/budgets"
+            className="inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border/60 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+          >
+            {lang === "en" ? "Create budget" : "Criar orçamento"}
+          </a>
+        </div>
       </div>
     );
   }
