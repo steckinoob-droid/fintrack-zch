@@ -29,6 +29,7 @@ export function GET() {
       hasWebhookSecret: !!process.env.MERCADOPAGO_WEBHOOK_SECRET,
       mpMode:           getMpEnv(),
       hasServiceRole:   !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      hasAdminEmails:   !!process.env.ADMIN_EMAILS,
       appUrl:           process.env.NEXT_PUBLIC_APP_URL ?? "(not set)",
     },
   });
