@@ -10,9 +10,17 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json() as { id?: string; [key: string]: unknown };
-  const { id, ...fields } = body;
+  const { id } = body;
   if (!id || typeof id !== "string") {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
+  }
+
+  // Whitelist updatable fields — prevents injecting user_id or id to transfer
+  // ownership of the goal to another user's account.
+  const ALLOWED = ["name", "target_amount", "current_amount", "deadline", "color", "icon"] as const;
+  const fields: Record<string, unknown> = {};
+  for (const key of ALLOWED) {
+    if (key in body && body[key] !== undefined) fields[key] = body[key];
   }
 
   const admin = createAdminClient();

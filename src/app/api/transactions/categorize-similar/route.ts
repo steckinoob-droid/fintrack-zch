@@ -89,6 +89,17 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
+  // Verify the target category belongs to the authenticated user.
+  const { data: ownedCat } = await admin
+    .from("categories")
+    .select("id")
+    .eq("id", categoryId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!ownedCat) {
+    return NextResponse.json({ error: "invalid_category" }, { status: 400 });
+  }
+
   // Step 1: SELECT matching IDs (validates user ownership + criteria)
   let q = admin
     .from("transactions")

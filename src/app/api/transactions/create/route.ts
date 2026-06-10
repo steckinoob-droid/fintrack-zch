@@ -33,9 +33,24 @@ export async function POST(request: Request) {
     }
   }
 
+  // Explicit field mapping — never trust the full body spread.
+  // Prevents injecting protected fields (user_id is always from auth token).
+  const {
+    title, amount, type, date, notes,
+    category_id, is_recurring, recurrence_interval, recurrence_parent_id,
+  } = body as Record<string, unknown>;
+
   const { data: transaction, error } = await admin
     .from("transactions")
-    .insert({ ...body, user_id: user.id })
+    .insert({
+      user_id:              user.id,
+      title, amount, type, date,
+      notes:                notes                ?? null,
+      category_id:          category_id          ?? null,
+      is_recurring:         is_recurring         ?? false,
+      recurrence_interval:  recurrence_interval  ?? null,
+      recurrence_parent_id: recurrence_parent_id ?? null,
+    })
     .select()
     .single();
 

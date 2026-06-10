@@ -33,7 +33,8 @@ export async function GET() {
   // 3. Count successful imports this calendar month (service role for reliability)
   const admin = createAdminClient();
   const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // Use UTC to match database timestamps regardless of server timezone.
+  const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
   const { count, error: countError } = await admin
     .from("import_logs")
@@ -44,8 +45,8 @@ export async function GET() {
 
   if (countError) {
     console.error("[imports/count] query failed:", countError.message);
-    // Fail open — don't block the user due to a query error
-    return NextResponse.json({ count: 0, isPro: false });
+    // Fail closed — a failed rate-limit check must block, not allow.
+    return NextResponse.json({ error: "service_unavailable" }, { status: 503 });
   }
 
   return NextResponse.json({ count: count ?? 0, isPro: false });

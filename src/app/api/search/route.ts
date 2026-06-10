@@ -56,7 +56,8 @@ export async function GET(request: Request) {
     const { data: cats } = await admin
       .from("categories")
       .select("id, name")
-      .in("id", catIds);
+      .in("id", catIds)
+      .eq("user_id", user.id);
     catNames = Object.fromEntries((cats ?? []).map(c => [c.id, c.name]));
   }
 
