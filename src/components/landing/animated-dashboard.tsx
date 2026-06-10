@@ -81,7 +81,7 @@ function AnimatedProgress({ label, pct, color, delay, started }: {
   );
 }
 
-function AnimatedTxRow({ title, value, color, delay, started }: {
+function AnimatedTxRow({ value, color, delay, started }: {
   title: string; value: string; color: string; delay: number; started: boolean;
 }) {
   const [visible, setVisible] = useState(false);

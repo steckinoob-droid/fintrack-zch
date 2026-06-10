@@ -274,7 +274,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
               )}
             </button>
             {isRecurring && !recurringLimitReached && (
-              <Select onValueChange={v => setValue("recurrence_interval", v as any)}
+              <Select onValueChange={v => setValue("recurrence_interval", v as "daily" | "weekly" | "monthly" | "yearly")}
                 defaultValue={transaction?.recurrence_interval ?? "monthly"}>
                 <SelectTrigger><SelectValue placeholder={tx.frequency} /></SelectTrigger>
                 <SelectContent>

@@ -35,7 +35,7 @@ function DeltaBadge({ current, previous, label, invert = false }: {
   );
 }
 
-export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Props) {
+export function MonthInsights({ monthlyStats, monthExpenses }: Props) {
   const { lang, fc } = useLang();
   const tx       = appT[lang].dashboard.comparison;
 
@@ -81,7 +81,6 @@ export function MonthInsights({ monthlyStats, monthExpenses, monthIncome }: Prop
   // Tolerance of 5% before showing red
   const isOverPace  = paceVariancePct > 5;
   const isUnderPace = paceVariancePct < -5;
-  const isOnTrack   = !isOverPace && !isUnderPace;
 
   const forecastColor = isOverPace  ? "text-red-400"
                       : isUnderPace ? "text-emerald-400"

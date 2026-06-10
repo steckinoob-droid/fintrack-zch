@@ -22,7 +22,7 @@ import { RecurringManagerDialog } from "./recurring-manager-dialog";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
 import { useDashboardRefresh } from "@/lib/context/dashboard-refresh";
 import type { Transaction, Category } from "@/lib/types";
-import { formatRelativeDate, formatGroupDate, getDateRange, type Period } from "@/lib/utils/date";
+import { formatGroupDate, getDateRange, type Period } from "@/lib/utils/date";
 import { cleanTitle } from "@/lib/utils/parse-santander-pdf";
 import { generateRecurringTransactions } from "@/lib/utils/recurring";
 import { toast } from "@/lib/hooks/use-toast";
@@ -426,7 +426,6 @@ export function TransactionsClient() {
       if (!isNaN(maxV) && t.amount > maxV) return false;
       return true;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverSearchTxs, transactions, dateRange, tab, catFilter, search, dateFrom, dateTo, minValue, maxValue]);
 
   // ── Group by date ─────────────────────────────────────────────────────────
@@ -501,8 +500,6 @@ export function TransactionsClient() {
 
   const totalIncome  = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = filtered.filter(t => t.type !== "income").reduce((s, t) => s + t.amount, 0);
-  const netBalance   = totalIncome - totalExpense;
-
   // DB-level totals — always accurate regardless of how many rows are loaded
   const displayIncome  = dbTotals?.income  ?? totalIncome;
   const displayExpense = dbTotals?.expense ?? totalExpense;

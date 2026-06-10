@@ -12,6 +12,7 @@ const FALLBACK_COLORS = [
 ];
 
 const RADIAN = Math.PI / 180;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
   if (percent < 0.07) return null;
   const r = innerRadius + (outerRadius - innerRadius) * 0.5;
@@ -32,6 +33,7 @@ export function CategoryBreakdown({ transactions }: Props) {
   const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const TooltipContent = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const d = payload[0];

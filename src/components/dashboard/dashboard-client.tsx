@@ -17,7 +17,7 @@ import { MonthInsights } from "./month-insights";
 import { HealthScoreCard } from "./health-score-card";
 import { OnboardingModal } from "@/components/onboarding/onboarding-modal";
 import { StatCardSkeleton, ChartSkeleton, TransactionRowSkeleton } from "@/components/shared/skeleton";
-import { format, parseISO, addMonths, isSameMonth } from "date-fns";
+import { format, parseISO, addMonths } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
 
 export function DashboardClient() {

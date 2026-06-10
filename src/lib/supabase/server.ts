@@ -1,4 +1,4 @@
-import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 

@@ -58,14 +58,14 @@ export function NotificationsPanel() {
 
         const budgets: Budget[]      = bRes.data ?? [];
         const goals: SavingsGoal[]   = gRes.data ?? [];
-        const txs                    = tRes.data ?? [];
+        const txs: Array<{ amount: number; type: string; category_id: string | null }> = tRes.data ?? [];
         const notes: Notification[]  = [];
         const pt                     = lang === "pt";
 
         for (const b of budgets) {
           const spent = txs
-            .filter((t: any) => t.type === "expense" && t.category_id === b.category_id)
-            .reduce((s: number, t: any) => s + t.amount, 0);
+            .filter((t) => t.type === "expense" && t.category_id === b.category_id)
+            .reduce((s, t) => s + t.amount, 0);
           const pct = (spent / b.amount) * 100;
           if (pct >= 100) {
             notes.push({
@@ -115,8 +115,8 @@ export function NotificationsPanel() {
           }
         }
 
-        const income      = txs.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + t.amount, 0);
-        const expenses    = txs.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + t.amount, 0);
+        const income      = txs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+        const expenses    = txs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
         const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
         if (savingsRate > 20 && income > 0) {
           notes.push({
@@ -137,7 +137,6 @@ export function NotificationsPanel() {
       }
     }
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, fc]);
 
   // ── Close on outside click (desktop only) ────────────────────────────────

@@ -12,7 +12,7 @@ interface StatsCardsProps { data: DashboardData }
 export function StatsCards({ data }: StatsCardsProps) {
   const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
-  const { monthIncome, monthExpenses, monthSavings, budgets } = data;
+  const { monthIncome, monthExpenses, budgets } = data;
 
   // Month balance = income - expenses (savings go to goals, not "spent")
   const monthBalance = monthIncome - monthExpenses;

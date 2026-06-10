@@ -84,7 +84,6 @@ export function OnboardingModal() {
   }
 
   const current = STEPS[step];
-  const Icon    = current.icon;
   const isLast  = step === STEPS.length - 1;
   const pt      = lang === "pt";
 

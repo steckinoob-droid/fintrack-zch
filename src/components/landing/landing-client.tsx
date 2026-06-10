@@ -15,34 +15,6 @@ import { cn } from "@/lib/utils/cn";
 
 /* ─── Static (language-independent) data ───────────────────── */
 
-const MOCK_CARDS_DATA = [
-  { value: "R$ 45,200", sub: "+R$ 3,670",   color: "text-foreground",  dot: "bg-primary"     },
-  { value: "R$ 10,500", sub: "↑ 12%",       color: "text-emerald-400", dot: "bg-emerald-500" },
-  { value: "R$ 6,830",  sub: "↓ 5%",        color: "text-red-400",     dot: "bg-red-500"     },
-  { value: "35%",       sub: "Target 20% ✓",color: "text-indigo-400",  dot: "bg-indigo-500"  },
-] as const;
-
-const MOCK_CHART = [
-  { income: 60,  exp: 42, month: "Jan" },
-  { income: 75,  exp: 55, month: "Feb" },
-  { income: 65,  exp: 70, month: "Mar" },
-  { income: 85,  exp: 58, month: "Apr" },
-  { income: 90,  exp: 65, month: "May" },
-  { income: 100, exp: 70, month: "Jun" },
-] as const;
-
-const MOCK_TRANSACTIONS = [
-  { value: "+R$ 8,500", color: "text-emerald-400" },
-  { value: "-R$ 2,200", color: "text-red-400"     },
-  { value: "-R$ 487",   color: "text-red-400"     },
-] as const;
-
-const MOCK_BUDGET_DATA = [
-  { pct: 68, color: "bg-primary"    },
-  { pct: 82, color: "bg-amber-500"  },
-  { pct: 45, color: "bg-indigo-500" },
-] as const;
-
 const FEATURE_ICONS = [BarChart3, PieChart, Target, RefreshCw, Lightbulb, Shield] as const;
 const FEATURE_STYLES = [
   { iconColor: "text-emerald-400", iconBg: "bg-emerald-500/10" },

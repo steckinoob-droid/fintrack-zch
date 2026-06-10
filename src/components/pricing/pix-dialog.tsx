@@ -86,7 +86,6 @@ export function PixDialog({ open, onClose, data, loading, tx }: Props) {
       clearInterval(intervalRef.current ?? undefined);
       clearTimeout(timeoutRef.current  ?? undefined);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, data, loading, proActivated]);
 
   // Reset success state when dialog closes

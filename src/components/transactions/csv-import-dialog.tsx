@@ -294,16 +294,6 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...updates } : r));
   }
 
-  function fingerprint(date: string, amount: number, title: string) {
-    // Normalize aggressively: remove accents, lowercase, strip ALL spaces.
-    const norm = title
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-z0-9]/g, "");
-    return `${date}|${Math.round(amount * 100)}|${norm}`;
-  }
-
   async function handleImport(force = false) {
     const toImportRows = rows.filter(r => !r.skip);
     if (!toImportRows.length) return;

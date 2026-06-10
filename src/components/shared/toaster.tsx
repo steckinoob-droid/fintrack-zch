@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { useToastState, toast } from "@/lib/hooks/use-toast";
+import { useToastState } from "@/lib/hooks/use-toast";
 
 const icons = {
   default: Info,

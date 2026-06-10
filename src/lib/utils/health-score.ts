@@ -358,7 +358,7 @@ function generateTips(
 // ── Main export ────────────────────────────────────────────────────────────
 
 export function calculateHealthScore(data: DashboardData, fc?: (n: number) => string): HealthScore {
-  const { monthIncome, monthExpenses, monthSavings, budgets, goals } = data;
+  const { monthIncome, monthExpenses, budgets, goals } = data;
 
   // Insufficient data guard
   if (monthIncome < 50) {

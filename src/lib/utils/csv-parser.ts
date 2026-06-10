@@ -71,7 +71,7 @@ export function parseDate(s: string): string | null {
 }
 
 export function parseAmount(s: string): number | null {
-  let clean = s.trim()
+  const clean = s.trim()
     .replace(/"/g, "")
     .replace(/−/g, "-")          // Unicode MINUS SIGN → hyphen-minus (PicPay)
     .replace(/ /g, "")      // non-breaking space

@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,7 +15,7 @@ type Platform = "android" | "ios" | "desktop" | "unknown";
 function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent;
-  const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
   if (isIOS) return "ios";
   if (/Android/.test(ua)) return "android";
   return "desktop";

@@ -15,11 +15,13 @@ export function IncomeExpenseChart({ monthlyStats }: Props) {
   const tx  = appT[lang].dashboard;
   const rTx = appT[lang].reports;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const TooltipContent = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
       <div className="glass-card p-3 border border-border/60 text-xs space-y-1.5 min-w-[160px]">
         <p className="font-semibold text-foreground capitalize">{label}</p>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {payload.map((p: any) => (
           <div key={p.dataKey} className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-1.5">
