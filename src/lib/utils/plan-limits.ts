@@ -50,7 +50,7 @@ const ENFORCED_PRO_FEATURES = new Set<ProFeature>([
 /** Maximum savings goals a Free user may have. Creating the (n+1)-th is blocked. */
 export const FREE_GOALS_LIMIT = 2;
 /** Maximum recurring-transaction templates a Free user may have. */
-export const FREE_RECURRING_LIMIT = 5;
+export const FREE_RECURRING_LIMIT = 2;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
