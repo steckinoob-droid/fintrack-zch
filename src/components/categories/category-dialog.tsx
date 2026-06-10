@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
@@ -19,6 +18,13 @@ import type { Category } from "@/lib/types";
 
 const COLORS = ["#10B981","#6366F1","#F59E0B","#EF4444","#8B5CF6","#EC4899","#14B8A6","#F97316","#3B82F6","#A855F7"];
 const ICONS  = ["briefcase","code-2","trending-up","home","utensils","car","gamepad-2","heart-pulse","book-open","shirt","plane","target","shield","laptop","building-2","circle"];
+
+const ICON_LABELS: Record<string, string> = {
+  briefcase: "💼", "code-2": "💻", "trending-up": "📈", home: "🏠",
+  utensils: "🍽️", car: "🚗", "gamepad-2": "🎮", "heart-pulse": "❤️‍🩹",
+  "book-open": "📚", shirt: "👕", plane: "✈️", target: "🎯",
+  shield: "🛡️", laptop: "💻", "building-2": "🏢", circle: "⚪",
+};
 
 const schema = z.object({
   name:  z.string().min(1),
@@ -40,6 +46,7 @@ export function CategoryDialog({ open, onOpenChange, category, onSuccess }:
     defaultValues: { type: "expense", color: COLORS[0], icon: "circle" },
   });
   const selectedColor = watch("color");
+  const selectedIcon  = watch("icon");
   const type          = watch("type");
 
   useEffect(() => {
@@ -94,10 +101,25 @@ export function CategoryDialog({ open, onOpenChange, category, onSuccess }:
           </div>
           <div className="space-y-2">
             <Label>{tx.icon}</Label>
-            <Select onValueChange={v => setValue("icon", v)} defaultValue={category?.icon ?? "circle"}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{ICONS.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-1.5">
+              {ICONS.map(name => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setValue("icon", name)}
+                  aria-label={name}
+                  title={name}
+                  className={cn(
+                    "h-9 w-9 rounded-lg text-lg flex items-center justify-center transition-all hover:scale-110",
+                    selectedIcon === name
+                      ? "bg-primary/15 ring-2 ring-primary ring-offset-1 ring-offset-background"
+                      : "bg-muted/50 hover:bg-muted"
+                  )}
+                >
+                  {ICON_LABELS[name]}
+                </button>
+              ))}
+            </div>
           </div>
         </form>
         <DialogFooter>
