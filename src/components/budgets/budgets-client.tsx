@@ -272,7 +272,7 @@ export function BudgetsClient() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {filteredBudgets.map(b => {
             const spent = b.spent ?? 0;
-            const pct   = Math.min(100, Math.round((spent / b.amount) * 100));
+            const pct   = b.amount > 0 ? Math.min(100, Math.round((spent / b.amount) * 100)) : 0;
             const over  = pct >= 100;
             const warn  = pct >= 80 && !over;
             return (

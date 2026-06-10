@@ -281,6 +281,12 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         );
       }
     };
+    reader.onerror = () => {
+      setError(lang === "en"
+        ? "Could not read the file. Please try again."
+        : "Não foi possível ler o arquivo. Tente novamente."
+      );
+    };
     reader.readAsText(file, "UTF-8");
   }
 

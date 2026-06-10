@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import { Logo } from "@/components/shared/logo";
 
-export const metadata: Metadata = { title: "Nova senha" };
+export const metadata: Metadata = { title: "New password" };
 
 export default function ResetPasswordPage() {
   return (

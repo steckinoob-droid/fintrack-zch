@@ -428,7 +428,7 @@ export function ReportsClient() {
             ) : (
               <div className="space-y-5">
                 {goals.map((goal) => {
-                  const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+                  const pct = goal.target_amount > 0 ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) : 0;
                   const completed  = pct >= 100;
                   const daysLeft   = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
                   return (

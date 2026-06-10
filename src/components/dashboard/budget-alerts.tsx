@@ -17,12 +17,12 @@ export function BudgetAlerts({ budgets }: Props) {
 
   const alerts = budgets
     .filter((b) => {
-      const pct = ((b.spent ?? 0) / b.amount) * 100;
+      const pct = b.amount > 0 ? ((b.spent ?? 0) / b.amount) * 100 : 0;
       return pct >= 80 && !dismissed.has(b.id);
     })
     .map((b) => {
       const spent = b.spent ?? 0;
-      const pct   = Math.round((spent / b.amount) * 100);
+      const pct   = b.amount > 0 ? Math.round((spent / b.amount) * 100) : 0;
       return { ...b, spent, pct, over: pct >= 100 };
     });
 

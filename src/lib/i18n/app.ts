@@ -65,6 +65,7 @@ export const appT = {
         submit: "Send reset link", submitting: "Sending...",
         backToLogin: "Back to sign in",
         sentTitle: "Email sent!", sentDesc: "If that email is registered, you'll receive a reset link. Check your inbox and spam folder.",
+        error: "Could not send reset email. Please try again.",
       },
       resetPassword: {
         title: "New password", subtitle: "Choose a new password for your account.",
@@ -414,6 +415,7 @@ export const appT = {
       importTooLarge: "File too large. Maximum allowed size is 10 MB.",
       importTooMany: "Too many transactions in this backup (max 50,000). Consider splitting the file.",
       importAnalysing: "Analysing backup…",
+      appearance: "Appearance", dark: "Dark", light: "Light", backup: "Backup",
     },
     notifications: {
       title: "Notifications", markAllRead: "Mark all as read",
@@ -692,6 +694,7 @@ export const appT = {
         submit: "Enviar link de recuperação", submitting: "Enviando...",
         backToLogin: "Voltar ao login",
         sentTitle: "Email enviado!", sentDesc: "Se esse email estiver cadastrado, você receberá um link. Verifique sua caixa de entrada e spam.",
+        error: "Não foi possível enviar o email. Tente novamente.",
       },
       resetPassword: {
         title: "Nova senha", subtitle: "Escolha uma nova senha para sua conta.",
@@ -1043,6 +1046,7 @@ export const appT = {
       importTooLarge: "Arquivo muito grande. O tamanho máximo permitido é 10 MB.",
       importTooMany: "Backup com transações demais (máx. 50.000). Considere dividir o arquivo.",
       importAnalysing: "Analisando backup…",
+      appearance: "Aparência", dark: "Escuro", light: "Claro", backup: "Backup",
     },
     notifications: {
       title: "Notificações", markAllRead: "Marcar tudo como lido",

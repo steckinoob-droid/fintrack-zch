@@ -207,7 +207,7 @@ export function GoalsClient() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredGoals.map(goal => {
-            const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+            const pct = goal.target_amount > 0 ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) : 0;
             const completed  = pct >= 100;
             const daysLeft   = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
             return (

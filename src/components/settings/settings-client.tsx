@@ -280,11 +280,11 @@ export function SettingsClient() {
         <div className="flex items-center gap-2 mb-2">
           {theme === "dark" ? <Moon size={16} className="text-primary" /> : <Sun size={16} className="text-primary" />}
           <h2 className="font-display font-semibold text-foreground">
-            {lang === "en" ? "Appearance" : "Aparência"}
+            {tx.appearance}
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          {([["dark", lang === "en" ? "Dark" : "Escuro", Moon], ["light", lang === "en" ? "Light" : "Claro", Sun]] as const).map(([t, label, Icon]) => (
+          {([["dark", tx.dark, Moon], ["light", tx.light, Sun]] as const).map(([t, label, Icon]) => (
             <button key={t} onClick={() => setTheme(t as "dark" | "light")}
               className={cn(
                 "flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
@@ -305,7 +305,7 @@ export function SettingsClient() {
         <div className="flex items-center gap-2 mb-2">
           <Download size={16} className="text-primary" />
           <h2 className="font-display font-semibold text-foreground">
-            {lang === "en" ? "Backup" : "Backup"}
+            {tx.backup}
           </h2>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">

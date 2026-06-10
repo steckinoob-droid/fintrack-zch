@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 
@@ -26,9 +27,13 @@ export function ForgotPasswordForm() {
 
   async function onSubmit(data: FormData) {
     const supabase = createClient();
-    await supabase.auth.resetPasswordForEmail(data.email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     });
+    if (error) {
+      toast.error(tx.error);
+      return;
+    }
     setSent(true);
   }
 
