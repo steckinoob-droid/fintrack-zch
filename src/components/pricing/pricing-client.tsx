@@ -156,7 +156,7 @@ export function PricingClient({ currentPlan, isLoggedIn }: Props) {
             {/* Eyebrow badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-4 py-1.5 text-[11px] font-bold text-primary tracking-widest uppercase">
               <Star size={9} className="fill-current" />
-              Pro · {lang === "pt" ? "R$9,99/mês" : "R$9.99/mo"}
+              Pro · {tx.proPrice}{tx.perMonth}
             </div>
 
             {/* Headline */}

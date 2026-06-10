@@ -29,7 +29,7 @@ export type ProFeature =
   | "reports_full"         // Reports beyond the last 3 months
   // ── Part 3 (pending) ───────────────────────────────────────────────────────
   | "goals_unlimited"      // More than 2 savings goals
-  | "recurring_unlimited"; // More than 5 recurring transactions
+  | "recurring_unlimited"; // More than FREE_RECURRING_LIMIT (2) recurring transactions
 
 /**
  * Features that are actively enforced right now.
