@@ -480,19 +480,20 @@ export function TransactionsClient() {
     const amount = parseFloat(quickAmount.replace(",", "."));
     if (!quickTitle.trim() || isNaN(amount) || amount <= 0) return;
     setQuickLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setQuickLoading(false); return; }
     const typedCats = categories.filter(c => c.type === quickType);
     const suggested = quickCatId === "__auto__" ? suggestCategory(quickTitle, typedCats) : null;
-    const { error } = await supabase.from("transactions").insert({
-      user_id: user.id, title: quickTitle.trim(), amount,
-      type: quickType, category_id: (quickCatId !== "__auto__" ? quickCatId : suggested?.id) ?? null,
-      date: new Date().toISOString().slice(0, 10),
-      notes: null, is_recurring: false, recurrence_interval: null,
+    const res = await fetch("/api/transactions/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: quickTitle.trim(), amount,
+        type: quickType, category_id: (quickCatId !== "__auto__" ? quickCatId : suggested?.id) ?? null,
+        date: new Date().toISOString().slice(0, 10),
+        notes: null, is_recurring: false, recurrence_interval: null,
+      }),
     });
     setQuickLoading(false);
-    if (error) { toast.error(tx.quickError); return; }
+    if (!res.ok) { toast.error(tx.quickError); return; }
     toast.success(tx.quickSuccess);
     setQuickTitle(""); setQuickAmount(""); setQuickCatId("__auto__");
     load(); refresh();

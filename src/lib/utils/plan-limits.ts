@@ -33,7 +33,7 @@ export type ProFeature =
 
 /**
  * Features that are actively enforced right now.
- * Expand this Set when shipping Part 3.
+ * Expand this Set when shipping a new Part.
  */
 const ENFORCED_PRO_FEATURES = new Set<ProFeature>([
   "export_csv",
@@ -41,7 +41,16 @@ const ENFORCED_PRO_FEATURES = new Set<ProFeature>([
   // Part 2 (active)
   "import_unlimited",
   "reports_full",
+  // Part 3 (active)
+  "goals_unlimited",
+  "recurring_unlimited",
 ]);
+
+// ── Free-tier numeric limits (Part 3) ─────────────────────────────────────────
+/** Maximum savings goals a Free user may have. Creating the (n+1)-th is blocked. */
+export const FREE_GOALS_LIMIT = 2;
+/** Maximum recurring-transaction templates a Free user may have. */
+export const FREE_RECURRING_LIMIT = 5;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

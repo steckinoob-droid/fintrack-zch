@@ -11,8 +11,7 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, RefreshCw, PiggyBank } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Loader2, RefreshCw, PiggyBank, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +24,9 @@ import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 import { suggestCategory } from "@/lib/utils/auto-categorize";
 import type { Transaction, Category } from "@/lib/types";
+import { usePlan } from "@/lib/hooks/use-plan";
+import { UpgradeModal } from "@/components/shared/upgrade-modal";
+import { FREE_RECURRING_LIMIT } from "@/lib/utils/plan-limits";
 
 const schema = z.object({
   title:               z.string().min(1),
@@ -51,6 +53,9 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
   const isEdit = !!transaction;
   const isSavingTx = !!(transaction && transaction.type === "saving");
   const [isRecurring, setIsRecurring] = useState(false);
+  const plan = usePlan();
+  const [recurringCount, setRecurringCount] = useState<number | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -92,22 +97,43 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
     }
   }, [open, transaction, reset]);
 
+  // Fetch recurring count for Free users opening a NEW transaction dialog.
+  // Pro users skip this (no limit). Edit dialogs skip this (not creating).
+  useEffect(() => {
+    if (!open || transaction || plan !== "free") return;
+    fetch("/api/transactions/list?isRecurring=true&limit=1")
+      .then(r => r.ok ? r.json() : null)
+      .then(json => setRecurringCount(json?.total ?? 0))
+      .catch(() => setRecurringCount(0));
+  }, [open, transaction, plan]);
+
+  // True only when plan has resolved to "free", this is a new tx, and the count is at/above limit.
+  const recurringLimitReached = !isEdit && plan === "free" && recurringCount !== null && recurringCount >= FREE_RECURRING_LIMIT;
+
   async function onSubmit(data: FormData) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    // Server-side re-check: block if Free user would exceed recurring limit at submit time.
+    if (!isEdit && isRecurring && plan === "free") {
+      const res = await fetch("/api/transactions/list?isRecurring=true&limit=1");
+      const json = res.ok ? await res.json() : null;
+      const liveCount: number = json?.total ?? 0;
+      if (liveCount >= FREE_RECURRING_LIMIT) {
+        setUpgradeOpen(true);
+        return;
+      }
+    }
+
     const payload = {
-      user_id: user.id, title: data.title,
+      title: data.title,
       amount: parseFloat(data.amount.replace(",", ".")),
-      type: isSavingTx ? "saving" : data.type, category_id: data.category_id || null,
-      date: data.date, notes: data.notes || null,
+      type: isSavingTx ? "saving" : data.type,
+      category_id: data.category_id || null,
+      date: data.date,
+      notes: data.notes || null,
       is_recurring: isRecurring,
       recurrence_interval: isRecurring ? (data.recurrence_interval ?? "monthly") : null,
     };
 
     if (isEdit) {
-      // Use server-side API so the update is guaranteed to persist regardless
-      // of the browser client's JWT state (stale token → 0 rows, no error).
       const res = await fetch("/api/transactions/update", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -115,8 +141,12 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
       });
       if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
     } else {
-      const { error } = await supabase.from("transactions").insert(payload);
-      if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+      const res = await fetch("/api/transactions/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
     }
 
     toast.success(isEdit
@@ -133,6 +163,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
   ];
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -202,23 +233,46 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
 
           {/* Recurring toggle */}
           <div className="space-y-2">
-            <button type="button" onClick={() => setIsRecurring(v => !v)}
-              className={cn("flex w-full items-center gap-3 rounded-lg border p-3 text-sm transition-colors",
-                isRecurring ? "border-primary/40 bg-primary/8 text-foreground" : "border-border bg-muted/30 text-muted-foreground hover:text-foreground")}>
-              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                isRecurring ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
-                <RefreshCw size={15} />
+            <button
+              type="button"
+              onClick={() => {
+                if (recurringLimitReached) { setUpgradeOpen(true); return; }
+                setIsRecurring(v => !v);
+              }}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg border p-3 text-sm transition-colors",
+                recurringLimitReached
+                  ? "border-border bg-muted/20 text-muted-foreground/60 cursor-pointer"
+                  : isRecurring
+                  ? "border-primary/40 bg-primary/8 text-foreground"
+                  : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <div className={cn(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                recurringLimitReached ? "bg-muted text-muted-foreground/50"
+                  : isRecurring ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                {recurringLimitReached ? <Lock size={14} /> : <RefreshCw size={15} />}
               </div>
               <div className="flex-1 text-left">
                 <p className="font-medium leading-none">{tx.recurring}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{tx.recurringDesc}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {recurringLimitReached ? tx.recurringGate.limitReached : tx.recurringDesc}
+                </p>
               </div>
-              <div className={cn("h-5 w-9 rounded-full transition-colors relative", isRecurring ? "bg-primary" : "bg-muted-foreground/30")}>
-                <div className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
-                  isRecurring ? "translate-x-4" : "translate-x-0.5")} />
-              </div>
+              {recurringLimitReached ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-primary ring-1 ring-primary/25">
+                  {tx.recurringGate.limitBadge}
+                </span>
+              ) : (
+                <div className={cn("h-5 w-9 rounded-full transition-colors relative", isRecurring ? "bg-primary" : "bg-muted-foreground/30")}>
+                  <div className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                    isRecurring ? "translate-x-4" : "translate-x-0.5")} />
+                </div>
+              )}
             </button>
-            {isRecurring && (
+            {isRecurring && !recurringLimitReached && (
               <Select onValueChange={v => setValue("recurrence_interval", v as any)}
                 defaultValue={transaction?.recurrence_interval ?? "monthly"}>
                 <SelectTrigger><SelectValue placeholder={tx.frequency} /></SelectTrigger>
@@ -242,5 +296,14 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <UpgradeModal
+      open={upgradeOpen}
+      onOpenChange={setUpgradeOpen}
+      title={tx.recurringGate.modalTitle}
+      description={tx.recurringGate.modalDesc}
+      cta={tx.recurringGate.modalCta}
+    />
+    </>
   );
 }

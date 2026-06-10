@@ -265,6 +265,13 @@ export const appT = {
         daily: "Daily", weekly: "Weekly", monthly: "Every month", yearly: "Every year",
         notes: "Notes", notesPlaceholder: "Optional notes...",
         titleRequired: "Title is required", amountInvalid: "Invalid amount", dateRequired: "Date required",
+        recurringGate: {
+          limitBadge: "Pro",
+          limitReached: "Recurring limit reached · upgrade to add more",
+          modalTitle: "Unlimited recurring transactions",
+          modalDesc: "Free plan allows up to 5 recurring transactions. Upgrade to Pro for unlimited automation.",
+          modalCta: "Unlock unlimited recurring",
+        },
       },
     },
     categories: {
@@ -334,6 +341,13 @@ export const appT = {
         amountInvalid: "Invalid amount",
         submit: "Deposit", submitting: "Saving...",
         success: "Deposit made!", successDesc: "added to the goal.",
+      },
+      gate: {
+        limitBadge: "Pro",
+        limitReached: "Goal limit reached",
+        modalTitle: "Unlimited savings goals",
+        modalDesc: "Free plan allows up to 2 savings goals. Upgrade to Pro to create unlimited goals.",
+        modalCta: "Unlock unlimited goals",
       },
     },
     reports: {
@@ -877,6 +891,13 @@ export const appT = {
         daily: "Diariamente", weekly: "Semanalmente", monthly: "Todo mês", yearly: "Todo ano",
         notes: "Notas", notesPlaceholder: "Observações opcionais...",
         titleRequired: "Título obrigatório", amountInvalid: "Valor inválido", dateRequired: "Data obrigatória",
+        recurringGate: {
+          limitBadge: "Pro",
+          limitReached: "Limite de recorrentes atingido · faça upgrade para mais",
+          modalTitle: "Recorrentes ilimitados são Pro",
+          modalDesc: "No plano Free você pode criar até 5 recorrentes. Faça upgrade para automatizar tudo sem limites.",
+          modalCta: "Desbloquear recorrentes ilimitados",
+        },
       },
     },
     categories: {
@@ -948,6 +969,13 @@ export const appT = {
         amountInvalid: "Valor inválido",
         submit: "Confirmar aporte", submitting: "Salvando...",
         success: "Aporte realizado!", successDesc: "guardados na meta.",
+      },
+      gate: {
+        limitBadge: "Pro",
+        limitReached: "Limite de metas atingido",
+        modalTitle: "Metas ilimitadas são Pro",
+        modalDesc: "No plano Free você pode criar até 2 metas de poupança. Faça upgrade para criar metas ilimitadas.",
+        modalCta: "Desbloquear metas ilimitadas",
       },
     },
     reports: {

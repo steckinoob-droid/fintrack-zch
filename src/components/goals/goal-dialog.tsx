@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,7 @@ const COLORS = ["#10B981","#6366F1","#F59E0B","#EF4444","#8B5CF6","#EC4899","#14
 const schema = z.object({
   name:           z.string().min(1),
   target_amount:  z.string().min(1).refine(v => parseFloat(v.replace(",", ".")) > 0),
-  current_amount: z.string().optional(),
+  current_amount: z.string().optional().refine(v => !v || parseFloat(v.replace(",", ".")) >= 0, { message: "invalid" }),
   deadline:       z.string().optional(),
   color:          z.string().min(1),
 });
@@ -47,19 +46,45 @@ export function GoalDialog({ open, onOpenChange, goal, onSuccess }:
   }, [open, goal, reset]);
 
   async function onSubmit(data: FormData) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     const payload = {
-      user_id: user.id, name: data.name,
+      name: data.name,
       target_amount: parseFloat(data.target_amount.replace(",", ".")),
       current_amount: parseFloat((data.current_amount || "0").replace(",", ".")),
-      deadline: data.deadline || null, color: data.color, icon: "target",
+      deadline: data.deadline || null,
+      color: data.color,
+      icon: "target",
     };
-    const { error } = isEdit
-      ? await supabase.from("savings_goals").update(payload).eq("id", goal!.id)
-      : await supabase.from("savings_goals").insert(payload);
-    if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+
+    if (isEdit) {
+      // Server-side PATCH: admin client guarantees the update persists regardless
+      // of browser client JWT state (stale token → 0 rows, no error).
+      const res = await fetch("/api/goals/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: goal!.id, ...payload }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        console.error("[goal-dialog] update error:", json.error);
+        toast.error(lang === "en" ? "Error saving" : "Erro ao salvar");
+        return;
+      }
+    } else {
+      // Server-side POST: bypasses browser client JWT issues that cause INSERT
+      // to fail with RLS violation when auth.uid() is null on the DB side.
+      const res = await fetch("/api/goals/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        console.error("[goal-dialog] create error:", json.error);
+        toast.error(lang === "en" ? "Error saving" : "Erro ao salvar");
+        return;
+      }
+    }
+
     toast.success(isEdit
       ? (lang === "en" ? "Goal updated" : "Meta atualizada")
       : (lang === "en" ? "Goal created!" : "Meta criada!"));

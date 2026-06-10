@@ -49,18 +49,19 @@ export function QuickAddFab() {
     const num = parseFloat(amount.replace(",", "."));
     if (!title.trim() || isNaN(num) || num <= 0) return;
     setSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
     const resolvedCat = catId !== "__auto__" ? catId : (suggested?.id ?? null);
-    const { error } = await supabase.from("transactions").insert({
-      user_id: user.id, title: title.trim(), amount: num,
-      type, category_id: resolvedCat,
-      date: new Date().toISOString().slice(0, 10),
-      is_recurring: false, recurrence_interval: null, notes: null,
+    const res = await fetch("/api/transactions/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: title.trim(), amount: num,
+        type, category_id: resolvedCat,
+        date: new Date().toISOString().slice(0, 10),
+        is_recurring: false, recurrence_interval: null, notes: null,
+      }),
     });
     setSaving(false);
-    if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+    if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
     toast.success(lang === "en" ? "Added!" : "Adicionada!");
     setTitle(""); setAmount(""); setCatId("__auto__"); setOpen(false);
     refresh();

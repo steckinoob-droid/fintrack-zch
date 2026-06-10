@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper, Search, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Target, CalendarDays, ChevronDown, ChevronUp, History, RefreshCw, ArrowDownLeft, ArrowUpRight, PartyPopper, Search, X, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { GoalDialog } from "./goal-dialog";
 import { GoalDepositDialog } from "./goal-deposit-dialog";
+import { UpgradeModal } from "@/components/shared/upgrade-modal";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatRelativeDate } from "@/lib/utils/date";
 import { useLang } from "@/lib/i18n/context";
@@ -17,11 +18,14 @@ import { appT } from "@/lib/i18n/app";
 import type { SavingsGoal } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 import { differenceInDays, parseISO } from "date-fns";
+import { usePlan } from "@/lib/hooks/use-plan";
+import { FREE_GOALS_LIMIT } from "@/lib/utils/plan-limits";
 
 export function GoalsClient() {
   const { lang, fc } = useLang();
   const tx = appT[lang].goals;
   const common = appT[lang].common;
+  const plan = usePlan();
 
   const [goals, setGoals]                   = useState<SavingsGoal[]>([]);
   const [loading, setLoading]               = useState(true);
@@ -30,6 +34,7 @@ export function GoalsClient() {
   const [depositGoal, setDepositGoal]       = useState<SavingsGoal | null>(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
   const [depositOpen, setDepositOpen]       = useState(false);
+  const [upgradeOpen, setUpgradeOpen]       = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
   const [depositHistory, setDepositHistory] = useState<Record<string, { date: string; amount: number; created_at: string; kind: "deposit" | "withdrawal" }[]>>({});
   // goalId → monthly auto-deposit amount (0 = none)
@@ -118,6 +123,16 @@ export function GoalsClient() {
     setGoals(prev => prev.filter(g => g.id !== id));
   }
 
+  // True only once plan has resolved to "free" AND the user is at/above the limit.
+  // While plan is null (loading) we never show the lock so there's no flash-of-block.
+  const goalLimitReached = plan === "free" && goals.length >= FREE_GOALS_LIMIT;
+
+  function handleNewGoal() {
+    if (goalLimitReached) { setUpgradeOpen(true); return; }
+    setEditGoal(null);
+    setDialogOpen(true);
+  }
+
   const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const filteredGoals = search ? goals.filter(g => norm(g.name).includes(norm(search))) : goals;
 
@@ -130,8 +145,14 @@ export function GoalsClient() {
     <div className="space-y-6">
       <PageHeader title={tx.title} description={tx.description}
         action={
-          <Button onClick={() => { setEditGoal(null); setDialogOpen(true); }} size="sm">
-            <Plus size={15} /> {tx.new}
+          <Button onClick={handleNewGoal} size="sm">
+            {goalLimitReached ? <Lock size={13} /> : <Plus size={15} />}
+            {tx.new}
+            {goalLimitReached && (
+              <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary-foreground/15 text-primary-foreground/90">
+                {tx.gate.limitBadge}
+              </span>
+            )}
           </Button>
         }
       />
@@ -176,7 +197,7 @@ export function GoalsClient() {
       ) : goals.length === 0 ? (
         <div className="glass-card">
           <EmptyState icon={Target} title={tx.empty} description={tx.emptyDesc}
-            action={<Button size="sm" onClick={() => setDialogOpen(true)}><Plus size={15} /> {tx.create}</Button>} />
+            action={<Button size="sm" onClick={handleNewGoal}><Plus size={15} /> {tx.create}</Button>} />
         </div>
       ) : filteredGoals.length === 0 && search ? (
         <div className="glass-card">
@@ -328,6 +349,13 @@ export function GoalsClient() {
             load();
           }} />
       )}
+      <UpgradeModal
+        open={upgradeOpen}
+        onOpenChange={setUpgradeOpen}
+        title={tx.gate.modalTitle}
+        description={tx.gate.modalDesc}
+        cta={tx.gate.modalCta}
+      />
     </div>
   );
 }
