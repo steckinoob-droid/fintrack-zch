@@ -79,22 +79,22 @@ export function CategoryBreakdown({ transactions }: Props) {
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
             {lang === "en"
-              ? "Add expenses or create budgets to see your category breakdown."
-              : "Registre despesas ou crie orçamentos para ver sua distribuição por categoria."}
+              ? "Add expenses and create budgets to see your category breakdown."
+              : "Registre despesas e crie orçamentos para ver sua distribuição por categoria."}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 pt-1">
           <a
-            href="/transactions"
+            href="/budgets"
             className="inline-flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary/10 border border-primary/25 px-3 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
           >
-            {lang === "en" ? "Add expense" : "Adicionar despesa"}
+            {lang === "en" ? "Create budget" : "Criar orçamento"}
           </a>
           <a
-            href="/budgets"
+            href="/transactions"
             className="inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border/60 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-border transition-colors"
           >
-            {lang === "en" ? "Create budget" : "Criar orçamento"}
+            {lang === "en" ? "Add expense" : "Adicionar despesa"}
           </a>
         </div>
       </div>
