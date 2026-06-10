@@ -436,7 +436,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
                     <>Aceita <span className="font-medium text-foreground">CSV</span>, <span className="font-medium text-foreground">OFX</span> e PDF do Santander — formato detectado automaticamente</>
                   )}
                 </p>
-                <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf,application/x-ofx,text/x-ofx" className="hidden"
+                <input ref={fileRef} type="file" accept=".csv,.txt,.ofx,.pdf,application/x-ofx,text/x-ofx,application/octet-stream" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               </div>
             )}
