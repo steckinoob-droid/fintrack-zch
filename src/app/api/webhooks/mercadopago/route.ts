@@ -147,20 +147,31 @@ export async function POST(req: NextRequest) {
 
   // ── Signature validation ───────────────────────────────────────────────────
   //
-  // Three cases:
-  // 1. x-signature present + MERCADOPAGO_WEBHOOK_SECRET set → validate strictly.
-  // 2. x-signature present + secret NOT set → log error, continue anyway.
-  //    Reason: the real auth is the MP API re-fetch below; rejecting here
-  //    would silently break the webhook if the env var is missing.
-  // 3. No x-signature → IPN / notification_url without dashboard config → continue.
+  // Two cases:
+  // 1. x-signature present → MUST validate. If MERCADOPAGO_WEBHOOK_SECRET is
+  //    missing, reject (fail closed). An attacker can forge signed webhooks if
+  //    the secret is absent and we continue, granting Pro access fraudulently.
+  // 2. No x-signature → unsigned IPN (notification_url without dashboard config)
+  //    → continue. Legitimate MP flow; no signature to validate.
 
   if (xSignature) {
     if (!process.env.MERCADOPAGO_WEBHOOK_SECRET) {
       console.error(
         "[webhook/mp] x-signature received but MERCADOPAGO_WEBHOOK_SECRET is not set" +
-        " — skipping signature check. Set this env var to enable full validation.",
+        " — rejecting (fail closed). Configure this env var in production.",
       );
-    } else if (!verifyMpSignature(xSignature, xRequestId, resourceId)) {
+      await supabase
+        .from("webhook_events")
+        .update({
+          processed:    false,
+          processed_at: new Date().toISOString(),
+          error:        "secret_not_configured",
+        })
+        .eq("provider", provider)
+        .eq("event_id", eventId);
+      return NextResponse.json({ error: "secret_not_configured" }, { status: 500 });
+    }
+    if (!verifyMpSignature(xSignature, xRequestId, resourceId)) {
       console.warn("[webhook/mp] Signature INVALID — rejecting", { eventId, resourceId });
       await supabase
         .from("webhook_events")
