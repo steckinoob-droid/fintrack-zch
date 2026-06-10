@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,14 +51,12 @@ export function CategoryDialog({ open, onOpenChange, category, onSuccess }:
   }, [open, category, reset]);
 
   async function onSubmit(data: FormData) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const payload = { user_id: user.id, ...data };
-    const { error } = isEdit
-      ? await supabase.from("categories").update(data).eq("id", category!.id)
-      : await supabase.from("categories").insert(payload);
-    if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+    const res = await fetch("/api/categories/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(isEdit ? { id: category!.id, ...data } : data),
+    });
+    if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
     toast.success(isEdit
       ? (lang === "en" ? "Category updated" : "Categoria atualizada")
       : (lang === "en" ? "Category created" : "Categoria criada"));

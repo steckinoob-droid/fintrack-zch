@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Pencil, Trash2, Tag, Search, X, ChevronRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,11 +49,8 @@ export function CategoriesClient() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id: string) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase.from("categories").delete().eq("id", id).eq("user_id", user.id);
-    if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
+    const res = await fetch(`/api/categories/delete?id=${id}`, { method: "DELETE" });
+    if (!res.ok) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
     toast.success(lang === "en" ? "Category deleted" : "Categoria excluída");
     setCategories(prev => prev.filter(c => c.id !== id));
   }

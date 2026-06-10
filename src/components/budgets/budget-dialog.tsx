@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,14 +37,15 @@ export function BudgetDialog({ open, onOpenChange, budget, categories, currentMo
   }, [open, budget, reset]);
 
   async function onSubmit(data: FormData) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const payload = { user_id: user.id, category_id: data.category_id, amount: parseFloat(data.amount.replace(",", ".")), month: currentMonth };
-    const { error } = isEdit
-      ? await supabase.from("budgets").update({ amount: payload.amount }).eq("id", budget!.id)
-      : await supabase.from("budgets").upsert(payload, { onConflict: "user_id,category_id,month" });
-    if (error) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+    const body = isEdit
+      ? { id: budget!.id, amount: parseFloat(data.amount.replace(",", ".")) }
+      : { category_id: data.category_id, amount: parseFloat(data.amount.replace(",", ".")), month: currentMonth };
+    const res = await fetch("/api/budgets/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
     toast.success(isEdit
       ? (lang === "en" ? "Budget updated" : "Orçamento atualizado")
       : (lang === "en" ? "Budget created" : "Orçamento criado"));

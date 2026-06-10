@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   RefreshCw, Trash2, Pencil, CalendarDays, Loader2, Search, X,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/lib/hooks/use-toast";
@@ -82,11 +81,8 @@ export function RecurringManagerDialog({ open, onOpenChange, categories, onSucce
   }, [open, load]);
 
   async function handleDelete(id: string) {
-    const supabase = createClient();
-    // Delete the parent AND all generated children
-    await supabase.from("transactions").delete().eq("recurrence_parent_id", id);
-    const { error } = await supabase.from("transactions").delete().eq("id", id);
-    if (error) {
+    const res = await fetch(`/api/transactions/delete-recurring?id=${id}`, { method: "DELETE" });
+    if (!res.ok) {
       toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir");
       return;
     }

@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, PiggyBank, RefreshCw, ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,11 +40,9 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
   }
 
   async function onSubmit(data: FormData) {
-    const supabase = createClient();
     const added = parseFloat(data.amount.replace(",", "."));
 
     if (mode === "withdraw") {
-      // Withdrawal: take money back out of the goal → income transaction
       const actualRemoved = Math.min(added, goal.current_amount);
       if (actualRemoved <= 0) {
         toast.error(lang === "en" ? "No balance to withdraw" : "Nenhum saldo para retirar");
@@ -53,28 +50,26 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
       }
       const newAmount = goal.current_amount - actualRemoved;
 
-      const { error } = await supabase
-        .from("savings_goals")
-        .update({ current_amount: newAmount })
-        .eq("id", goal.id);
-      if (error) { toast.error(lang === "en" ? "Error withdrawing" : "Erro ao retirar"); return; }
+      const goalRes = await fetch("/api/goals/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: goal.id, current_amount: newAmount }),
+      });
+      if (!goalRes.ok) { toast.error(lang === "en" ? "Error withdrawing" : "Erro ao retirar"); return; }
 
-      // Create income transaction so the balance is restored correctly
       try {
-        await supabase.from("transactions").insert({
-          user_id: goal.user_id,
-          title: `${lang === "en" ? "Withdrawal" : "Retirada"}: ${goal.name}`,
-          amount: actualRemoved,
-          type: "income",
-          date: new Date().toISOString().slice(0, 10),
-          category_id: null,
-          notes: `goal_withdrawal:${goal.id}`,
-          is_recurring: false,
-          recurrence_interval: null,
+        await fetch("/api/transactions/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `${lang === "en" ? "Withdrawal" : "Retirada"}: ${goal.name}`,
+            amount: actualRemoved, type: "income",
+            date: new Date().toISOString().slice(0, 10),
+            category_id: null, notes: `goal_withdrawal:${goal.id}`,
+            is_recurring: false, recurrence_interval: null,
+          }),
         });
-      } catch {
-        // silently skip if unexpected error
-      }
+      } catch { /* silently skip */ }
 
       toast.success(
         lang === "en" ? "Withdrawal made!" : "Retirada realizada!",
@@ -88,35 +83,34 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
 
     // Deposit mode
     const newAmount = Math.min(goal.target_amount, goal.current_amount + added);
-    const actualAdded = newAmount - goal.current_amount; // what actually went in (may be less if goal nearly full)
+    const actualAdded = newAmount - goal.current_amount;
 
     if (actualAdded <= 0) {
       toast.error(lang === "en" ? "Goal already completed!" : "Meta já atingida!");
       return;
     }
 
-    const { error } = await supabase
-      .from("savings_goals")
-      .update({ current_amount: newAmount })
-      .eq("id", goal.id);
-    if (error) { toast.error(lang === "en" ? "Error depositing" : "Erro ao depositar"); return; }
+    const goalRes = await fetch("/api/goals/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: goal.id, current_amount: newAmount }),
+    });
+    if (!goalRes.ok) { toast.error(lang === "en" ? "Error depositing" : "Erro ao depositar"); return; }
 
-    // Create saving transaction for the amount that actually went in
     try {
-      await supabase.from("transactions").insert({
-        user_id: goal.user_id,
-        title: `${lang === "en" ? "Deposit" : "Depósito"}: ${goal.name}`,
-        amount: actualAdded,
-        type: "saving",
-        date: new Date().toISOString().slice(0, 10),
-        category_id: null,
-        notes: `goal_id:${goal.id}`,
-        is_recurring: isAutomatic,
-        recurrence_interval: isAutomatic ? "monthly" : null,
+      await fetch("/api/transactions/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${lang === "en" ? "Deposit" : "Depósito"}: ${goal.name}`,
+          amount: actualAdded, type: "saving",
+          date: new Date().toISOString().slice(0, 10),
+          category_id: null, notes: `goal_id:${goal.id}`,
+          is_recurring: isAutomatic,
+          recurrence_interval: isAutomatic ? "monthly" : null,
+        }),
       });
-    } catch {
-      // silently skip if DB migration not applied
-    }
+    } catch { /* silently skip */ }
 
     const wasCappped = actualAdded < added;
     toast.success(

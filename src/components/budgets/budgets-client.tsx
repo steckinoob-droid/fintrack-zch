@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Pencil, Trash2, PieChart, ChevronLeft, ChevronRight, Copy, Loader2, Bell, Search, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -69,11 +68,8 @@ export function BudgetsClient() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id: string) {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase.from("budgets").delete().eq("id", id).eq("user_id", user.id);
-    if (error) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
+    const res = await fetch(`/api/budgets/delete?id=${id}`, { method: "DELETE" });
+    if (!res.ok) { toast.error(lang === "en" ? "Error deleting" : "Erro ao excluir"); return; }
     toast.success(lang === "en" ? "Budget deleted" : "Orçamento excluído");
     setBudgets(prev => prev.filter(b => b.id !== id));
   }
@@ -89,11 +85,6 @@ export function BudgetsClient() {
     const prevJson = await prevRes.json() as { budgets: Budget[] };
     const prev = prevJson.budgets ?? [];
 
-    // Need user id for the insert payload — browser client auth is fine for this.
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setCopying(false); return; }
-
     if (!prev.length) {
       toast.error(lang === "en" ? "No budgets found in previous month" : "Nenhum orçamento no mês anterior");
       setCopying(false); return;
@@ -102,16 +93,20 @@ export function BudgetsClient() {
     const existingCatIds = new Set(budgets.map(b => b.category_id));
     const toCreate = prev
       .filter(b => !existingCatIds.has(b.category_id))
-      .map(b => ({ user_id: user.id, category_id: b.category_id, amount: b.amount, month: viewMonth }));
+      .map(b => ({ category_id: b.category_id, amount: b.amount, month: viewMonth }));
 
     if (!toCreate.length) {
       toast.error(lang === "en" ? "All budgets already exist this month" : "Todos os orçamentos já existem neste mês");
       setCopying(false); return;
     }
 
-    const { error } = await supabase.from("budgets").insert(toCreate);
+    const copyRes = await fetch("/api/budgets/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(toCreate),
+    });
     setCopying(false);
-    if (error) { toast.error(lang === "en" ? "Error copying" : "Erro ao copiar"); return; }
+    if (!copyRes.ok) { toast.error(lang === "en" ? "Error copying" : "Erro ao copiar"); return; }
     toast.success(lang === "en"
       ? `${toCreate.length} budgets copied!`
       : `${toCreate.length} orçamentos copiados do mês anterior!`);
