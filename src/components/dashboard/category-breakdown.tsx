@@ -69,7 +69,7 @@ export function CategoryBreakdown({ transactions }: Props) {
 
   if (!data.length) {
     return (
-      <div className="glass-card p-6 flex flex-col items-center text-center gap-3">
+      <div className="glass-card p-6 flex flex-col items-center justify-center text-center gap-3 min-h-[200px]">
         <div className="h-12 w-12 rounded-2xl bg-muted/50 flex items-center justify-center">
           <PieChartIcon size={22} className="text-muted-foreground/40" />
         </div>
