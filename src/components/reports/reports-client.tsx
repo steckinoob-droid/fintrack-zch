@@ -21,7 +21,6 @@ import { Target, CalendarDays, Lock } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { usePlan } from "@/lib/hooks/use-plan";
-import { canUseFeature } from "@/lib/utils/plan-limits";
 import { UpgradeModal } from "@/components/shared/upgrade-modal";
 
 const COLORS = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
@@ -62,7 +61,6 @@ export function ReportsClient() {
   const { lang, fc, fck } = useLang();
   const tx = appT[lang].reports;
   const plan = usePlan();
-  const reportsFull = canUseFeature("reports_full", plan);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals,        setGoals]        = useState<SavingsGoal[]>([]);
@@ -77,12 +75,10 @@ export function ReportsClient() {
     new Date().toISOString().slice(0, 7) // current YYYY-MM
   );
 
-  // Clamp period to 3m once plan resolves as "free"
-  useEffect(() => {
-    if (plan === "free") {
-      setReportPeriod(prev => (prev === "3m" ? prev : "3m"));
-    }
-  }, [plan]);
+  // Effective period: derive at render-time instead of a side-effect setState.
+  // This prevents the intermediate render where plan="free" but reportPeriod="6m"
+  // (which occurred between plan resolving and the old clamp effect firing).
+  const effectivePeriod: ReportPeriod = plan === "free" ? "3m" : reportPeriod;
 
   useEffect(() => {
     async function load() {
@@ -113,25 +109,25 @@ export function ReportsClient() {
 
   // ── Compute months to display based on selected period ───────────────────
   const reportMonths = useMemo(() => {
-    if (reportPeriod === "3m")  return getLastNMonths(3);
-    if (reportPeriod === "12m") return getLastNMonths(12);
-    if (reportPeriod === "ytd") {
+    if (effectivePeriod === "3m")  return getLastNMonths(3);
+    if (effectivePeriod === "12m") return getLastNMonths(12);
+    if (effectivePeriod === "ytd") {
       const n = new Date().getMonth() + 1; // Jan = 1, Dec = 12
       return getLastNMonths(Math.max(n, 1));
     }
-    if (reportPeriod === "all") {
+    if (effectivePeriod === "all") {
       if (!transactions.length) return getLastNMonths(6);
       const oldest = transactions[0]; // already sorted ascending
       return getMonthsBetween(parseISO(oldest.date), new Date());
     }
-    if (reportPeriod === "custom") {
+    if (effectivePeriod === "custom") {
       const from = parseISO(`${customFrom}-01`);
       const to   = parseISO(`${customTo}-01`);
       if (from <= to) return getMonthsBetween(from, to);
       return getLastNMonths(1);
     }
     return getLastNMonths(6);
-  }, [reportPeriod, transactions, customFrom, customTo]);
+  }, [effectivePeriod, transactions, customFrom, customTo]);
 
   // Transactions within the current period window
   const periodTx = useMemo(() => {
@@ -183,15 +179,15 @@ export function ReportsClient() {
   const axisStyle  = { fill: "hsl(215 16% 60%)", fontSize: 11 };
   const yAxisWidth = 48;
 
-  const periodLabel = PERIOD_OPTIONS.find(p => p.value === reportPeriod)!;
-  const periodText  = reportPeriod === "custom"
+  const periodLabel = PERIOD_OPTIONS.find(p => p.value === effectivePeriod)!;
+  const periodText  = effectivePeriod === "custom"
     ? (lang === "en" ? `${customFrom} → ${customTo}` : `${customFrom} → ${customTo}`)
     : (lang === "en" ? periodLabel.labelEn : periodLabel.labelPt);
   const dynamicDesc = lang === "en"
     ? `Detailed analysis · ${periodText}`
     : `Análise detalhada · ${periodText}`;
 
-  if (loading) {
+  if (loading || plan === null) {
     return (
       <div className="space-y-6">
         <div className="h-8 w-48 shimmer rounded-lg" />
@@ -226,7 +222,7 @@ export function ReportsClient() {
       <div className="space-y-2 -mt-2">
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
           {PERIOD_OPTIONS.map(p => {
-            const locked = !reportsFull && p.value !== "3m";
+            const locked = plan === "free" && p.value !== "3m";
             return (
               <button
                 key={p.value}
@@ -236,7 +232,7 @@ export function ReportsClient() {
                 }}
                 className={cn(
                   "shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1",
-                  reportPeriod === p.value
+                  effectivePeriod === p.value
                     ? "bg-primary/15 text-primary border border-primary/30"
                     : locked
                     ? "bg-muted/30 text-muted-foreground/50 cursor-pointer"
@@ -251,7 +247,7 @@ export function ReportsClient() {
         </div>
 
         {/* Custom date range pickers */}
-        {reportPeriod === "custom" && (
+        {effectivePeriod === "custom" && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/20 border border-border/40 flex-wrap">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">{lang === "en" ? "From" : "De"}</span>
