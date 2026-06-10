@@ -5,6 +5,7 @@ import {
   TrendingUp, BarChart3, Target, PieChart, Shield,
   ArrowRight, CheckCircle, RefreshCw, Zap, AlertTriangle,
   ChevronDown, Lock, Smartphone, Clock, XCircle, Lightbulb, Globe,
+  Star, Check,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { AnimatedDashboard } from "./animated-dashboard";
@@ -102,11 +103,36 @@ function LangToggle() {
 /* ─── Main component ────────────────────────────────────────── */
 
 export function LandingClient() {
-  const { lang, setLang } = useLang();
+  const { lang } = useLang();
   const tx = t[lang];
 
   return (
     <div className="min-h-dvh flex flex-col">
+
+      {/* ── Landing-specific animations ──────────────────────────── */}
+      <style>{`
+        @keyframes landing-cta-glow {
+          0%, 100% { box-shadow: 0 0 20px -6px rgba(16,185,129,0.45), 0 4px 20px -6px rgba(0,0,0,0.3); }
+          50%       { box-shadow: 0 0 36px -6px rgba(16,185,129,0.70), 0 4px 20px -6px rgba(0,0,0,0.3); }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .landing-cta-glow { animation: landing-cta-glow 3s ease-in-out infinite; }
+        }
+        .landing-pro-card {
+          transition: box-shadow 0.4s ease, border-color 0.4s ease, transform 0.3s ease;
+        }
+        .landing-pro-card:hover {
+          box-shadow: 0 0 72px -10px rgba(16,185,129,0.35);
+          border-color: rgba(16,185,129,0.55);
+          transform: translateY(-2px);
+        }
+        .landing-free-card {
+          transition: border-color 0.25s ease, background-color 0.25s ease;
+        }
+        .landing-free-card:hover {
+          border-color: rgba(255,255,255,0.10);
+        }
+      `}</style>
 
       {/* ════ NAVBAR ════ */}
       <header className="sticky top-0 z-40 border-b border-border/40 bg-background/75 backdrop-blur-xl">
@@ -130,6 +156,13 @@ export function LandingClient() {
                 {label}
               </a>
             ))}
+            <Link
+              href="/pricing"
+              className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-background/80 hover:text-foreground hover:shadow-sm"
+            >
+              <Star size={13} className="text-primary" />
+              {tx.nav.pricing}
+            </Link>
           </nav>
 
           {/* Right side */}
@@ -181,18 +214,19 @@ export function LandingClient() {
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <Link
                 href="/register"
-                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
+                className="landing-cta-glow inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
               >
                 {tx.hero.cta1} <ArrowRight size={15} />
               </Link>
               <Link
-                href="/login"
-                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card/50 px-6 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-card sm:px-8 sm:py-3.5 sm:text-base"
+                href="/pricing"
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card/50 px-6 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-card active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
               >
-                {tx.hero.cta2}
+                {tx.hero.cta2} <ArrowRight size={14} />
               </Link>
             </div>
 
+            {/* Trust items */}
             <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
               {tx.hero.trust.map((item) => (
                 <span key={item} className="flex items-center gap-1.5">
@@ -201,6 +235,14 @@ export function LandingClient() {
                 </span>
               ))}
             </div>
+
+            {/* Mobile sign-in hint */}
+            <p className="mt-4 text-xs text-muted-foreground/60">
+              {tx.hero.signInHint}{" "}
+              <Link href="/login" className="text-primary/80 hover:text-primary transition-colors font-medium hover:underline underline-offset-2">
+                {tx.hero.signInLink}
+              </Link>
+            </p>
           </div>
 
           {/* Animated Dashboard mockup */}
@@ -250,7 +292,7 @@ export function LandingClient() {
               ))}
             </div>
             <div className="mt-10 text-center">
-              <Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 sm:px-8 sm:py-3.5 sm:text-base">
+              <Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base">
                 {tx.steps.cta} <ArrowRight size={15} />
               </Link>
             </div>
@@ -307,8 +349,89 @@ export function LandingClient() {
           </div>
         </section>
 
+        {/* ════ PLANS ════ */}
+        <section className="px-4 py-20 lg:py-28">
+          <div className="mx-auto max-w-4xl">
+
+            {/* Heading */}
+            <div className="mb-12 text-center animate-fade-in">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">{tx.plans.badge}</p>
+              <h2 className="font-display text-3xl font-bold text-foreground">{tx.plans.heading}</h2>
+              <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{tx.plans.sub}</p>
+            </div>
+
+            {/* Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+
+              {/* Free card */}
+              <div
+                className="landing-free-card glass-card p-6 sm:p-8 flex flex-col gap-5 animate-slide-up"
+                style={{ animationDelay: "0.06s", animationFillMode: "both" }}
+              >
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground/55 uppercase tracking-[0.15em]">
+                    {tx.plans.free.label}
+                  </span>
+                  <p className="text-xl font-bold text-foreground">{tx.plans.free.price}</p>
+                  <p className="text-sm text-muted-foreground">{tx.plans.free.desc}</p>
+                </div>
+                <ul className="flex-1 space-y-2.5">
+                  {(tx.plans.free.features as readonly string[]).map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-foreground/80">
+                      <CheckCircle size={14} className="text-primary/55 shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card/50 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card active:scale-[0.98]"
+                >
+                  {tx.plans.free.cta}
+                </Link>
+              </div>
+
+              {/* Pro card */}
+              <div
+                className="landing-pro-card relative flex flex-col gap-5 rounded-xl border border-primary/35 bg-gradient-to-b from-primary/9 via-card/75 to-card p-6 sm:p-8 shadow-[0_0_50px_-12px_rgba(16,185,129,0.22)] animate-slide-up"
+                style={{ animationDelay: "0.11s", animationFillMode: "both" }}
+              >
+                {/* Top accent line */}
+                <div className="absolute inset-x-0 top-0 h-px rounded-t-xl bg-gradient-to-r from-transparent via-primary/55 to-transparent" />
+
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <Star size={10} className="text-primary fill-primary" />
+                    <span className="text-[10px] font-bold text-primary uppercase tracking-[0.15em]">
+                      {tx.plans.pro.label}
+                    </span>
+                  </div>
+                  <p className="text-xl font-bold text-foreground">{tx.plans.pro.price}</p>
+                  <p className="text-sm font-semibold text-foreground/80">{tx.plans.pro.desc}</p>
+                </div>
+                <ul className="flex-1 space-y-2.5">
+                  {(tx.plans.pro.features as readonly string[]).map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                      <span className="flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-full bg-primary/15 ring-1 ring-primary/20 mt-0.5">
+                        <Check size={9} className="text-primary" strokeWidth={2.5} />
+                      </span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/pricing"
+                  className="landing-cta-glow inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]"
+                >
+                  {tx.plans.pro.cta} <ArrowRight size={14} />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ════ FAQ ════ */}
-        <section id="faq" className="px-4 py-20 lg:py-28">
+        <section id="faq" className="border-t border-border/30 bg-muted/5 px-4 py-20 lg:py-28">
           <div className="mx-auto max-w-2xl">
             <div className="mb-12 text-center">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">{tx.faq.badge}</p>
@@ -331,7 +454,7 @@ export function LandingClient() {
               <p className="mx-auto max-w-md text-muted-foreground">{tx.finalCta.sub}</p>
               <Link
                 href="/register"
-                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
+                className="landing-cta-glow inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.98] sm:px-8 sm:py-3.5 sm:text-base"
               >
                 {tx.finalCta.cta} <ArrowRight size={15} />
               </Link>
