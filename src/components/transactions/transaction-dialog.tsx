@@ -303,6 +303,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
       title={tx.recurringGate.modalTitle}
       description={tx.recurringGate.modalDesc}
       cta={tx.recurringGate.modalCta}
+      highlightBenefit={2}
     />
     </>
   );

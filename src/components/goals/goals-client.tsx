@@ -352,6 +352,7 @@ export function GoalsClient() {
         title={tx.gate.modalTitle}
         description={tx.gate.modalDesc}
         cta={tx.gate.modalCta}
+        highlightBenefit={2}
       />
     </div>
   );

@@ -930,6 +930,7 @@ export function CsvImportDialog({ open, onOpenChange, categories, onSuccess }: P
         title={tx.import.limitModalTitle}
         description={tx.import.limitModalDesc}
         cta={tx.import.limitModalCta}
+        highlightBenefit={0}
       />
     </Dialog>
   );

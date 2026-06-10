@@ -488,6 +488,7 @@ export function ReportsClient() {
         title={tx.gate.modalTitle}
         description={tx.gate.modalDesc}
         cta={tx.gate.modalCta}
+        highlightBenefit={1}
       />
     </div>
   );

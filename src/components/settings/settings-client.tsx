@@ -346,7 +346,7 @@ export function SettingsClient() {
       />
 
       {/* Paywall modal — JSON backup */}
-      <UpgradeModal open={backupUpgradeOpen} onOpenChange={setBackupUpgradeOpen} />
+      <UpgradeModal open={backupUpgradeOpen} onOpenChange={setBackupUpgradeOpen} highlightBenefit={4} />
 
       {/* ── Security ──────────────────────────────────────────────────── */}
       <section className="glass-card p-6 space-y-4">

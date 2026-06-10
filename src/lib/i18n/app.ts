@@ -612,7 +612,7 @@ export const appT = {
       description: "Take full control with unlimited imports, complete history, and backup for your data.",
       badge: "Pro",
       notNow: "Not now",
-      cta: "View plans",
+      cta: "Upgrade to Pro",
       benefits: [
         "Unlimited CSV, OFX & PDF imports",
         "Complete history & reports",
@@ -872,7 +872,7 @@ export const appT = {
         limitReached:   "Limite mensal de importações atingido",
         limitModalTitle: "Importações ilimitadas",
         limitModalDesc:  "Usuários do plano grátis podem importar 1 arquivo por mês. Faça upgrade para importações ilimitadas de CSV, OFX e PDF.",
-        limitModalCta:   "Importações ilimitadas",
+        limitModalCta:   "Desbloquear importações ilimitadas",
       },
       dialog: {
         new: "Nova Transação", edit: "Editar Transação",
@@ -1237,7 +1237,7 @@ export const appT = {
       description: "Controle tudo sem limites com importações ilimitadas, histórico completo e backup dos seus dados.",
       badge: "Pro",
       notNow: "Agora não",
-      cta: "Ver planos",
+      cta: "Fazer upgrade",
       benefits: [
         "Importações CSV, OFX e PDF ilimitadas",
         "Histórico e relatórios completos",

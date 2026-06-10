@@ -1183,7 +1183,7 @@ export function TransactionsClient() {
         categories={categories} onSuccess={() => { load(); refresh(); }} />
 
       {/* Paywall modal — CSV export */}
-      <UpgradeModal open={csvUpgradeOpen} onOpenChange={setCsvUpgradeOpen} />
+      <UpgradeModal open={csvUpgradeOpen} onOpenChange={setCsvUpgradeOpen} highlightBenefit={3} />
 
       {/* Delete all dialog */}
       <Dialog open={deleteAllOpen} onOpenChange={v => { setDeleteAllOpen(v); setDeleteConfirm(""); }}>
