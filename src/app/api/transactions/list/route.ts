@@ -20,6 +20,27 @@ export async function GET(request: Request) {
   const minValue   = parseFloat(searchParams.get("minValue") ?? "");
   const maxValue   = parseFloat(searchParams.get("maxValue") ?? "");
   const ascending  = searchParams.get("order") === "asc";
+  const scope      = searchParams.get("scope"); // "reports" | null
+
+  // ── Reports scope: enforce 3-month window for Free users ──────────────────
+  // When scope=reports the server guarantees Free users can't retrieve data
+  // older than the Free reports window, regardless of the dateFrom they send.
+  // Pro users are unrestricted. Other scopes (transactions page, dashboard,
+  // export CSV) do not pass scope=reports and are completely unaffected.
+  // Strategy: clamp (not 403) — silently restricts the window so the caller
+  // never needs to handle an error for a valid Free-user reports load.
+  let qDateFrom = dateFrom;
+  if (scope === "reports") {
+    const { data: plan } = await supabase.rpc("get_my_plan");
+    if ((plan as string | null) !== "pro") {
+      const today = new Date();
+      // Start of the month 2 months before current = first day of a 3-month window
+      // e.g. today = 2026-06-10 → limit = 2026-04-01 (Apr + May + Jun = 3 months)
+      const limitStart = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+      const minDate = `${limitStart.getFullYear()}-${String(limitStart.getMonth() + 1).padStart(2, "0")}-01`;
+      if (!qDateFrom || qDateFrom < minDate) qDateFrom = minDate;
+    }
+  }
 
   const admin = createAdminClient();
 
@@ -32,7 +53,7 @@ export async function GET(request: Request) {
 
   const isRecurring = searchParams.get("isRecurring");
 
-  if (dateFrom)                               q = q.gte("date", dateFrom);
+  if (qDateFrom)                              q = q.gte("date", qDateFrom);
   if (dateTo)                                 q = q.lte("date", dateTo);
   if (type && type !== "all")                 q = q.eq("type", type);
   if (categoryId && categoryId !== "__all__") q = q.eq("category_id", categoryId);

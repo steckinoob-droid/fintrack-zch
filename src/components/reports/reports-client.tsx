@@ -88,7 +88,7 @@ export function ReportsClient() {
       // Fetch transactions + categories via API route (service role bypasses RLS).
       // Goals use browser client — different table, not affected by the JWT issue.
       const [txApiRes, goalsRes] = await Promise.all([
-        fetch("/api/transactions/list?limit=100000&order=asc"),
+        fetch("/api/transactions/list?limit=100000&order=asc&scope=reports"),
         supabase.from("savings_goals").select("*")
           .eq("user_id", user.id).order("created_at", { ascending: false }),
       ]);
