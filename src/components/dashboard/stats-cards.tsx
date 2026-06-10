@@ -29,9 +29,9 @@ export function StatsCards({ data }: StatsCardsProps) {
 
   const cards = [
     {
-      label: lang === "en" ? "Month Balance" : "Saldo do Mês",
+      label: tx.monthBalance,
       value: fc(monthBalance),
-      subtext: lang === "en" ? "income minus expenses" : "receitas menos despesas",
+      subtext: tx.balanceSubtext,
       icon: Wallet,
       iconBg: "bg-primary/10", iconColor: "text-primary",
       valueColor: monthBalance >= 0 ? "text-foreground" : "text-red-400",
@@ -59,7 +59,7 @@ export function StatsCards({ data }: StatsCardsProps) {
       label: tx.budgetUsage,
       value: budgetPct !== null ? `${budgetPct}%` : "—",
       subtext: totalBudgeted > 0
-        ? `${fc(totalSpent)} ${lang === "en" ? "of" : "de"} ${fc(totalBudgeted)}`
+        ? `${fc(totalSpent)} ${tx.alerts.used} ${fc(totalBudgeted)}`
         : tx.noBudgetsShort,
       icon: PieChart,
       iconBg: budgetPct === null ? "bg-muted/30" : budgetIconBg,

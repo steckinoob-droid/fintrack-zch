@@ -308,6 +308,19 @@
   }
 }
 
+/* ── Accessibility: disable animations for users who prefer reduced motion ─────
+   Applies to all animation utility classes defined above. The keyframe
+   definitions are preserved so they still emit in the CSS bundle; only the
+   motion is suppressed. Skeleton loaders keep their static gradient background
+   but lose the sweep animation, which is intentional. */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer           { animation: none !important; }
+  .animate-fade-in   { animation: none !important; }
+  .animate-slide-up  { animation: none !important; }
+  .animate-sheet-up  { animation: none !important; transition: none !important; }
+  .animate-scale-in  { animation: none !important; }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

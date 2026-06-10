@@ -93,7 +93,7 @@ export function Sidebar({ user, profile, isAdmin }: SidebarProps) {
         {isAdmin && (
           <div className="pt-4">
             <p className="px-3 py-2 text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest">
-              Sistema
+              {tx.system}
             </p>
             <Link
               href="/admin"

@@ -13,6 +13,20 @@ export async function POST(request: Request) {
     | { id?: string; category_id: string; amount: number; month: string }
     | Array<{ category_id: string; amount: number; month: string }>;
 
+  // Validate month format — must be YYYY-MM-01 (first day of a calendar month).
+  // An invalid format breaks the upsert unique constraint (user_id,category_id,month).
+  // The id-based update path only writes `amount` and never uses month, so skip it.
+  const MONTH_RE = /^\d{4}-\d{2}-01$/;
+  if (Array.isArray(body)) {
+    if (body.some(b => !b.month || !MONTH_RE.test(b.month))) {
+      return NextResponse.json({ error: "invalid_month_format" }, { status: 400 });
+    }
+  } else if (!body.id) {
+    if (!body.month || !MONTH_RE.test(body.month)) {
+      return NextResponse.json({ error: "invalid_month_format" }, { status: 400 });
+    }
+  }
+
   const admin = createAdminClient();
 
   if (Array.isArray(body)) {

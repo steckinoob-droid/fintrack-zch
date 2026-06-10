@@ -68,7 +68,7 @@ export function DashboardClient() {
           <button
             onClick={() => setMonthOffset(v => v - 1)}
             className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-            aria-label={lang === "en" ? "Previous month" : "Mês anterior"}
+            aria-label={tx.prevMonth}
           >
             <ChevronLeft size={16} />
           </button>
@@ -78,7 +78,7 @@ export function DashboardClient() {
             </h1>
             {isCurrentMonth && (
               <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary uppercase tracking-wide">
-                {lang === "en" ? "Current" : "Atual"}
+                {tx.currentMonth}
               </span>
             )}
           </div>
@@ -88,14 +88,14 @@ export function DashboardClient() {
                 onClick={() => setMonthOffset(0)}
                 className="hidden sm:flex items-center gap-1 text-xs text-primary hover:underline font-medium px-2 py-1 rounded-lg hover:bg-primary/5 transition-colors"
               >
-                {lang === "en" ? "Today" : "Hoje"}
+                {tx.today}
               </button>
             )}
             <button
               onClick={() => setMonthOffset(v => Math.min(0, v + 1))}
               disabled={isCurrentMonth}
               className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label={lang === "en" ? "Next month" : "Próximo mês"}
+              aria-label={tx.nextMonth}
             >
               <ChevronRight size={16} />
             </button>
