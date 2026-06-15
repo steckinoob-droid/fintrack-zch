@@ -340,39 +340,34 @@ export function LandingClient() {
               <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{tx.features.sub}</p>
             </div>
 
-            {/* Bento grid — import card is wide (col-span-2) on desktop */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {tx.features.items.map((f, i) => {
                 const Icon = FEATURE_ICONS[i];
                 const style = FEATURE_STYLES[i];
-                const isHero = i === 0; // import — gets extra visual weight
+                const isHero = i === 0;
 
                 return (
                   <div
                     key={f.problem}
                     className={cn(
                       "reveal feature-card-hover glass-card group space-y-4 p-6 hover:shadow-lg",
-                      isHero && "lg:col-span-2 lg:flex lg:gap-6 lg:items-start",
+                      isHero && "border-cyan-500/20 bg-cyan-500/[0.03]",
                       style.glow
                     )}
                     style={{ transitionDelay: `${i * 55}ms` }}
                   >
                     <div className={cn(
-                      "inline-flex shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110",
-                      isHero ? "h-12 w-12" : "h-10 w-10",
+                      "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110",
                       style.iconBg
                     )}>
-                      <Icon size={isHero ? 24 : 20} className={style.iconColor} />
+                      <Icon size={20} className={style.iconColor} />
                     </div>
                     <div className="space-y-1.5">
                       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <AlertTriangle size={10} className="text-amber-400" />
                         {tx.features.problem}: {f.problem}
                       </p>
-                      <p className={cn(
-                        "font-medium leading-snug text-foreground",
-                        isHero ? "text-base" : "text-sm"
-                      )}>✓ {f.solution}</p>
+                      <p className="text-sm font-medium leading-snug text-foreground">✓ {f.solution}</p>
                     </div>
                   </div>
                 );

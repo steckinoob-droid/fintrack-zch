@@ -68,40 +68,17 @@ function DonutChart({ animate }: { animate: boolean }) {
 const PHASES = [0, 1, 2, 3, 4] as const;
 type Phase = (typeof PHASES)[number];
 
-const LOOP_MS = [0, 700, 1350, 1950, 2500];
-const RESET_MS = 5800; // pause then restart
+const PHASE_MS = [0, 700, 1350, 1950, 2500];
 
 export function ImportMagicHero() {
   const { lang } = useLang();
   const [phase, setPhase] = useState<Phase | -1>(-1);
-  const [looping, setLooping] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const isPt = lang === "pt";
 
   const balance = useCountUp(4230, 900, phase >= 4);
-
-  function clearTimers() {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-  }
-
-  function runLoop() {
-    clearTimers();
-    setPhase(-1);
-    // tiny delay so reset is visible
-    const t0 = setTimeout(() => {
-      LOOP_MS.forEach((ms, i) => {
-        const t = setTimeout(() => setPhase(i as Phase), ms + 80);
-        timers.current.push(t);
-      });
-      // schedule next loop
-      const tReset = setTimeout(runLoop, RESET_MS);
-      timers.current.push(tReset);
-    }, 120);
-    timers.current.push(t0);
-  }
 
   useEffect(() => {
     const el = ref.current;
@@ -113,9 +90,13 @@ export function ImportMagicHero() {
     }
     const obs = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !looping) {
-          setLooping(true);
-          runLoop();
+        if (entry.isIntersecting) {
+          obs.disconnect();
+          // Play through all phases once, then stay static at phase 4
+          PHASE_MS.forEach((ms, i) => {
+            const t = setTimeout(() => setPhase(i as Phase), ms + 80);
+            timers.current.push(t);
+          });
         }
       },
       { threshold: 0.3 }
@@ -123,9 +104,8 @@ export function ImportMagicHero() {
     obs.observe(el);
     return () => {
       obs.disconnect();
-      clearTimers();
+      timers.current.forEach(clearTimeout);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const rows = isPt
