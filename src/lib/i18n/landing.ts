@@ -18,8 +18,8 @@ export const t = {
       badge:      "Free to start · Unlimited import on Pro",
       headline1:  "Upload your bank statement.",
       headline2:  "See where your money went.",
-      sub1:       "On the Pro plan, import a CSV, OFX or PDF and watch transactions appear — most already categorized.",
-      sub2:       "On Free, add them manually. Either way, the same dashboard, charts and insights.",
+      sub1:       "Import a CSV, OFX or PDF from your bank — most transactions are categorized automatically.",
+      sub2:       "Pro: unlimited. Free: 1 per month, or add manually.",
       cta1:       "Create my free account",
       cta2:       "See plans",
       signInHint: "Already have an account?",
@@ -58,7 +58,7 @@ export const t = {
         {
           n: "02",
           title: "Add your transactions",
-          desc: "On the Pro plan: drag in a CSV, OFX or PDF — transactions are imported and most are categorized automatically. On Free: add them manually, mark fixed bills as recurring and FinTrack generates them every month.",
+          desc: "Import a CSV, OFX or PDF from your bank — most transactions are categorized automatically. Pro gets unlimited imports; Free gets 1 per month. Or add everything manually — mark fixed bills as recurring and FinTrack generates them every month.",
         },
         {
           n: "03",
@@ -165,8 +165,8 @@ export const t = {
       badge:      "Grátis para começar · Import ilimitado no Pro",
       headline1:  "Suba o extrato do banco.",
       headline2:  "Veja para onde foi seu dinheiro.",
-      sub1:       "No plano Pro, importe um CSV, OFX ou PDF e as transações aparecem — a maioria já categorizada automaticamente.",
-      sub2:       "No Free, lance na mão. De qualquer jeito, o mesmo painel, os mesmos gráficos, o mesmo controle.",
+      sub1:       "Importe um CSV, OFX ou PDF do seu banco — a maioria já sai categorizada automaticamente.",
+      sub2:       "Pro: ilimitado. Free: 1 por mês, ou lance na mão.",
       cta1:       "Criar minha conta grátis",
       cta2:       "Ver planos",
       signInHint: "Já tem uma conta?",
@@ -205,7 +205,7 @@ export const t = {
         {
           n: "02",
           title: "Adicione suas transações",
-          desc: "No plano Pro: arraste um CSV, OFX ou PDF do seu banco — as transações são importadas e a maioria já é categorizada automaticamente. No Free: lance na mão, marque contas fixas como recorrentes e o FinTrack gera todo mês.",
+          desc: "Importe um CSV, OFX ou PDF do seu banco — a maioria das transações já sai categorizada. Pro tem importações ilimitadas; Free tem 1 por mês. Ou lance na mão — marque contas fixas como recorrentes e o FinTrack gera todo mês.",
         },
         {
           n: "03",
