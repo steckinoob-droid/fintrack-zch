@@ -7,6 +7,22 @@
 /* ── Keyframe animations ──────────────────────────────────────────────────────
    Defined directly here so they are always emitted regardless of whether
    the corresponding Tailwind `animate-*` utility class appears in content. */
+/* ── Aurora blob for hero background ─────────────────────────────────────── */
+@keyframes aurora-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(60px, -40px) scale(1.08); }
+  66%       { transform: translate(-30px, 30px) scale(0.95); }
+}
+@keyframes aurora-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(-50px, 30px) scale(1.05); }
+  70%       { transform: translate(40px, -20px) scale(0.97); }
+}
+@keyframes aurora-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(30px, 50px) scale(1.06); }
+}
+
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
@@ -308,6 +324,40 @@
   }
 }
 
+/* ── Scroll reveal ────────────────────────────────────────────────────────────
+   Elements start hidden; JS adds data-revealed="true" via useScrollReveal hook.
+   Only transform + opacity animated (GPU composited). */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal[data-revealed="true"],
+[data-revealed="true"] .reveal {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Aurora blobs — desktop only, reduced-motion off */
+@media (prefers-reduced-motion: no-preference) {
+  .aurora-1 { animation: aurora-1 14s ease-in-out infinite; }
+  .aurora-2 { animation: aurora-2 18s ease-in-out infinite; }
+  .aurora-3 { animation: aurora-3 22s ease-in-out infinite; }
+}
+
+/* Feature card hover lift — desktop only */
+@media (hover: hover) {
+  .feature-card-hover {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.3s ease;
+  }
+  .feature-card-hover:hover {
+    transform: translateY(-4px);
+  }
+}
+
 /* ── Accessibility: disable animations for users who prefer reduced motion ─────
    Applies to all animation utility classes defined above. The keyframe
    definitions are preserved so they still emit in the CSS bundle; only the
@@ -319,6 +369,8 @@
   .animate-slide-up  { animation: none !important; }
   .animate-sheet-up  { animation: none !important; transition: none !important; }
   .animate-scale-in  { animation: none !important; }
+  .reveal            { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .aurora-1, .aurora-2, .aurora-3 { animation: none !important; }
 }
 
 @layer utilities {
