@@ -28,10 +28,10 @@ function getSteps(lang: "en" | "pt") {
       icon: ArrowLeftRight,
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
-      title: lang === "en" ? "Record transactions" : "Registre suas transações",
+      title: lang === "en" ? "Add your transactions" : "Adicione suas transações",
       description: lang === "en"
-        ? "Add your income and expenses. Mark as recurring and FinTrack generates them automatically every month."
-        : "Adicione suas receitas e despesas. Marque como recorrente e o FinTrack gera automaticamente todo mês.",
+        ? "Add transactions manually, or import a CSV/OFX/PDF from your bank (Pro). Mark fixed bills as recurring and FinTrack generates them every month."
+        : "Lance na mão ou importe um CSV/OFX/PDF do seu banco (Pro). Marque contas fixas como recorrentes e o FinTrack gera todo mês.",
       action: "/transactions",
       actionLabel: lang === "en" ? "Go to Transactions" : "Ir para Transações",
     },

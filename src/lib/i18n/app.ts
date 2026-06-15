@@ -36,7 +36,7 @@ export const appT = {
         confirmationResent: "Confirmation email sent!",
       },
       register: {
-        title: "Create your account", subtitle: "Start managing your finances for free.",
+        title: "Create your account", subtitle: "Add transactions manually (free) or import your bank statement (Pro). Same dashboard either way.",
         name: "Full name", namePlaceholder: "John Doe",
         email: "Email", emailPlaceholder: "you@example.com",
         password: "Password", passwordPlaceholder: "••••••••",
@@ -665,7 +665,7 @@ export const appT = {
         confirmationResent: "E-mail de confirmação enviado!",
       },
       register: {
-        title: "Crie sua conta", subtitle: "Comece a organizar suas finanças de graça.",
+        title: "Crie sua conta", subtitle: "Lance na mão (grátis) ou importe o extrato do banco (Pro). O mesmo painel de qualquer jeito.",
         name: "Nome completo", namePlaceholder: "João Silva",
         email: "Email", emailPlaceholder: "voce@exemplo.com",
         password: "Senha", passwordPlaceholder: "••••••••",

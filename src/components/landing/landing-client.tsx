@@ -5,7 +5,7 @@ import {
   TrendingUp, BarChart3, Target, PieChart, Shield,
   ArrowRight, CheckCircle, RefreshCw, Zap, AlertTriangle,
   ChevronDown, Lock, Smartphone, Clock, XCircle, Lightbulb, Globe,
-  Star, Check,
+  Star, Check, Upload,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { AnimatedDashboard } from "./animated-dashboard";
@@ -15,17 +15,22 @@ import { cn } from "@/lib/utils/cn";
 
 /* ─── Static (language-independent) data ───────────────────── */
 
-const FEATURE_ICONS = [BarChart3, PieChart, Target, RefreshCw, Lightbulb, Shield] as const;
+// Feature icons map 1:1 to features.items order:
+// [0] Import CSV/OFX/PDF  [1] Dashboard  [2] Budgets
+// [3] Goals               [4] Recurring  [5] Privacy/Security
+const FEATURE_ICONS = [Upload, BarChart3, PieChart, Target, RefreshCw, Shield] as const;
 const FEATURE_STYLES = [
+  { iconColor: "text-cyan-400",    iconBg: "bg-cyan-500/10"    },
   { iconColor: "text-emerald-400", iconBg: "bg-emerald-500/10" },
   { iconColor: "text-indigo-400",  iconBg: "bg-indigo-500/10"  },
   { iconColor: "text-amber-400",   iconBg: "bg-amber-500/10"   },
-  { iconColor: "text-cyan-400",    iconBg: "bg-cyan-500/10"    },
   { iconColor: "text-yellow-400",  iconBg: "bg-yellow-500/10"  },
   { iconColor: "text-rose-400",    iconBg: "bg-rose-500/10"    },
 ] as const;
 
-const TRUST_ICONS = [Lock, Smartphone, Clock, CheckCircle] as const;
+// Trust bar icons map to trust[] array:
+// [0] Dados nunca vendidos  [1] Sem conectar ao banco  [2] Importação rápida  [3] Sem cartão
+const TRUST_ICONS = [Lock, Shield, Clock, CheckCircle] as const;
 
 const STEP_STYLES = [
   { colorText: "text-emerald-400", colorBorder: "border-emerald-500/20", colorBg: "bg-emerald-500/5" },

@@ -11,11 +11,12 @@ const THEME_STORAGE_KEY    = "fintrack_theme";
 export type Theme = "dark" | "light";
 
 function getInitialLang(): Lang {
-  if (typeof window === "undefined") return "en";
+  if (typeof window === "undefined") return "pt";
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved === "en" || saved === "pt") return saved;
   const browser = navigator.language.toLowerCase();
-  return browser.startsWith("pt") ? "pt" : "en";
+  // Default to pt — target audience is Brazilian; EN speakers can toggle
+  return browser.startsWith("en") && !browser.startsWith("pt") ? "en" : "pt";
 }
 
 function getInitialCurrency(): string {

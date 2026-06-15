@@ -2,20 +2,20 @@ import type { Metadata } from "next";
 import { LandingClient } from "@/components/landing/landing-client";
 
 export const metadata: Metadata = {
-  title: "FinTrack — Stop Guessing Where Your Money Goes",
+  title: "FinTrack — Suba o Extrato e Veja Para Onde Foi Seu Dinheiro",
   description:
-    "FinTrack organizes your income, expenses, and savings goals in one visual dashboard. See everything in seconds — no spreadsheets, no confusion, no surprises.",
+    "Importe o extrato do banco (CSV, OFX ou PDF) e veja tudo categorizado automaticamente em segundos. Controle financeiro sem planilha, sem complicação.",
   openGraph: {
-    title: "FinTrack — Stop Guessing Where Your Money Goes",
-    description: "Organize your income, expenses, and savings goals in one visual dashboard.",
+    title: "FinTrack — Suba o Extrato e Veja Para Onde Foi Seu Dinheiro",
+    description: "Importe o extrato do banco e veja tudo categorizado automaticamente. Dashboard com gráficos, orçamentos e metas — grátis para começar.",
     type: "website",
-    locale: "en_US",
+    locale: "pt_BR",
     siteName: "FinTrack",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FinTrack — Stop Guessing Where Your Money Goes",
-    description: "Organize your income, expenses, and savings goals in one visual dashboard.",
+    title: "FinTrack — Suba o Extrato e Veja Para Onde Foi Seu Dinheiro",
+    description: "Importe o extrato do banco e veja tudo categorizado automaticamente. Grátis para começar.",
   },
   robots: { index: true, follow: true },
 };
