@@ -156,6 +156,14 @@ export function ReportsClient() {
     return { month, income, expenses, balance: income - expenses };
   }), [reportMonths, transactions, lang, spansMultipleYears]);
 
+  // True only when at least one month in the window has movement. When false the
+  // Overview charts render an empty-state instead of blank axes (consistent with
+  // the Expenses / Income tabs), so a period with no data never looks broken.
+  const hasOverviewData = useMemo(
+    () => monthlyData.some(d => d.income !== 0 || d.expenses !== 0),
+    [monthlyData],
+  );
+
   // ── Category breakdowns (scoped to period) ───────────────────────────────
   const categoryData = useMemo(() => {
     const map = new Map<string, number>();
@@ -293,33 +301,45 @@ export function ReportsClient() {
           <div className="glass-card p-5">
             <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.incomeVsExpenses}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tx.incomeVsExpensesDesc} · {periodText}</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
-                <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 12 }}>{v}</span>} />
-                <Bar dataKey="income"   name={tx.incomeLabel}     fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" name={tx.expenses_label}  fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {!hasOverviewData ? (
+              <div className="flex items-center justify-center h-[220px] text-xs text-muted-foreground">
+                {lang === "en" ? "No transactions in this period" : "Sem transações neste período"}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
+                  <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
+                  <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 12 }}>{v}</span>} />
+                  <Bar dataKey="income"   name={tx.incomeLabel}     fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" name={tx.expenses_label}  fill="#ef4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <div className="glass-card p-5">
             <h3 className="font-display font-semibold text-sm text-foreground mb-0.5">{tx.monthlyBalance}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tx.monthlyBalanceDesc}</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
-                <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeDasharray="4 3" />
-                <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]}>
-                  {monthlyData.map((d, i) => <Cell key={i} fill={d.balance >= 0 ? "#10b981" : "#ef4444"} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {!hasOverviewData ? (
+              <div className="flex items-center justify-center h-[180px] text-xs text-muted-foreground">
+                {lang === "en" ? "No transactions in this period" : "Sem transações neste período"}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
+                  <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
+                  <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeDasharray="4 3" />
+                  <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]}>
+                    {monthlyData.map((d, i) => <Cell key={i} fill={d.balance >= 0 ? "#10b981" : "#ef4444"} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </TabsContent>
 
