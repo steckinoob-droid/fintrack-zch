@@ -35,13 +35,34 @@ export async function GET() {
 
   const admin = createAdminClient();
 
-  const [txRes, budgetsRes, goalsRes, catsRes, profileRes] = await Promise.all([
-    admin
-      .from("transactions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("date", { ascending: false })
-      .limit(100_000),
+  // PostgREST caps every response at the project's max-rows setting (1000 by
+  // default), so a single .limit(100_000) returns at most 1000 rows — only the
+  // most recent transactions, silently dropping older ones from the backup.
+  // Page through server-side in 1000-row pages with a deterministic order
+  // (date desc + id) until a short page signals the end, so the backup always
+  // contains the user's complete transaction history.
+  const PAGE = 1000;
+
+  const fetchAllTransactions = async () => {
+    const all: unknown[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await admin
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+        .order("id",   { ascending: false }) // deterministic tiebreaker for paging
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = data ?? [];
+      all.push(...batch);
+      if (batch.length < PAGE) break; // last page reached
+    }
+    return all;
+  };
+
+  const [transactions, budgetsRes, goalsRes, catsRes, profileRes] = await Promise.all([
+    fetchAllTransactions(),
     admin.from("budgets").select("*").eq("user_id", user.id),
     admin.from("savings_goals").select("*").eq("user_id", user.id),
     admin.from("categories").select("*").eq("user_id", user.id),
@@ -51,7 +72,7 @@ export async function GET() {
   return NextResponse.json({
     exported_at:  new Date().toISOString(),
     profile:      profileRes.data ?? null,
-    transactions: txRes.data      ?? [],
+    transactions,
     budgets:      budgetsRes.data ?? [],
     goals:        goalsRes.data   ?? [],
     categories:   catsRes.data    ?? [],
