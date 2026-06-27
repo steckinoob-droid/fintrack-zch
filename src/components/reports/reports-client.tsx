@@ -95,13 +95,13 @@ export function ReportsClient() {
           .eq("user_id", user.id).order("created_at", { ascending: false }),
       ]);
       if (!txApiRes.ok) { setLoading(false); return; }
-      const json = await txApiRes.json() as { transactions: Transaction[]; categories: Category[] };
+      const json = await txApiRes.json() as { transactions: Transaction[]; categories: Category[]; total?: number };
       const catMap = new Map(json.categories.map(c => [c.id, c]));
       const txsWithCats: Transaction[] = json.transactions.map(t => ({
         ...t,
         category: t.category_id ? catMap.get(t.category_id) : undefined,
       }));
-      console.log("[reports] loaded", json.transactions.length, "transactions");
+      console.log("[reports] loaded", json.transactions.length, "of", json.total ?? "?", "transactions");
       setTransactions(txsWithCats);
       setGoals(goalsRes.data ?? []);
       setLoading(false);

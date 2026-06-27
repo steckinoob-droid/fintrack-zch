@@ -43,38 +43,62 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-
-  let q = admin
-    .from("transactions")
-    .select("*", { count: "exact" })
-    .eq("user_id", user.id)
-    .order("date", { ascending })
-    .range(offset, offset + limit - 1);
-
   const isRecurring = searchParams.get("isRecurring");
 
-  if (qDateFrom)                              q = q.gte("date", qDateFrom);
-  if (dateTo)                                 q = q.lte("date", dateTo);
-  if (type && type !== "all")                 q = q.eq("type", type);
-  if (categoryId && categoryId !== "__all__") q = q.eq("category_id", categoryId);
-  if (search)                                 q = q.ilike("title", `%${search}%`);
-  if (!isNaN(minValue) && minValue > 0)       q = q.gte("amount", minValue);
-  if (!isNaN(maxValue) && maxValue > 0)       q = q.lte("amount", maxValue);
-  if (isRecurring === "true")                 q = q.eq("is_recurring", true).is("recurrence_parent_id", null);
+  // PostgREST caps every response at the project's max-rows setting (1000 by
+  // default). A single .range(0, 99999) therefore returns at most 1000 rows —
+  // and with ascending order those are the OLDEST 1000, so callers that load the
+  // full history (reports use limit=100000) silently lose the most RECENT
+  // transactions, making short windows (3m/6m) look empty. Page through
+  // server-side so every requested row is returned, regardless of the cap.
+  const PAGE = 1000;
 
-  const [txRes, catRes] = await Promise.all([
-    q,
-    admin.from("categories").select("*").eq("user_id", user.id).order("name"),
-  ]);
+  const buildTxQuery = (from: number, to: number) => {
+    let q = admin
+      .from("transactions")
+      .select("*", { count: "exact" })
+      .eq("user_id", user.id)
+      .order("date", { ascending })
+      .order("id",   { ascending })   // deterministic tiebreaker for paging
+      .range(from, to);
 
-  if (txRes.error) {
-    console.error("[api/transactions/list]", txRes.error.message);
-    return NextResponse.json({ error: txRes.error.message }, { status: 500 });
+    if (qDateFrom)                              q = q.gte("date", qDateFrom);
+    if (dateTo)                                 q = q.lte("date", dateTo);
+    if (type && type !== "all")                 q = q.eq("type", type);
+    if (categoryId && categoryId !== "__all__") q = q.eq("category_id", categoryId);
+    if (search)                                 q = q.ilike("title", `%${search}%`);
+    if (!isNaN(minValue) && minValue > 0)       q = q.gte("amount", minValue);
+    if (!isNaN(maxValue) && maxValue > 0)       q = q.lte("amount", maxValue);
+    if (isRecurring === "true")                 q = q.eq("is_recurring", true).is("recurrence_parent_id", null);
+    return q;
+  };
+
+  // Walk pages until the caller's limit is met or a short page signals the end.
+  // For ordinary calls (transactions page, limit≤1000) this runs exactly once,
+  // identical to the previous single-query behavior.
+  const transactions: unknown[] = [];
+  let total = 0;
+  const pageSize = Math.min(limit, PAGE);
+  const hardEnd  = offset + limit; // never return more than was asked for
+
+  for (let pageFrom = offset; pageSize > 0 && pageFrom < hardEnd; pageFrom += pageSize) {
+    const pageTo = Math.min(pageFrom + pageSize - 1, hardEnd - 1);
+    const { data, count, error } = await buildTxQuery(pageFrom, pageTo);
+    if (error) {
+      console.error("[api/transactions/list]", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (count != null) total = count;
+    const batch = data ?? [];
+    transactions.push(...batch);
+    if (batch.length < pageSize) break; // last page reached
   }
 
+  const catRes = await admin.from("categories").select("*").eq("user_id", user.id).order("name");
+
   return NextResponse.json({
-    transactions: txRes.data ?? [],
-    total: txRes.count ?? 0,
+    transactions,
+    total,
     categories: catRes.data ?? [],
   });
 }
