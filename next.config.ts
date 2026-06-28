@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // Tree-shake barrel imports from large packages so only the icons/functions
+  // actually used are bundled (lucide-react is imported in ~40 files).
+  experimental: {
+    optimizePackageImports: ["lucide-react", "date-fns", "recharts"],
+  },
+
   // ── Webpack (Next.js ≤15 / --webpack flag) ───────────────────────────────
   // pdfjs-dist optionally requires 'canvas' for Node.js server rendering.
   // We never use it server-side, so alias it to false to drop it from the bundle.

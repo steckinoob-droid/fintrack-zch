@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import type { Lang } from "./app";
 import { formatCurrency, formatCompact } from "@/lib/utils/currency";
 
@@ -92,8 +92,17 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
   const fc  = useCallback((n: number) => formatCurrency(n, currency), [currency]);
   const fck = useCallback((n: number) => formatCompact(n, currency),  [currency]);
 
+  // Memoize so the context value is referentially stable across renders.
+  // useLang() is consumed by nearly every client component; without this, any
+  // provider render forces the entire consuming tree (dashboard, charts, lists)
+  // to re-render. setLang/setCurrency/setTheme are stable useState setters.
+  const value = useMemo(
+    () => ({ lang, setLang, toggle, currency, setCurrency, theme, setTheme, fc, fck }),
+    [lang, setLang, toggle, currency, setCurrency, theme, setTheme, fc, fck],
+  );
+
   return (
-    <LangContext.Provider value={{ lang, setLang, toggle, currency, setCurrency, theme, setTheme, fc, fck }}>
+    <LangContext.Provider value={value}>
       {children}
     </LangContext.Provider>
   );

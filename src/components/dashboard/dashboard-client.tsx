@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useDashboard } from "@/lib/hooks/use-dashboard";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { StatsCards } from "./stats-cards";
-import { IncomeExpenseChart } from "./income-expense-chart";
 import { RecentTransactions } from "./recent-transactions";
 import { BudgetProgressList } from "./budget-progress-list";
 import { SavingsGoalsOverview } from "./savings-goals-overview";
-import { CategoryBreakdown } from "./category-breakdown";
 import { BudgetAlerts } from "./budget-alerts";
 import { InsightsPanel } from "./insights-panel";
 import { MonthInsights } from "./month-insights";
@@ -19,6 +18,18 @@ import { OnboardingModal } from "@/components/onboarding/onboarding-modal";
 import { StatCardSkeleton, ChartSkeleton, TransactionRowSkeleton } from "@/components/shared/skeleton";
 import { format, parseISO, addMonths } from "date-fns";
 import { ptBR, enUS } from "date-fns/locale";
+
+// Recharts (~150-200KB w/ d3) is the heaviest dependency on this route. Load the
+// two chart widgets lazily so it lands in a separate async chunk instead of the
+// dashboard's first-load JS. ssr:false because the charts render client-only.
+const IncomeExpenseChart = dynamic(
+  () => import("./income-expense-chart").then((m) => m.IncomeExpenseChart),
+  { ssr: false, loading: () => <div className="glass-card p-5"><ChartSkeleton height={220} /></div> },
+);
+const CategoryBreakdown = dynamic(
+  () => import("./category-breakdown").then((m) => m.CategoryBreakdown),
+  { ssr: false, loading: () => <div className="glass-card p-5"><ChartSkeleton height={200} /></div> },
+);
 
 export function DashboardClient() {
   const { lang } = useLang();
