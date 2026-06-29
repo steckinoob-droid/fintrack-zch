@@ -38,7 +38,6 @@ function DonutChart({ animate }: { animate: boolean }) {
     <svg width="88" height="88" viewBox="0 0 88 88" className="shrink-0">
       {slices.map((s, i) => {
         const dashArray = (s.pct / 100) * circ;
-        const dashOffset = circ - (animate ? 0 : dashArray);
         const rotation = (s.offset / 100) * 360 - 90;
         return (
           <circle
@@ -65,8 +64,7 @@ function DonutChart({ animate }: { animate: boolean }) {
 
 /* ── Main component ───────────────────────────────────────────── */
 
-const PHASES = [0, 1, 2, 3, 4] as const;
-type Phase = (typeof PHASES)[number];
+type Phase = 0 | 1 | 2 | 3 | 4;
 
 const PHASE_MS = [0, 700, 1350, 1950, 2500];
 
@@ -83,6 +81,7 @@ export function ImportMagicHero() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const timersRef = timers.current;
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReduced) {
       setPhase(4);
@@ -95,7 +94,7 @@ export function ImportMagicHero() {
           // Play through all phases once, then stay static at phase 4
           PHASE_MS.forEach((ms, i) => {
             const t = setTimeout(() => setPhase(i as Phase), ms + 80);
-            timers.current.push(t);
+            timersRef.push(t);
           });
         }
       },
@@ -104,7 +103,7 @@ export function ImportMagicHero() {
     obs.observe(el);
     return () => {
       obs.disconnect();
-      timers.current.forEach(clearTimeout);
+      timersRef.forEach(clearTimeout);
     };
   }, []);
 
