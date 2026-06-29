@@ -85,6 +85,12 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount
 
+  // Keep <html lang> in sync with the active UI language so screen readers
+  // announce content with the correct pronunciation (WCAG 3.1.1 / 3.1.2).
+  useEffect(() => {
+    document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
+  }, [lang]);
+
   const toggle = useCallback(() => {
     setLang(lang === "en" ? "pt" : "en");
   }, [lang, setLang]);

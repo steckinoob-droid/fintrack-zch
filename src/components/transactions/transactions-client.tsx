@@ -656,7 +656,7 @@ export function TransactionsClient() {
             <div className="sm:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                  <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label={common.moreActions}>
                     <MoreVertical size={15} />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1085,10 +1085,12 @@ export function TransactionsClient() {
                       {/* Actions — card-actions: always visible on touch, hover-revealed on desktop */}
                       <div className="card-actions shrink-0">
                         <button onClick={() => { setEditTx(t); setDialogOpen(true); }}
+                          aria-label={common.edit}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                           <Pencil size={13} />
                         </button>
                         <button onClick={() => handleDelete(t.id)}
+                          aria-label={common.delete}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
                           <Trash2 size={13} />
                         </button>

@@ -134,7 +134,13 @@ export function LoginForm() {
             autoComplete="email"
             {...register("email")}
             aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? "login-email-error" : undefined}
           />
+          {errors.email && (
+            <p id="login-email-error" role="alert" className="text-xs text-destructive">
+              {tx.errors.emailInvalid}
+            </p>
+          )}
         </div>
 
         {/* Password */}
@@ -157,6 +163,7 @@ export function LoginForm() {
               className="pr-10"
               {...register("password")}
               aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? "login-password-error" : undefined}
             />
             <button
               type="button"
@@ -167,6 +174,11 @@ export function LoginForm() {
               {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
+          {errors.password && (
+            <p id="login-password-error" role="alert" className="text-xs text-destructive">
+              {tx.errors.passwordMin}
+            </p>
+          )}
         </div>
 
         {/* Submit */}

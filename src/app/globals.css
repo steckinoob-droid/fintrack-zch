@@ -316,7 +316,8 @@
       opacity: 0;
       transition: opacity 0.15s ease;
     }
-    .group:hover .card-actions {
+    .group:hover .card-actions,
+    .group:focus-within .card-actions {
       opacity: 1;
     }
   }

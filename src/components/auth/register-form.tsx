@@ -227,7 +227,13 @@ export function RegisterForm() {
           autoComplete="name"
           {...register("name")}
           aria-invalid={!!errors.name}
+          aria-describedby={errors.name ? "register-name-error" : undefined}
         />
+        {errors.name && (
+          <p id="register-name-error" role="alert" className="text-xs text-destructive">
+            {tx.errors.nameMin}
+          </p>
+        )}
       </div>
 
       {/* Email + duplicate-email alert */}
@@ -239,13 +245,19 @@ export function RegisterForm() {
           placeholder={tx.emailPlaceholder}
           autoComplete="email"
           {...register("email")}
-          aria-invalid={emailBlock === "inUse"}
+          aria-invalid={emailBlock === "inUse" || !!errors.email}
+          aria-describedby={errors.email && emailBlock !== "inUse" ? "register-email-error" : undefined}
           className={
             emailBlock === "inUse"
               ? "border-red-500/40 focus-visible:ring-red-500/25"
               : undefined
           }
         />
+        {errors.email && emailBlock !== "inUse" && (
+          <p id="register-email-error" role="alert" className="text-xs text-destructive">
+            {tx.errors.emailInvalid}
+          </p>
+        )}
 
         {emailBlock === "inUse" && (
           <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 space-y-3 animate-slide-up">
@@ -301,6 +313,7 @@ export function RegisterForm() {
             className="pr-10"
             {...register("password")}
             aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? "register-password-error" : undefined}
           />
           <button
             type="button"
@@ -311,6 +324,11 @@ export function RegisterForm() {
             {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         </div>
+        {errors.password && (
+          <p id="register-password-error" role="alert" className="text-xs text-destructive">
+            {tx.errors.passwordMin}
+          </p>
+        )}
       </div>
 
       {/* Submit */}
