@@ -7,6 +7,11 @@ import {
 import type { MonthlyStats } from "@/lib/types";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
+import { ChartTooltip } from "@/components/shared/chart-tooltip";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import {
+  CHART_INCOME, CHART_EXPENSE, CHART_GRID, CHART_CURSOR,
+} from "@/lib/utils/chart-colors";
 
 interface Props { monthlyStats: MonthlyStats[] }
 
@@ -14,39 +19,7 @@ export function IncomeExpenseChart({ monthlyStats }: Props) {
   const { lang, fc, fck } = useLang();
   const tx  = appT[lang].dashboard;
   const rTx = appT[lang].reports;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const TooltipContent = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div className="glass-card p-3 border border-border/60 text-xs space-y-1.5 min-w-[160px]">
-        <p className="font-semibold text-foreground capitalize">{label}</p>
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {payload.map((p: any) => (
-          <div key={p.dataKey} className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.fill }} />
-              <span className="text-muted-foreground">{p.name}</span>
-            </div>
-            <span className="font-medium tabular-nums" style={{ color: p.fill }}>
-              {fc(p.value)}
-            </span>
-          </div>
-        ))}
-        {/* Balance line */}
-        {payload.length === 2 && (
-          <div className="pt-1 border-t border-border/30 flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">{rTx.balance}</span>
-            <span className={`font-semibold tabular-nums ${
-              payload[0].value - payload[1].value >= 0 ? "text-emerald-400" : "text-red-400"
-            }`}>
-              {fc(payload[0].value - payload[1].value)}
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const reduced = useReducedMotion();
 
   return (
     <div className="glass-card p-5 h-full">
@@ -61,7 +34,7 @@ export function IncomeExpenseChart({ monthlyStats }: Props) {
           barGap={3}
           barCategoryGap="30%"
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} strokeOpacity={0.4} vertical={false} />
           <XAxis
             dataKey="month"
             tick={{ fill: "hsl(215 16% 60%)", fontSize: 11 }}
@@ -76,8 +49,8 @@ export function IncomeExpenseChart({ monthlyStats }: Props) {
             width={60}
           />
           <Tooltip
-            content={<TooltipContent />}
-            cursor={{ fill: "rgba(255,255,255,0.04)" }}
+            content={<ChartTooltip valueFormatter={fc} balanceLabel={rTx.balance} />}
+            cursor={{ fill: CHART_CURSOR }}
           />
           <Legend
             iconType="circle"
@@ -89,18 +62,24 @@ export function IncomeExpenseChart({ monthlyStats }: Props) {
           <Bar
             dataKey="income"
             name={rTx.incomeLabel}
-            fill="#10b981"
+            fill={CHART_INCOME}
             radius={[3, 3, 0, 0]}
             maxBarSize={28}
             opacity={0.9}
+            isAnimationActive={!reduced}
+            animationDuration={350}
+            animationEasing="ease-out"
           />
           <Bar
             dataKey="expenses"
             name={rTx.expenses_label}
-            fill="#ef4444"
+            fill={CHART_EXPENSE}
             radius={[3, 3, 0, 0]}
             maxBarSize={28}
             opacity={0.9}
+            isAnimationActive={!reduced}
+            animationDuration={350}
+            animationEasing="ease-out"
           />
         </BarChart>
       </ResponsiveContainer>

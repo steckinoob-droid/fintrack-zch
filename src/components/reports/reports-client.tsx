@@ -22,8 +22,14 @@ import { differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { usePlan } from "@/lib/hooks/use-plan";
 import { UpgradeModal } from "@/components/shared/upgrade-modal";
+import { ChartTooltip } from "@/components/shared/chart-tooltip";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import {
+  CHART_INCOME, CHART_EXPENSE, CHART_PALETTE,
+  CHART_GRID, CHART_CURSOR, CHART_REFERENCE_LINE,
+} from "@/lib/utils/chart-colors";
 
-const COLORS = ["#10b981","#6366f1","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316"];
+const COLORS = CHART_PALETTE;
 
 type ReportPeriod = "3m" | "6m" | "12m" | "ytd" | "all" | "custom";
 
@@ -36,33 +42,11 @@ const PERIOD_OPTIONS: { value: ReportPeriod; labelEn: string; labelPt: string }[
   { value: "custom", labelEn: "Custom",    labelPt: "Personalizado"  },
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ChartTooltip({ active, payload, label, formatter }: any) {
-  if (!active || !payload?.length) return null;
-  const fmt = formatter ?? ((n: number) => n.toFixed(2));
-  return (
-    <div className="glass-card p-3 border border-border/60 text-xs space-y-1.5 min-w-[160px]">
-      <p className="font-semibold text-foreground capitalize">{label}</p>
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      {payload.map((p: any) => (
-        <div key={p.dataKey ?? p.name} className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
-            <span className="text-muted-foreground">{p.name}</span>
-          </div>
-          <span className="font-medium tabular-nums" style={{ color: p.color }}>
-            {typeof p.value === "number" ? fmt(p.value) : p.value}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function ReportsClient() {
   const { lang, fc, fck } = useLang();
   const tx = appT[lang].reports;
   const plan = usePlan();
+  const reduced = useReducedMotion();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals,        setGoals]        = useState<SavingsGoal[]>([]);
@@ -308,13 +292,13 @@ export function ReportsClient() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} strokeOpacity={0.4} vertical={false} />
                   <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
                   <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
-                  <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Tooltip content={<ChartTooltip valueFormatter={fc} balanceLabel={tx.balance} />} cursor={{ fill: CHART_CURSOR }} />
                   <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 12 }}>{v}</span>} />
-                  <Bar dataKey="income"   name={tx.incomeLabel}     fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expenses" name={tx.expenses_label}  fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="income"   name={tx.incomeLabel}     fill={CHART_INCOME}  radius={[4, 4, 0, 0]} isAnimationActive={!reduced} animationDuration={350} animationEasing="ease-out" />
+                  <Bar dataKey="expenses" name={tx.expenses_label}  fill={CHART_EXPENSE} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} animationDuration={350} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -329,13 +313,13 @@ export function ReportsClient() {
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} strokeOpacity={0.4} vertical={false} />
                   <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
                   <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
-                  <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeDasharray="4 3" />
-                  <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]}>
-                    {monthlyData.map((d, i) => <Cell key={i} fill={d.balance >= 0 ? "#10b981" : "#ef4444"} />)}
+                  <Tooltip content={<ChartTooltip valueFormatter={fc} />} cursor={{ fill: CHART_CURSOR }} />
+                  <ReferenceLine y={0} stroke={CHART_REFERENCE_LINE} strokeWidth={1.5} strokeDasharray="4 3" />
+                  <Bar dataKey="balance" name={tx.balance} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} animationDuration={350} animationEasing="ease-out">
+                    {monthlyData.map((d, i) => <Cell key={i} fill={d.balance >= 0 ? CHART_INCOME : CHART_EXPENSE} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -355,10 +339,10 @@ export function ReportsClient() {
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
-                    <Pie data={categoryData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" nameKey="name">
+                    <Pie data={categoryData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" nameKey="name" isAnimationActive={!reduced} animationDuration={350} animationEasing="ease-out">
                       {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
                     </Pie>
-                    <Tooltip content={<ChartTooltip formatter={fc} />} />
+                    <Tooltip content={<ChartTooltip valueFormatter={fc} />} />
                     <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: "hsl(215 16% 75%)", fontSize: 11 }}>{v}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -376,8 +360,8 @@ export function ReportsClient() {
                   <BarChart data={categoryData} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
                     <XAxis type="number" tick={{ ...axisStyle, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fck} />
                     <YAxis type="category" dataKey="name" tick={{ ...axisStyle, fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-                    <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                    <Bar dataKey="value" name={tx.total} radius={[0, 4, 4, 0]}>
+                    <Tooltip content={<ChartTooltip valueFormatter={fc} />} cursor={{ fill: CHART_CURSOR }} />
+                    <Bar dataKey="value" name={tx.total} radius={[0, 4, 4, 0]} isAnimationActive={!reduced} animationDuration={350} animationEasing="ease-out">
                       {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Bar>
                   </BarChart>
@@ -398,11 +382,11 @@ export function ReportsClient() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={incomeData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} strokeOpacity={0.4} vertical={false} />
                   <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
                   <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={fck} width={yAxisWidth} />
-                  <Tooltip content={<ChartTooltip formatter={fc} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  <Bar dataKey="value" name={tx.incomeLabel} fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Tooltip content={<ChartTooltip valueFormatter={fc} />} cursor={{ fill: CHART_CURSOR }} />
+                  <Bar dataKey="value" name={tx.incomeLabel} fill={CHART_INCOME} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} animationDuration={350} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -1,24 +1,35 @@
 "use client";
 
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+import type { PieLabelRenderProps, TooltipContentProps } from "recharts";
+import type {
+  NameType,
+  ValueType,
+} from "recharts/types/component/DefaultTooltipContent";
 import { PieChart as PieChartIcon } from "lucide-react";
 import type { Transaction } from "@/lib/types";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import { CHART_PALETTE } from "@/lib/utils/chart-colors";
 
-// Fallback palette for categories without a set color
-const FALLBACK_COLORS = [
-  "#10b981", "#6366f1", "#f59e0b", "#ef4444",
-  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316",
-];
+// Fallback palette (theme-aware tokens) for categories without a set color.
+const FALLBACK_COLORS = CHART_PALETTE;
 
 const RADIAN = Math.PI / 180;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
+// Recharts injects these props at render time via `label={<CustomLabel />}`,
+// so the props are partial here.
+function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: Partial<PieLabelRenderProps>) {
+  if (
+    percent == null || cx == null || cy == null || midAngle == null ||
+    innerRadius == null || outerRadius == null
+  ) return null;
   if (percent < 0.07) return null;
-  const r = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + r * Math.cos(-midAngle * RADIAN);
-  const y = cy + r * Math.sin(-midAngle * RADIAN);
+  const cxN = Number(cx);
+  const cyN = Number(cy);
+  const r = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;
+  const x = cxN + r * Math.cos(-midAngle * RADIAN);
+  const y = cyN + r * Math.sin(-midAngle * RADIAN);
   return (
     <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central"
       fontSize={10} fontWeight={600}>
@@ -33,18 +44,23 @@ interface Props { transactions: Transaction[] }
 export function CategoryBreakdown({ transactions }: Props) {
   const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
+  const reduced = useReducedMotion();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const TooltipContent = ({ active, payload }: any) => {
+  const TooltipContent = ({
+    active, payload,
+  }: Partial<TooltipContentProps<ValueType, NameType>>) => {
     if (!active || !payload?.length) return null;
     const d = payload[0];
+    const color = (d.payload as ChartEntry | undefined)?.color;
     return (
       <div className="glass-card p-3 border border-border/60 text-xs">
         <div className="flex items-center gap-2 mb-1">
-          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.payload.color }} />
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
           <span className="font-semibold text-foreground">{d.name}</span>
         </div>
-        <span className="text-muted-foreground">{fc(d.value)}</span>
+        <span className="text-muted-foreground">
+          {typeof d.value === "number" ? fc(d.value) : String(d.value ?? "")}
+        </span>
       </div>
     );
   };
@@ -121,6 +137,9 @@ export function CategoryBreakdown({ transactions }: Props) {
             nameKey="name"
             labelLine={false}
             label={<CustomLabel />}
+            isAnimationActive={!reduced}
+            animationDuration={350}
+            animationEasing="ease-out"
           >
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.color} stroke="transparent" />

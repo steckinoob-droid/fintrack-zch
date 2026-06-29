@@ -79,6 +79,12 @@
     --chart-3: 38 92% 50%;
     --chart-4: 340 75% 55%;
     --chart-5: 280 65% 60%;
+    --chart-6: 172 66% 45%;
+    --chart-7: 25 90% 55%;
+    /* Semantic chart slots: income reuses --chart-1 (primary green);
+       --chart-negative is a dedicated expense/negative red tuned to read
+       clearly on the dark surface (distinct from --destructive's error red). */
+    --chart-negative: 0 74% 60%;
   }
 
   /* ── Light mode overrides ─────────────────────────────────────────────────── */
@@ -107,6 +113,11 @@
     --chart-3: 38 92% 45%;
     --chart-4: 340 75% 52%;
     --chart-5: 280 65% 55%;
+    /* Darker teal/orange so slices keep ≥3:1 contrast on white. */
+    --chart-6: 172 70% 36%;
+    --chart-7: 25 85% 46%;
+    /* Slightly darker red so expense bars keep ≥3:1 contrast on white. */
+    --chart-negative: 0 72% 48%;
   }
 
   * {
@@ -280,14 +291,10 @@
   }
 
   /* ── Recharts light-mode fixes ────────────────────────────────────────────
-     Recharts inlines SVG colors which are dark-only; CSS can still override
-     SVG presentation attributes when specificity is sufficient. */
-  .light .recharts-cartesian-grid line {
-    stroke: rgba(0, 0, 0, 0.07) !important;
-  }
-  .light .recharts-tooltip-cursor {
-    fill: rgba(0, 0, 0, 0.04) !important;
-  }
+     Grid stroke and tooltip cursor are now token-driven on the components
+     (hsl(var(--border))), so the old white-on-white patches are gone.
+     Axis tick fills are still set via JS inline styles (a dark-only hsl),
+     which CSS can override when specificity is sufficient. */
   .light .recharts-xAxis .recharts-cartesian-axis-tick text,
   .light .recharts-yAxis .recharts-cartesian-axis-tick text {
     fill: hsl(var(--muted-foreground)) !important;
