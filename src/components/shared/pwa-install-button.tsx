@@ -1,9 +1,11 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { Download, X, Share, Monitor } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils/cn";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -153,16 +155,33 @@ export function PwaInstallButton({ variant = "sidebar" }: { variant?: "sidebar" 
 /* ── Shared modal shell ────────────────────────────────────────────────────── */
 
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // useId(): multiple PwaInstallButton instances (sidebar/header/banner) may mount,
+  // so the title id must be unique per instance for aria-labelledby.
+  const titleId = useId();
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl bg-card border border-border/50 p-5 space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-foreground">{title}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent
+        aria-labelledby={titleId}
+        // Anchor to the bottom (preserves the original items-end placement) and
+        // override the default centered/zoom positioning with a bottom slide.
+        className={cn(
+          "left-[50%] top-auto bottom-4 translate-x-[-50%] translate-y-0",
+          "max-w-sm rounded-2xl bg-card border border-border/50 p-5 space-y-4",
+          "data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100",
+          "data-[state=closed]:slide-out-to-left-1/2 data-[state=open]:slide-in-from-left-1/2",
+          "data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2"
+        )}
+      >
+        {/* DialogTitle registers the accessible title so Radix emits no warning;
+            asChild keeps the original <h3> element/styling. The id is consumed by
+            aria-labelledby above. The built-in DialogContent close (X) handles
+            Escape, backdrop and the X button. */}
+        <DialogTitle asChild>
+          <h3 id={titleId} className="font-semibold text-foreground pr-8">{title}</h3>
+        </DialogTitle>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
