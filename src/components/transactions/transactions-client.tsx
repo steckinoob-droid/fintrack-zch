@@ -961,7 +961,17 @@ export function TransactionsClient() {
         ) : (
           <div>
             {grouped.map(([dateKey, rows]) => (
-              <div key={dateKey}>
+              <div
+                key={dateKey}
+                className="cv-auto"
+                /* contain-intrinsic-size estimates this group's real height so
+                   content-visibility:auto can skip offscreen layout/paint
+                   WITHOUT causing scrollbar jump. Estimate = header (~34px) +
+                   rows × ~64px/row (px-4 py-3 row with an 8px icon + 2 text
+                   lines). Close-enough placeholder; the browser uses the real
+                   size once the group scrolls into view. */
+                style={{ containIntrinsicSize: `auto ${34 + rows.length * 64}px` }}
+              >
                 {/* Date group header */}
                 {(() => {
                   const net = rows.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);

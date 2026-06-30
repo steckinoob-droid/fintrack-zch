@@ -328,6 +328,21 @@
       opacity: 1;
     }
   }
+
+  /* ── Lightweight virtualization via content-visibility ────────────────────
+     Applied to repeated, offscreen-heavy blocks (e.g. each date group in the
+     long transaction list). The browser skips layout/paint/blur for groups
+     outside the viewport, cutting scroll/INP cost on long lists — with ZERO
+     visual change when on screen.
+     `contain-intrinsic-size` MUST be supplied per element (inline) as a close
+     estimate of the real height, otherwise the scrollbar jumps as groups are
+     skipped/measured. We pass `content-visibility: auto` here and set the
+     intrinsic height inline based on the group's row count.
+     Progressive enhancement: browsers without support simply ignore both
+     declarations and render normally. */
+  .cv-auto {
+    content-visibility: auto;
+  }
 }
 
 /* ── Scroll reveal ────────────────────────────────────────────────────────────
