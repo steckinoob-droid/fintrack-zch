@@ -60,7 +60,9 @@
     --card-foreground: 210 40% 98%;
     --popover: 222 18% 10%;
     --popover-foreground: 210 40% 98%;
-    --primary: 160 84% 39%;
+    /* Darkened from 39% so white text on the primary button reaches WCAG AA
+       (~4.7:1). Chart greens keep their own brighter --chart-1 fill. */
+    --primary: 160 84% 28%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 5% 17%;
     --secondary-foreground: 210 40% 98%;
@@ -72,7 +74,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 217 19% 15%;
     --input: 217 19% 15%;
-    --ring: 160 84% 39%;
+    --ring: 160 84% 28%;
     --radius: 0.75rem;
     --chart-1: 160 84% 39%;
     --chart-2: 240 75% 60%;
@@ -95,7 +97,8 @@
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 160 84% 32%;
+    /* Darkened from 32% for WCAG AA on white text + green links on white. */
+    --primary: 160 84% 28%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 20% 94%;
     --secondary-foreground: 222 47% 11%;
@@ -107,7 +110,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 214 20% 88%;
     --input: 214 20% 88%;
-    --ring: 160 84% 32%;
+    --ring: 160 84% 28%;
     --chart-1: 160 84% 32%;
     --chart-2: 240 75% 58%;
     --chart-3: 38 92% 45%;
