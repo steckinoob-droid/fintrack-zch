@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { PieLabelRenderProps, TooltipContentProps } from "recharts";
 import type {
@@ -41,47 +42,56 @@ function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: Pa
 interface ChartEntry { name: string; value: number; color: string }
 interface Props { transactions: Transaction[] }
 
+// Hoisted out of the component so it is not recreated on every render. Recharts
+// injects `active`/`payload` at render time; `fc` (the currency formatter) is
+// passed explicitly so this stays a stable module-level component.
+function CategoryTooltip({
+  active, payload, fc,
+}: Partial<TooltipContentProps<ValueType, NameType>> & { fc: (v: number) => string }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0];
+  const color = (d.payload as ChartEntry | undefined)?.color;
+  return (
+    <div className="glass-card p-3 border border-border/60 text-xs">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span className="font-semibold text-foreground">{d.name}</span>
+      </div>
+      <span className="text-muted-foreground">
+        {typeof d.value === "number" ? fc(d.value) : String(d.value ?? "")}
+      </span>
+    </div>
+  );
+}
+
 export function CategoryBreakdown({ transactions }: Props) {
   const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
   const reduced = useReducedMotion();
 
-  const TooltipContent = ({
-    active, payload,
-  }: Partial<TooltipContentProps<ValueType, NameType>>) => {
-    if (!active || !payload?.length) return null;
-    const d = payload[0];
-    const color = (d.payload as ChartEntry | undefined)?.color;
-    return (
-      <div className="glass-card p-3 border border-border/60 text-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-          <span className="font-semibold text-foreground">{d.name}</span>
-        </div>
-        <span className="text-muted-foreground">
-          {typeof d.value === "number" ? fc(d.value) : String(d.value ?? "")}
-        </span>
-      </div>
-    );
-  };
-
-  // Build expense breakdown using real category colors
-  const expenseMap = new Map<string, ChartEntry>();
-  let fallbackIdx = 0;
-  for (const t of transactions) {
-    if (t.type !== "expense" || !t.category) continue;
-    const key   = t.category.name;
-    const color = t.category.color || FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
-    const cur   = expenseMap.get(key);
-    if (cur) {
-      expenseMap.set(key, { ...cur, value: cur.value + t.amount });
-    } else {
-      expenseMap.set(key, { name: key, value: t.amount, color });
+  // Build expense breakdown using real category colors. Aggregation depends only
+  // on `transactions`, so memoize it — it used to recompute on every render
+  // (e.g. when an unrelated parent state changed). Output is byte-identical:
+  // same single-pass grouping, same fallback-color assignment order, same
+  // `.sort((a,b) => b.value - a.value).slice(0, 7)`.
+  const data = useMemo(() => {
+    const expenseMap = new Map<string, ChartEntry>();
+    let fallbackIdx = 0;
+    for (const t of transactions) {
+      if (t.type !== "expense" || !t.category) continue;
+      const key   = t.category.name;
+      const color = t.category.color || FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length];
+      const cur   = expenseMap.get(key);
+      if (cur) {
+        expenseMap.set(key, { ...cur, value: cur.value + t.amount });
+      } else {
+        expenseMap.set(key, { name: key, value: t.amount, color });
+      }
     }
-  }
-  const data = Array.from(expenseMap.values())
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 7);
+    return Array.from(expenseMap.values())
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 7);
+  }, [transactions]);
 
   if (!data.length) {
     return (
@@ -145,7 +155,7 @@ export function CategoryBreakdown({ transactions }: Props) {
               <Cell key={i} fill={entry.color} stroke="transparent" />
             ))}
           </Pie>
-          <Tooltip content={<TooltipContent />} />
+          <Tooltip content={<CategoryTooltip fc={fc} />} />
         </PieChart>
       </ResponsiveContainer>
       <div className="mt-3 space-y-1.5">

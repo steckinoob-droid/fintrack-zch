@@ -131,41 +131,93 @@ export function ReportsClient() {
     return reportMonths[0].slice(0, 4) !== reportMonths[reportMonths.length - 1].slice(0, 4);
   }, [reportMonths]);
 
-  const monthlyData = useMemo(() => reportMonths.map(m => {
-    const { start, end } = getMonthRange(m);
-    const mTx = transactions.filter(t => t.date >= start && t.date <= end);
-    const income   = mTx.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
-    const expenses = mTx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    const month = spansMultipleYears ? formatShortMonthYear(m, lang) : formatShortMonth(m, lang);
-    return { month, income, expenses, balance: income - expenses };
-  }), [reportMonths, transactions, lang, spansMultipleYears]);
+  // ── Single-pass aggregation ──────────────────────────────────────────────
+  // Derive the three datasets (monthly bars, expense-by-category, income-by-
+  // category) without re-scanning the transactions list once per dataset.
+  //
+  // Aggregation (numbers + ordering) is computed in `aggregates`; the only
+  // language-dependent piece (the monthly bar label) is formatted afterwards in
+  // a separate memo so switching idioma never re-runs the heavy aggregation.
+  //
+  // Identical-output guarantees vs. the previous three independent memos:
+  //  • Monthly buckets are seeded from `reportMonths` in order, so months with
+  //    no movement still appear (zeroed) in the same position. Income/expense
+  //    are summed by scanning `transactions` once and routing each tx into its
+  //    month bucket via a date→month Map (same month-range boundaries as the
+  //    old per-month `getMonthRange` filter).
+  //  • categoryData / incomeData scan `periodTx` once each, group by category
+  //    name, then `.sort((a,b) => b.value - a.value)` — categoryData keeps the
+  //    `.slice(0, 8)`, incomeData keeps no slice. Same filters (expense/income
+  //    AND has category) as before.
+  const aggregates = useMemo(() => {
+    // Monthly buckets, seeded in display order so empty months stay visible.
+    const monthBuckets = new Map<string, { income: number; expenses: number }>();
+    for (const m of reportMonths) monthBuckets.set(m, { income: 0, expenses: 0 });
+
+    // Map each calendar month boundary to its reportMonths key for O(1) routing.
+    const ranges = reportMonths.map(m => ({ m, ...getMonthRange(m) }));
+    for (const t of transactions) {
+      // Find the bucket whose [start, end] window contains this tx. Ranges are
+      // non-overlapping; a tx outside every window is ignored (same as the old
+      // per-month filter, which only matched dates within that month's range).
+      for (const r of ranges) {
+        if (t.date >= r.start && t.date <= r.end) {
+          const b = monthBuckets.get(r.m)!;
+          if (t.type === "income") b.income += t.amount;
+          else if (t.type === "expense") b.expenses += t.amount;
+          break;
+        }
+      }
+    }
+
+    // Category buckets over the period window (single pass over periodTx).
+    const expenseByCat = new Map<string, number>();
+    const incomeByCat  = new Map<string, number>();
+    for (const t of periodTx) {
+      if (!t.category) continue;
+      if (t.type === "expense") {
+        expenseByCat.set(t.category.name, (expenseByCat.get(t.category.name) ?? 0) + t.amount);
+      } else if (t.type === "income") {
+        incomeByCat.set(t.category.name, (incomeByCat.get(t.category.name) ?? 0) + t.amount);
+      }
+    }
+
+    const monthly = reportMonths.map(m => {
+      const b = monthBuckets.get(m)!;
+      return { month: m, income: b.income, expenses: b.expenses, balance: b.income - b.expenses };
+    });
+
+    const categoryData = Array.from(expenseByCat.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value).slice(0, 8);
+
+    const incomeData = Array.from(incomeByCat.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    return { monthly, categoryData, incomeData };
+  }, [reportMonths, transactions, periodTx]);
+
+  // Apply the language-dependent month label as a cheap post-step. `month` in
+  // `aggregates.monthly` is the raw YYYY-MM key; format it for display here.
+  const monthlyData = useMemo(
+    () => aggregates.monthly.map(d => ({
+      ...d,
+      month: spansMultipleYears ? formatShortMonthYear(d.month, lang) : formatShortMonth(d.month, lang),
+    })),
+    [aggregates, spansMultipleYears, lang],
+  );
+
+  const categoryData = aggregates.categoryData;
+  const incomeData   = aggregates.incomeData;
 
   // True only when at least one month in the window has movement. When false the
   // Overview charts render an empty-state instead of blank axes (consistent with
   // the Expenses / Income tabs), so a period with no data never looks broken.
   const hasOverviewData = useMemo(
-    () => monthlyData.some(d => d.income !== 0 || d.expenses !== 0),
-    [monthlyData],
+    () => aggregates.monthly.some(d => d.income !== 0 || d.expenses !== 0),
+    [aggregates],
   );
-
-  // ── Category breakdowns (scoped to period) ───────────────────────────────
-  const categoryData = useMemo(() => {
-    const map = new Map<string, number>();
-    periodTx.filter(t => t.type === "expense" && t.category).forEach(t => {
-      map.set(t.category!.name, (map.get(t.category!.name) ?? 0) + t.amount);
-    });
-    return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value).slice(0, 8);
-  }, [periodTx]);
-
-  const incomeData = useMemo(() => {
-    const map = new Map<string, number>();
-    periodTx.filter(t => t.type === "income" && t.category).forEach(t => {
-      map.set(t.category!.name, (map.get(t.category!.name) ?? 0) + t.amount);
-    });
-    return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [periodTx]);
 
   const totalSaved  = goals.reduce((s, g) => s + g.current_amount, 0);
   const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);

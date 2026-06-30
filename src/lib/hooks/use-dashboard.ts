@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DashboardData, Transaction, Budget, SavingsGoal, MonthlyStats, Category } from "@/lib/types";
 import { getLast6Months, getMonthRange, formatShortMonth } from "@/lib/utils/date";
@@ -25,6 +25,15 @@ export function useDashboard(monthOffset = 0) {
   const { version }           = useDashboardRefresh();
   const { lang }              = useLang();
 
+  // Tracks the `version` for which the seed/recurrence WRITES have already run.
+  // These writes must fire on mount and on an explicit refresh (`version` bump),
+  // but NEVER as a side effect of changing `lang` (display-only) or `monthOffset`
+  // (view navigation). Neither write takes lang or monthOffset as input —
+  // seedDefaultCategories is a one-time setup and generateRecurringTransactions
+  // generates globally, not per-viewed-month — so gating them by `version`
+  // preserves their legitimate behavior while removing the spurious triggers.
+  const seededForVersion = useRef<number | null>(null);
+
   useEffect(() => {
     setLoading(true);
     async function load() {
@@ -33,12 +42,19 @@ export function useDashboard(monthOffset = 0) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        await seedDefaultCategories(supabase, user.id);
+        // Run the database writes only once per `version` (i.e. mount + explicit
+        // refresh). A `lang` or `monthOffset` change re-runs this effect for the
+        // READS below, but must not re-trigger these writes.
+        if (seededForVersion.current !== version) {
+          seededForVersion.current = version;
 
-        try {
-          await generateRecurringTransactions(supabase, user.id);
-        } catch (err) {
-          console.error("[dashboard] generateRecurringTransactions threw:", err);
+          await seedDefaultCategories(supabase, user.id);
+
+          try {
+            await generateRecurringTransactions(supabase, user.id);
+          } catch (err) {
+            console.error("[dashboard] generateRecurringTransactions threw:", err);
+          }
         }
 
         const now    = new Date();

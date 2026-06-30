@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useDashboard } from "@/lib/hooks/use-dashboard";
@@ -45,6 +45,11 @@ export function DashboardClient() {
   const monthLabel = format(viewedMonth, "MMMM yyyy", {
     locale: lang === "pt" ? ptBR : enUS,
   });
+
+  // `data.goals.slice(0, 3)` was recreated on every render, giving the memoized
+  // SavingsGoalsOverview a new array identity each time and defeating React.memo.
+  // Derive it once per `data.goals` change so the prop reference stays stable.
+  const topGoals = useMemo(() => data?.goals.slice(0, 3) ?? [], [data?.goals]);
 
   if (loading) {
     return (
@@ -137,7 +142,7 @@ export function DashboardClient() {
           <div className="space-y-4">
             <HealthScoreCard data={data} />
             <BudgetProgressList budgets={data.budgets} />
-            <SavingsGoalsOverview goals={data.goals.slice(0, 3)} monthSavings={data.monthSavings} />
+            <SavingsGoalsOverview goals={topGoals} monthSavings={data.monthSavings} />
           </div>
         </div>
       </div>

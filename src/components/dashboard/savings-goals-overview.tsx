@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Plus, PiggyBank } from "lucide-react";
 import type { SavingsGoal } from "@/lib/types";
@@ -9,7 +10,10 @@ import { appT } from "@/lib/i18n/app";
 
 interface Props { goals: SavingsGoal[]; monthSavings?: number }
 
-export function SavingsGoalsOverview({ goals, monthSavings }: Props) {
+// Memoized: parent (DashboardClient) re-renders on language changes; with a now
+// stable `goals` prop (derived via useMemo), this skips re-render when only
+// unrelated parent state changed. It still re-renders on its own useLang().
+export const SavingsGoalsOverview = memo(function SavingsGoalsOverview({ goals, monthSavings }: Props) {
   const { lang, fc } = useLang();
   const tx = appT[lang].dashboard;
 
@@ -96,4 +100,4 @@ export function SavingsGoalsOverview({ goals, monthSavings }: Props) {
       </div>
     </div>
   );
-}
+});
