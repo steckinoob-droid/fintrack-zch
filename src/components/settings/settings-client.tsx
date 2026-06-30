@@ -53,7 +53,7 @@ export function SettingsClient() {
   const plan = usePlan();
   const [backupUpgradeOpen, setBackupUpgradeOpen] = useState(false);
 
-  const CONFIRM_WORD = lang === "en" ? "DELETE" : "APAGAR";
+  const CONFIRM_WORD = tx.deleteAccountConfirmPlaceholder;
 
   const profileSchema = z.object({ name: z.string().min(2) });
   const passwordSchema = z.object({
@@ -92,7 +92,7 @@ export function SettingsClient() {
       body: JSON.stringify({ name: data.name, currency }),
     });
     if (!res.ok) {
-      toast.error(lang === "en" ? "Error updating profile" : "Erro ao atualizar perfil");
+      toast.error(tx.errUpdateProfile);
       return;
     }
     toast.success(tx.profileUpdated);
@@ -104,7 +104,7 @@ export function SettingsClient() {
   async function onChangePassword(data: PasswordData) {
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password: data.password });
-    if (error) { toast.error(lang === "en" ? "Error changing password" : "Erro ao alterar senha"); return; }
+    if (error) { toast.error(tx.errChangePassword); return; }
     toast.success(tx.passwordChanged);
     passwordForm.reset();
   }
@@ -135,7 +135,7 @@ export function SettingsClient() {
     // full data regardless of browser-client session state.
     const res = await fetch("/api/backup");
     if (!res.ok) {
-      toast.error(lang === "en" ? "Error exporting backup" : "Erro ao exportar backup");
+      toast.error(tx.errExportBackup);
       return;
     }
 
@@ -158,10 +158,8 @@ export function SettingsClient() {
     URL.revokeObjectURL(url);
 
     toast.success(
-      lang === "en" ? "Backup downloaded!" : "Backup baixado!",
-      lang === "en"
-        ? `${backup.transactions.length} transactions exported.`
-        : `${backup.transactions.length} transações exportadas.`
+      tx.backupDownloaded,
+      tx.backupDownloadedDesc.replace("{n}", String(backup.transactions.length))
     );
   }
 
@@ -177,9 +175,7 @@ export function SettingsClient() {
       if (!res.ok) throw new Error(await res.text());
     } catch (err) {
       console.error("[delete-account]", err);
-      toast.error(
-        lang === "en" ? "Error deleting account. Please try again." : "Erro ao apagar conta. Tente novamente."
-      );
+      toast.error(tx.errDeleteAccount);
       setDeleting(false);
       return;
     }
@@ -187,7 +183,7 @@ export function SettingsClient() {
     // Sign out locally — the auth record is already gone server-side
     const supabase = createClient();
     await supabase.auth.signOut();
-    toast.success(lang === "en" ? "Account deleted." : "Conta apagada.");
+    toast.success(tx.accountDeleted);
     router.push("/login");
   }
 
@@ -238,7 +234,7 @@ export function SettingsClient() {
                   : "border-border text-muted-foreground hover:text-foreground hover:border-border/80"
               )}>
               <Globe size={14} />
-              {l === "en" ? "English" : "Português"}
+              {l === "en" ? tx.langEnglish : tx.langPortuguese}
               {lang === l && <span className="ml-1 text-xs">✓</span>}
             </button>
           ))}
@@ -309,9 +305,7 @@ export function SettingsClient() {
           </h2>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">
-          {lang === "en"
-            ? "Export or restore all your account data as JSON."
-            : "Exporte ou restaure todos os seus dados em JSON."}
+          {tx.backupDescription}
         </p>
         <div className="flex flex-wrap gap-3">
           <button
@@ -320,7 +314,7 @@ export function SettingsClient() {
             className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download size={14} />
-            {lang === "en" ? "Export backup (JSON)" : "Exportar backup (JSON)"}
+            {tx.exportBackupBtn}
             {!isPro(plan) && plan !== null && (
               <span className="ml-1 inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-primary/12 px-1.5 py-0.5 text-[9px] font-bold text-primary leading-none">
                 <Star size={7} className="fill-current shrink-0" />
@@ -362,7 +356,7 @@ export function SettingsClient() {
                 className="pr-10" {...passwordForm.register("password")} />
               <button type="button" onClick={() => setShowPwd(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1} aria-label={showPwd ? (lang === "en" ? "Hide" : "Ocultar") : (lang === "en" ? "Show" : "Mostrar")}>
+                tabIndex={-1} aria-label={showPwd ? tx.hidePwd : tx.showPwd}>
                 {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
@@ -375,7 +369,7 @@ export function SettingsClient() {
                 className="pr-10" {...passwordForm.register("confirm")} />
               <button type="button" onClick={() => setShowConfirm(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1} aria-label={showConfirm ? (lang === "en" ? "Hide" : "Ocultar") : (lang === "en" ? "Show" : "Mostrar")}>
+                tabIndex={-1} aria-label={showConfirm ? tx.hidePwd : tx.showPwd}>
                 {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>

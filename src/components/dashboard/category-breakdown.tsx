@@ -101,12 +101,10 @@ export function CategoryBreakdown({ transactions }: Props) {
         </div>
         <div className="space-y-1.5">
           <p className="text-sm font-semibold text-foreground">
-            {lang === "en" ? "Nothing to show yet" : "Nada para mostrar ainda"}
+            {tx.categoryBreakdown.emptyTitle}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
-            {lang === "en"
-              ? "Add expenses and create budgets to see your category breakdown."
-              : "Registre despesas e crie orçamentos para ver sua distribuição por categoria."}
+            {tx.categoryBreakdown.emptyDesc}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 pt-1">
@@ -114,13 +112,13 @@ export function CategoryBreakdown({ transactions }: Props) {
             href="/budgets"
             className="inline-flex items-center justify-center gap-1.5 h-8 rounded-lg bg-primary/10 border border-primary/25 px-3 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
           >
-            {lang === "en" ? "Create budget" : "Criar orçamento"}
+            {tx.categoryBreakdown.createBudget}
           </a>
           <a
             href="/transactions"
             className="inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border/60 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-border transition-colors"
           >
-            {lang === "en" ? "Add expense" : "Adicionar despesa"}
+            {tx.categoryBreakdown.addExpense}
           </a>
         </div>
       </div>

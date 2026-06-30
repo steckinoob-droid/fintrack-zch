@@ -45,7 +45,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
     if (mode === "withdraw") {
       const actualRemoved = Math.min(added, goal.current_amount);
       if (actualRemoved <= 0) {
-        toast.error(lang === "en" ? "No balance to withdraw" : "Nenhum saldo para retirar");
+        toast.error(tx.noBalanceToWithdraw);
         return;
       }
       const newAmount = goal.current_amount - actualRemoved;
@@ -55,14 +55,14 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: goal.id, current_amount: newAmount }),
       });
-      if (!goalRes.ok) { toast.error(lang === "en" ? "Error withdrawing" : "Erro ao retirar"); return; }
+      if (!goalRes.ok) { toast.error(tx.errWithdrawing); return; }
 
       try {
         await fetch("/api/transactions/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: `${lang === "en" ? "Withdrawal" : "Retirada"}: ${goal.name}`,
+            title: `${tx.withdrawalTitle}: ${goal.name}`,
             amount: actualRemoved, type: "income",
             date: new Date().toISOString().slice(0, 10),
             category_id: null, notes: `goal_withdrawal:${goal.id}`,
@@ -72,8 +72,8 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
       } catch { /* silently skip */ }
 
       toast.success(
-        lang === "en" ? "Withdrawal made!" : "Retirada realizada!",
-        `${fc(actualRemoved)} ${lang === "en" ? "returned to your balance." : "devolvidos ao seu saldo."}`
+        tx.withdrawalMade,
+        `${fc(actualRemoved)} ${tx.returnedToBalance}`
       );
       reset();
       setMode("deposit");
@@ -86,7 +86,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
     const actualAdded = newAmount - goal.current_amount;
 
     if (actualAdded <= 0) {
-      toast.error(lang === "en" ? "Goal already completed!" : "Meta já atingida!");
+      toast.error(tx.goalAlreadyCompleted);
       return;
     }
 
@@ -95,14 +95,14 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: goal.id, current_amount: newAmount }),
     });
-    if (!goalRes.ok) { toast.error(lang === "en" ? "Error depositing" : "Erro ao depositar"); return; }
+    if (!goalRes.ok) { toast.error(tx.errDepositing); return; }
 
     try {
       await fetch("/api/transactions/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${lang === "en" ? "Deposit" : "Depósito"}: ${goal.name}`,
+          title: `${tx.depositTitle}: ${goal.name}`,
           amount: actualAdded, type: "saving",
           date: new Date().toISOString().slice(0, 10),
           category_id: null, notes: `goal_id:${goal.id}`,
@@ -115,16 +115,12 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
     const wasCappped = actualAdded < added;
     toast.success(
       isAutomatic
-        ? (lang === "en" ? "Auto-deposit set up!" : "Depósito automático configurado!")
+        ? tx.autoDepositSetUp
         : tx.success,
       wasCappped
-        ? (lang === "en"
-            ? `${fc(actualAdded)} deposited — goal completed! 🎉`
-            : `${fc(actualAdded)} depositados — meta concluída! 🎉`)
+        ? tx.depositedGoalCompleted.replace("{amount}", fc(actualAdded))
         : isAutomatic
-          ? (lang === "en"
-              ? `${fc(actualAdded)} will be deposited every month.`
-              : `${fc(actualAdded)} será depositado todo mês automaticamente.`)
+          ? tx.willBeDepositedMonthly.replace("{amount}", fc(actualAdded))
           : `${fc(actualAdded)} ${tx.successDesc}`
     );
     reset();
@@ -140,7 +136,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
         <DialogHeader>
           <DialogTitle>
             {mode === "withdraw"
-              ? (lang === "en" ? "Withdraw from goal" : "Retirar da meta")
+              ? tx.withdrawFromGoal
               : tx.title}
           </DialogTitle>
         </DialogHeader>
@@ -174,7 +170,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
               )}
             >
               <ArrowDownLeft size={14} />
-              {lang === "en" ? "Deposit" : "Depositar"}
+              {tx.depositBtn}
             </button>
             <button
               type="button"
@@ -188,7 +184,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
               )}
             >
               <ArrowUpRight size={14} />
-              {lang === "en" ? "Withdraw" : "Retirar"}
+              {tx.withdrawBtn}
             </button>
           </div>
 
@@ -196,7 +192,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
           <form id="deposit-form" onSubmit={handleSubmit(onSubmit)} className="space-y-1.5">
             <Label htmlFor="deposit-amount">
               {mode === "withdraw"
-                ? (lang === "en" ? `Amount (max ${fc(goal.current_amount)})` : `Valor (máx. ${fc(goal.current_amount)})`)
+                ? tx.amountMaxLabel.replace("{max}", fc(goal.current_amount))
                 : `${tx.amount} *`}
             </Label>
             <Input
@@ -229,12 +225,10 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
               </div>
               <div className="flex-1 text-left">
                 <p className="font-medium leading-none">
-                  {lang === "en" ? "Repeat every month" : "Repetir todo mês"}
+                  {tx.repeatEveryMonth}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                  {lang === "en"
-                    ? "This amount will be deposited automatically on the same day each month"
-                    : "Este valor será depositado automaticamente todo mês no mesmo dia"}
+                  {tx.repeatEveryMonthDesc}
                 </p>
               </div>
               <div className={cn("h-5 w-9 rounded-full transition-colors relative shrink-0", isAutomatic ? "bg-primary" : "bg-muted-foreground/30")}>
@@ -249,9 +243,7 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
           {/* Info when withdrawing */}
           {mode === "withdraw" && (
             <p className="text-xs text-amber-400/80 bg-amber-500/8 border border-amber-500/20 rounded-lg px-3 py-2">
-              {lang === "en"
-                ? "The withdrawn amount will be added back to your account balance as income."
-                : "O valor retirado será devolvido ao seu saldo como receita."}
+              {tx.withdrawInfo}
             </p>
           )}
         </div>
@@ -269,9 +261,9 @@ export function GoalDepositDialog({ open, onOpenChange, goal, onSuccess }:
             {isSubmitting
               ? <><Loader2 size={14} className="animate-spin" /> {tx.submitting}</>
               : mode === "withdraw"
-                ? (lang === "en" ? "Withdraw" : "Confirmar retirada")
+                ? tx.confirmWithdraw
                 : isAutomatic
-                  ? (lang === "en" ? "Set up auto-deposit" : "Configurar depósito automático")
+                  ? tx.setUpAutoDeposit
                   : tx.submit}
           </Button>
         </DialogFooter>

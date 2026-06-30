@@ -139,19 +139,17 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: transaction!.id, ...payload }),
       });
-      if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+      if (!res.ok) { toast.error(tx.errSaving); return; }
     } else {
       const res = await fetch("/api/transactions/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
+      if (!res.ok) { toast.error(tx.errSaving); return; }
     }
 
-    toast.success(isEdit
-      ? (lang === "en" ? "Transaction updated" : "Transação atualizada")
-      : (lang === "en" ? "Transaction added"   : "Transação adicionada"));
+    toast.success(isEdit ? tx.txUpdated : tx.txAdded);
     onSuccess();
   }
 
@@ -174,7 +172,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, categories,
             <div className="flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/8 px-3 py-2.5">
               <PiggyBank size={14} className="text-indigo-400 shrink-0" />
               <p className="text-xs text-indigo-400 font-medium">
-                {lang === "en" ? "Goal deposit — type is locked" : "Aporte em meta — tipo não pode ser alterado"}
+                {tx.goalDepositLocked}
               </p>
             </div>
           ) : (
