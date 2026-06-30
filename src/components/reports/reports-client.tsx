@@ -228,11 +228,9 @@ export function ReportsClient() {
 
   const periodLabel = PERIOD_OPTIONS.find(p => p.value === effectivePeriod)!;
   const periodText  = effectivePeriod === "custom"
-    ? (lang === "en" ? `${customFrom} → ${customTo}` : `${customFrom} → ${customTo}`)
+    ? `${customFrom} → ${customTo}`
     : (lang === "en" ? periodLabel.labelEn : periodLabel.labelPt);
-  const dynamicDesc = lang === "en"
-    ? `Detailed analysis · ${periodText}`
-    : `Análise detalhada · ${periodText}`;
+  const dynamicDesc = `${tx.dynamicDescPrefix} · ${periodText}`;
 
   if (loading || plan === null) {
     return (
@@ -297,7 +295,7 @@ export function ReportsClient() {
         {effectivePeriod === "custom" && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/20 border border-border/40 flex-wrap">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">{lang === "en" ? "From" : "De"}</span>
+              <span className="text-xs text-muted-foreground">{tx.from}</span>
               <input
                 type="month"
                 value={customFrom}
@@ -307,7 +305,7 @@ export function ReportsClient() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">{lang === "en" ? "to" : "até"}</span>
+              <span className="text-xs text-muted-foreground">{tx.to}</span>
               <input
                 type="month"
                 value={customTo}
@@ -318,7 +316,7 @@ export function ReportsClient() {
               />
             </div>
             <span className="text-xs text-muted-foreground">
-              · {reportMonths.length} {lang === "en" ? "months" : "meses"}
+              · {reportMonths.length} {tx.months}
             </span>
           </div>
         )}
@@ -340,7 +338,7 @@ export function ReportsClient() {
             <p className="text-xs text-muted-foreground mb-4">{tx.incomeVsExpensesDesc} · {periodText}</p>
             {!hasOverviewData ? (
               <div className="flex items-center justify-center h-[220px] text-xs text-muted-foreground">
-                {lang === "en" ? "No transactions in this period" : "Sem transações neste período"}
+                {tx.noTransactionsPeriod}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -361,7 +359,7 @@ export function ReportsClient() {
             <p className="text-xs text-muted-foreground mb-4">{tx.monthlyBalanceDesc}</p>
             {!hasOverviewData ? (
               <div className="flex items-center justify-center h-[180px] text-xs text-muted-foreground">
-                {lang === "en" ? "No transactions in this period" : "Sem transações neste período"}
+                {tx.noTransactionsPeriod}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
@@ -387,7 +385,7 @@ export function ReportsClient() {
               <p className="text-xs text-muted-foreground mb-4">{tx.byCategoryDesc} · {periodText}</p>
               {categoryData.length === 0 ? (
                 <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
-                  {lang === "en" ? "No expense data for this period" : "Sem despesas neste período"}
+                  {tx.noExpensePeriod}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
@@ -406,7 +404,7 @@ export function ReportsClient() {
               <p className="text-xs text-muted-foreground mb-4">{tx.rankingDesc} · {periodText}</p>
               {categoryData.length === 0 ? (
                 <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
-                  {lang === "en" ? "No expense data for this period" : "Sem despesas neste período"}
+                  {tx.noExpensePeriod}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
@@ -430,7 +428,7 @@ export function ReportsClient() {
             <p className="text-xs text-muted-foreground mb-4">{tx.incomeSourcesDesc} · {periodText}</p>
             {incomeData.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
-                {lang === "en" ? "No income data for this period" : "Sem receitas neste período"}
+                {tx.noIncomePeriod}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -450,15 +448,15 @@ export function ReportsClient() {
           {goals.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="glass-card p-4">
-                <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Total saved" : "Total poupado"}</p>
+                <p className="text-xs text-muted-foreground mb-1">{tx.totalSaved}</p>
                 <p className="font-display font-bold text-lg tabular-nums text-primary">{fc(totalSaved)}</p>
               </div>
               <div className="glass-card p-4">
-                <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Total target" : "Meta total"}</p>
+                <p className="text-xs text-muted-foreground mb-1">{tx.totalTargetSavings}</p>
                 <p className="font-display font-bold text-lg tabular-nums">{fc(totalTarget)}</p>
               </div>
               <div className="glass-card p-4 col-span-2 sm:col-span-1">
-                <p className="text-xs text-muted-foreground mb-1">{lang === "en" ? "Overall progress" : "Progresso geral"}</p>
+                <p className="text-xs text-muted-foreground mb-1">{tx.overallProgress}</p>
                 <p className="font-display font-bold text-lg tabular-nums text-indigo-400">
                   {totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0}%
                 </p>
@@ -476,12 +474,10 @@ export function ReportsClient() {
                   <Target size={22} className="text-indigo-400" />
                 </div>
                 <p className="text-sm font-medium text-foreground">
-                  {lang === "en" ? "No savings goals yet" : "Nenhuma meta criada ainda"}
+                  {tx.noGoalsYet}
                 </p>
                 <p className="text-xs text-muted-foreground max-w-xs">
-                  {lang === "en"
-                    ? "Create a goal in the Goals section to track your savings progress here."
-                    : "Crie uma meta na seção Metas para acompanhar seu progresso aqui."}
+                  {tx.noGoalsYetDesc}
                 </p>
               </div>
             ) : (
@@ -505,10 +501,10 @@ export function ReportsClient() {
                                 <CalendarDays size={10} className="text-muted-foreground" />
                                 <p className="text-xs text-muted-foreground">
                                   {daysLeft > 0
-                                    ? `${daysLeft} ${lang === "en" ? "days left" : "dias restantes"}`
+                                    ? `${daysLeft} ${tx.daysLeft}`
                                     : daysLeft === 0
-                                    ? (lang === "en" ? "Due today" : "Vence hoje")
-                                    : (lang === "en" ? "Overdue" : "Prazo expirado")}
+                                    ? tx.dueToday
+                                    : tx.overdue}
                                 </p>
                               </div>
                             )}

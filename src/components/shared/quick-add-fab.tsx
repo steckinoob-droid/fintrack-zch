@@ -9,12 +9,14 @@ import { suggestCategory } from "@/lib/utils/auto-categorize";
 import { toast } from "@/lib/hooks/use-toast";
 import { getCurrencySymbol } from "@/lib/utils/currency";
 import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 import type { Category } from "@/lib/types";
 import { usePathname } from "next/navigation";
 
 export function QuickAddFab() {
   const { lang, currency } = useLang();
+  const tx = appT[lang].quickAdd;
   const { refresh } = useDashboardRefresh();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -26,7 +28,7 @@ export function QuickAddFab() {
   const [saving, setSaving] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
-  const sheetTitle = lang === "en" ? "Quick add" : "Adicionar rápido";
+  const sheetTitle = tx.title;
 
   // Don't show on transactions page (it has its own quick add).
   // NOTE: this flag is computed BEFORE the early return so all hooks
@@ -65,8 +67,8 @@ export function QuickAddFab() {
       }),
     });
     setSaving(false);
-    if (!res.ok) { toast.error(lang === "en" ? "Error saving" : "Erro ao salvar"); return; }
-    toast.success(lang === "en" ? "Added!" : "Adicionada!");
+    if (!res.ok) { toast.error(tx.errorSaving); return; }
+    toast.success(tx.added);
     setTitle(""); setAmount(""); setCatId("__auto__"); setOpen(false);
     refresh();
   }
@@ -83,7 +85,7 @@ export function QuickAddFab() {
             : "bg-primary text-primary-foreground shadow-primary/30"
         )}
         style={{ bottom: "calc(72px + env(safe-area-inset-bottom, 0px))" }}
-        aria-label={lang === "en" ? "Quick add transaction" : "Adicionar transação"}
+        aria-label={tx.quickAddTransaction}
       >
         {open ? <X size={20} /> : <Plus size={22} />}
       </button>
@@ -115,7 +117,7 @@ export function QuickAddFab() {
 
           {/* Type toggle — radiogroup so SR users hear "radio, checked/not checked".
               Selecting a type still resets the chosen category (existing behavior). */}
-          <div role="radiogroup" aria-label={lang === "en" ? "Transaction type" : "Tipo de transação"} className="flex rounded-xl overflow-hidden border border-border text-sm">
+          <div role="radiogroup" aria-label={tx.transactionType} className="flex rounded-xl overflow-hidden border border-border text-sm">
             <button
               type="button"
               role="radio"
@@ -124,7 +126,7 @@ export function QuickAddFab() {
               className={cn("flex-1 py-2.5 font-semibold transition-colors",
                 type === "expense" ? "bg-red-500/20 text-red-400" : "text-muted-foreground")}
             >
-              − {lang === "en" ? "Expense" : "Despesa"}
+              − {tx.expense}
             </button>
             <button
               type="button"
@@ -134,7 +136,7 @@ export function QuickAddFab() {
               className={cn("flex-1 py-2.5 font-semibold transition-colors",
                 type === "income" ? "bg-emerald-500/20 text-emerald-400" : "text-muted-foreground")}
             >
-              + {lang === "en" ? "Income" : "Receita"}
+              + {tx.income}
             </button>
           </div>
 
@@ -146,7 +148,7 @@ export function QuickAddFab() {
               type="text"
               inputMode="decimal"
               placeholder="0,00"
-              aria-label={lang === "en" ? "Amount" : "Valor"}
+              aria-label={tx.amount}
               value={amount}
               onChange={e => setAmount(e.target.value)}
               className="w-full h-12 rounded-xl border border-border bg-background pl-10 pr-4 text-xl font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -156,8 +158,8 @@ export function QuickAddFab() {
           {/* Description */}
           <input
             type="text"
-            placeholder={lang === "en" ? "Description" : "Descrição"}
-            aria-label={lang === "en" ? "Description" : "Descrição"}
+            placeholder={tx.description}
+            aria-label={tx.description}
             value={title}
             onChange={e => setTitle(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSave()}
@@ -175,7 +177,7 @@ export function QuickAddFab() {
                     ? "bg-primary/15 border-primary/40 text-primary"
                     : "border-border text-muted-foreground hover:text-foreground")}
               >
-                {suggested ? `✓ ${suggested.name}` : (lang === "en" ? "Auto" : "Auto")}
+                {suggested ? `✓ ${suggested.name}` : tx.auto}
               </button>
               {filteredCats.slice(0, 6).map(c => (
                 <button
@@ -201,8 +203,8 @@ export function QuickAddFab() {
             className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-opacity"
           >
             {saving
-              ? <><Loader2 size={15} className="animate-spin" /> {lang === "en" ? "Saving..." : "Salvando..."}</>
-              : <><Check size={15} /> {lang === "en" ? "Add transaction" : "Adicionar transação"}</>}
+              ? <><Loader2 size={15} className="animate-spin" /> {tx.saving}</>
+              : <><Check size={15} /> {tx.addTransaction}</>}
           </button>
         </DialogContent>
       </Dialog>

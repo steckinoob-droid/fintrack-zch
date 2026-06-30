@@ -1,23 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
-import { AlertTriangle, RefreshCw, ArrowLeft } from "lucide-react";
+import { ArrowLeft, SearchX } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 
-interface Props {
-  error: Error & { digest?: string };
-  reset: () => void;
-}
-
-export default function Error({ error, reset }: Props) {
+export function NotFoundContent() {
   const { lang } = useLang();
-  const tx = appT[lang].errorPage;
-
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
+  const tx = appT[lang].notFoundPage;
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center p-4 text-center">
@@ -25,33 +16,29 @@ export default function Error({ error, reset }: Props) {
         <Logo className="mx-auto" size="lg" />
 
         <div className="space-y-2">
-          <div className="mx-auto h-20 w-20 rounded-2xl bg-red-500/10 flex items-center justify-center">
-            <AlertTriangle size={36} className="text-red-400" />
+          <div className="mx-auto h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center">
+            <SearchX size={36} className="text-muted-foreground" />
           </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">{tx.title}</h1>
+          <h1 className="font-display text-6xl font-extrabold text-foreground">404</h1>
+          <h2 className="font-display text-xl font-semibold text-foreground">{tx.heading}</h2>
           <p className="text-muted-foreground text-sm">
             {tx.description}
           </p>
-          {error.digest && (
-            <p className="text-xs text-muted-foreground/60 font-mono">
-              {tx.code} {error.digest}
-            </p>
-          )}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button
-            onClick={reset}
+          <Link
+            href="/dashboard"
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 transition-all"
           >
-            <RefreshCw size={14} /> {tx.retry}
-          </button>
-          <a
-            href="/dashboard"
+            {tx.goToDashboard}
+          </Link>
+          <Link
+            href="/"
             className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
           >
-            <ArrowLeft size={14} /> {tx.backToDashboard}
-          </a>
+            <ArrowLeft size={14} /> {tx.home}
+          </Link>
         </div>
       </div>
     </div>

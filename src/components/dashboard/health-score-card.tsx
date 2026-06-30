@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Lightbulb } from "lucide-react";
 import { calculateHealthScore } from "@/lib/utils/health-score";
 import { useLang } from "@/lib/i18n/context";
+import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
 import type { DashboardData } from "@/lib/types";
 
@@ -37,6 +38,7 @@ const CIRC = 2 * Math.PI * R;
 
 export function HealthScoreCard({ data }: { data: DashboardData }) {
   const { lang, fc } = useLang();
+  const tx = appT[lang].healthScore;
   const score = useMemo(() => calculateHealthScore(data, fc), [data, fc]);
 
   if (!score.hasData) {
@@ -47,7 +49,7 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
         </div>
         <div>
           <p className="text-sm font-semibold text-foreground">
-            {lang === "en" ? "Financial Health Score" : "Score de saúde financeira"}
+            {tx.scoreTitle}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {lang === "en" ? score.tipsEn[0]?.text : score.tips[0]?.text}
@@ -96,7 +98,7 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
         <div className="flex-1 min-w-0 pt-1">
           <div className="flex items-center gap-2 mb-0.5">
             <p className="text-sm font-semibold text-foreground">
-              {lang === "en" ? "Financial Health" : "Saúde Financeira"}
+              {tx.healthTitle}
             </p>
             <span className={cn("text-xs font-semibold px-1.5 py-0.5 rounded-md",
               score.grade === "A" ? "bg-emerald-500/15 text-emerald-400" :
@@ -109,9 +111,7 @@ export function HealthScoreCard({ data }: { data: DashboardData }) {
             </span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            {lang === "en"
-              ? "Based on savings rate, budget discipline, expense control and goals progress."
-              : "Baseado em taxa de poupança, orçamentos, controle de gastos e metas."}
+            {tx.basedOn}
           </p>
         </div>
       </div>
