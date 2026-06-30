@@ -29,6 +29,7 @@ import { toast } from "@/lib/hooks/use-toast";
 import { useLang } from "@/lib/i18n/context";
 import { appT } from "@/lib/i18n/app";
 import { cn } from "@/lib/utils/cn";
+import { devLog } from "@/lib/utils/log";
 import { usePlan } from "@/lib/hooks/use-plan";
 import { canUseFeature, isPro } from "@/lib/utils/plan-limits";
 import { UpgradeModal } from "@/components/shared/upgrade-modal";
@@ -141,7 +142,7 @@ export function TransactionsClient() {
       category: t.category_id ? catMap.get(t.category_id) : undefined,
     }));
 
-    console.log(`[load] transactions=${json.transactions.length} total=${json.total}`);
+    devLog(`[load] transactions=${json.transactions.length} total=${json.total}`);
     categoriesRef.current = json.categories;
     setTransactions(txsWithCats);
     setTotalCount(json.total);

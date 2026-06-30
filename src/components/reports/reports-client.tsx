@@ -20,6 +20,7 @@ import { ChartSkeleton } from "@/components/shared/skeleton";
 import { Target, CalendarDays, Lock, ArrowRight } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils/cn";
+import { devLog } from "@/lib/utils/log";
 import { usePlan } from "@/lib/hooks/use-plan";
 import { UpgradeModal } from "@/components/shared/upgrade-modal";
 import { ChartTooltip } from "@/components/shared/chart-tooltip";
@@ -85,7 +86,7 @@ export function ReportsClient() {
         ...t,
         category: t.category_id ? catMap.get(t.category_id) : undefined,
       }));
-      console.log("[reports] loaded", json.transactions.length, "of", json.total ?? "?", "transactions");
+      devLog("[reports] loaded", json.transactions.length, "of", json.total ?? "?", "transactions");
       setTransactions(txsWithCats);
       setGoals(goalsRes.data ?? []);
       setLoading(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { devLog } from "@/lib/utils/log";
 
 /**
  * Registers /sw.js and logs its lifecycle events to the console.
@@ -14,13 +15,13 @@ export function PwaRegister() {
     navigator.serviceWorker
       .register("/sw.js", { scope: "/" })
       .then((registration) => {
-        console.log("[pwa] service worker registered, scope:", registration.scope);
+        devLog("[pwa] service worker registered, scope:", registration.scope);
 
         // Log when a new version installs
         registration.addEventListener("updatefound", () => {
           const newWorker = registration.installing;
           newWorker?.addEventListener("statechange", () => {
-            console.log("[pwa] service worker state:", newWorker.state);
+            devLog("[pwa] service worker state:", newWorker.state);
           });
         });
       })
