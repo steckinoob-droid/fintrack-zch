@@ -276,7 +276,7 @@ export function LandingClient() {
           >
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">{tx.pain.badge}</p>
-              <h2 className="font-display text-2xl font-bold text-foreground">{tx.pain.heading}</h2>
+              <h2 className="font-display text-3xl font-bold text-foreground">{tx.pain.heading}</h2>
             </div>
             <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
               {tx.pain.items.map((pain, i) => (
